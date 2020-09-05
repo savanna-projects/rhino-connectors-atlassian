@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30320.27
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray", "Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj", "{C8F540EF-3D17-4843-8831-8AA76C46ED28}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{9D26B500-E353-480C-9631-F38B92EE69B4}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\build\azure_rhino_api.yml = ..\..\build\azure_rhino_api.yml
+		..\..\build\azure_rhino_template.yml = ..\..\build\azure_rhino_template.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documents", "Documents", "{4F96D7E6-1910-4361-97BE-6F36D5FDD712}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\README.md = ..\..\README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestSettings", "TestSettings", "{1F8AB8A2-A5D2-457D-ACBD-3CFDEAD3FCD2}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\test\azure_settings_mstest.runsettings = ..\..\test\azure_settings_mstest.runsettings
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray.UnitTests", "Rhino.Connectors.Xray.UnitTests\Rhino.Connectors.Xray.UnitTests.csproj", "{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.AtlassianClients", "Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj", "{66F1F228-A4ED-436F-9759-DBD0DE395D43}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Release|Any CPU.Build.0 = Release|Any CPU
+		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6553ECDC-8FFF-484E-AFA5-C7C05EAFFADF}
+	EndGlobalSection
+EndGlobal

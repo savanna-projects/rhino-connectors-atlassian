@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <PackageId>Rhino.Connectors.AtlassianClients</PackageId>
+    <LangVersion>latest</LangVersion>
+    <Title>Rhino Atlassian Clients - Base component for Atlassian based connectors.</Title>
+    <Authors>Rhino-API Community</Authors>
+    <Description>Base component for Atlassian based connectors.</Description>
+    <PackageTags>automation,crawling,crawl,selenium,appium,automation testing,automation test,qa,gravity,gravity api,scrapping,scrap</PackageTags>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/savanna-projects</PackageProjectUrl>
+    <NeutralLanguage>en-US</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Gravity.Abstraction.Logging" Version="2020.7.11.2" />
+    <PackageReference Include="Gravity.Extensions" Version="2020.8.10.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+  </ItemGroup>
+
+</Project>
