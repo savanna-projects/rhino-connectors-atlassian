@@ -2,11 +2,13 @@
  * CHANGE LOG - keep only last 5 threads
  * 
  * RESSOURCES
+ * https://github.com/Xray-App/xray-postman-collections
  */
 using Gravity.Abstraction.Logging;
 
 using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.Xray.Framework;
@@ -22,7 +24,7 @@ namespace Rhino.Connectors.Xray
     [Connector(Connector.JiraXRay)]
     public class XrayConnector : RhinoConnector
     {
-        #region *** Constructors ***
+        #region *** Constructors   ***
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
         /// </summary>
@@ -54,6 +56,49 @@ namespace Rhino.Connectors.Xray
 
             // connect on constructing
             Connect();
+        }
+        #endregion
+
+        #region *** Per Test Setup ***
+        /// <summary>
+        /// Performed just before each test is called.
+        /// </summary>
+        /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which is being executed.</param>
+        public override RhinoTestCase OnPreTestExecute(RhinoTestCase testCase)
+        {
+            // setup
+            testCase.Context["outcome"] = "EXECUTING";
+
+            // update
+            ProviderManager.UpdateTestResult(testCase);
+
+            // return with results
+            return testCase;
+        }
+        #endregion
+
+        #region *** Per Test Clean ***
+        /// <summary>
+        /// Performed just after each test is called.
+        /// </summary>
+        /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
+        public override RhinoTestCase OnPostTestExecute(RhinoTestCase testCase)
+        {
+            // setup
+            var outcome = testCase.Actual ? "PASS" : "FAIL";
+            if (testCase.Inconclusive)
+            {
+                outcome = "ABORTED";
+            }
+
+            // put
+            testCase.Context["outcome"] = outcome;
+
+            // update
+            ProviderManager.UpdateTestResult(testCase);
+
+            // return with results
+            return testCase;
         }
         #endregion
     }

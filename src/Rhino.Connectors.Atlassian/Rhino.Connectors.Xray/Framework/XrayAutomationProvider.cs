@@ -16,7 +16,7 @@ using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Api.Parser;
 using Rhino.Connectors.AtlassianClients;
-using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.Xray.Contracts;
 using Rhino.Connectors.Xray.Extensions;
 
 using System;
@@ -26,10 +26,12 @@ using System.ComponentModel;
 using System.Data;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+#if !DEBUG
+using System.Threading.Tasks;
+#endif
 
 using Utilities = Rhino.Api.Extensions.Utilities;
 
@@ -40,25 +42,21 @@ namespace Rhino.Connectors.Xray.Framework
     /// </summary>
     public class XrayAutomationProvider : ProviderManager
     {
-        //// constant: routing
-        //private const string ApiVersion = "latest";
-        //private const string JQLByID = "/rest/api/" + ApiVersion + "/search?jql=id={0}";
-
-        // constants
+        // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
-        //private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        //{
-        //    Formatting = Formatting.Indented,
-        //    ContractResolver = new CamelCasePropertyNamesContractResolver()
-        //};
+        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        {
+            Formatting = Formatting.Indented,
+            ContractResolver = new CamelCasePropertyNamesContractResolver()
+        };
 
         // state: global parameters
         private readonly ILogger logger;
         private readonly RhinoTestCaseFactory testCaseFactory;
         private readonly JiraClient jiraClient;
-        private readonly int bucketSize = 15;
+        private readonly int bucketSize;
 
-        #region *** Public Constants ***
+        #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
         public const string TestSetSchema = "com.xpandit.plugins.xray:test-sets-tests-custom-field";
         public const string TestCaseSchema = "com.xpandit.plugins.xray:test-sets-custom-field";
@@ -70,7 +68,7 @@ namespace Rhino.Connectors.Xray.Framework
         public const string ExecutionIssueType = "Test Execution";
         #endregion
 
-        #region *** Constructors     ***
+        #region *** Constructors      ***
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Simulator.Framework.XrayAutomationProvider.
         /// </summary>
@@ -100,21 +98,17 @@ namespace Rhino.Connectors.Xray.Framework
             // setup
             this.logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
             testCaseFactory = new RhinoTestCaseFactory(new Orbit(types), logger);
-            jiraClient = new JiraClient(new JiraAuthentication
-            {
-                AsOsUser = false,
-                Collection = "http://localhost:8080",
-                Password = "admin",
-                User = "admin",
-                Project = "XDP"
-            });
+            jiraClient = new JiraClient(configuration.GetJiraAuthentication());
+            // TODO: remove on the next Rhino.Api implementation
+            TestRun = new RhinoTestRun();
+
+            // capabilities
+            bucketSize = GetBuketSize(configuration.ProviderConfiguration.Capabilities);
+            PutIssueTypes(configuration.ProviderConfiguration.Capabilities);
         }
-        #endregion
+        #endregion        
 
-        #region *** Test Run         ***
-        #endregion
-
-        #region *** Test Cases       ***
+        #region *** GET: Test Cases   ***
         /// <summary>
         /// Returns a list of test cases for a project.
         /// </summary>
@@ -135,7 +129,11 @@ namespace Rhino.Connectors.Xray.Framework
                 }
 #endif
 #if !DEBUG
-                Parallel.ForEach(issueKeys, key => testCases.AddRange(GetTests(key)));
+                var options = new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = bucketSize
+                };
+                Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
 #endif
             }
             return testCases;
@@ -206,8 +204,8 @@ namespace Rhino.Connectors.Xray.Framework
             var type = jiraClient.GetIssueType(issueKey);
 
             // setup conditions & exit conditions
-            var isTest = type.Equals("Test", Compare);
-            var isTestSet = type.Equals("Test Set", Compare);
+            var isTest = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.TestType]}", Compare);
+            var isTestSet = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.SetType]}", Compare);
             if (!isTest && !isTestSet)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -329,5 +327,186 @@ namespace Rhino.Connectors.Xray.Framework
             return test;
         }
         #endregion
+
+        #region *** CREATE: Test Run  ***
+        /// <summary>
+        /// Creates an automation provider test run entity. Use this method to implement the automation
+        /// provider test run creation and to modify the loaded Rhino.Api.Contracts.AutomationProvider.RhinoTestRun.
+        /// </summary>
+        /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun object to modify before creating.</param>
+        /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
+        public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
+        {
+            // setup: request body
+            var customField = jiraClient.GetCustomField(TestExecutionSchema);
+            var testCases = JsonConvert.SerializeObject(testRun.TestCases.Select(i => i.Key));
+
+            // load JSON body
+            var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
+                .Replace("[project-key]", Configuration.ProviderConfiguration.Project)
+                .Replace("[run-title]", TestRun.Title)
+                .Replace("[custom-1]", customField)
+                .Replace("[tests-repository]", testCases)
+                .Replace("[assignee]", Configuration.ProviderConfiguration.User);
+            var responseBody = jiraClient.CreateIssue(requestBody);
+
+            // setup
+            testRun.Key = $"{responseBody["key"]}";
+            testRun.Link = $"{responseBody["self"]}";
+            testRun.Context["runtimeid"] = $"{responseBody["id"]}";
+
+            // test steps handler
+            foreach (var testCase in TestRun.TestCases)
+            {
+                testCase.SetRuntimeKeys(testRun.Key);
+            }
+            return testRun;
+        }
+
+        // TODO: implement persistent retry (until all done or until timeout)        
+        /// <summary>
+        /// Completes automation provider test run results, if any were missed or bypassed.
+        /// </summary>
+        /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
+        public override void CompleteTestRun(RhinoTestRun testRun)
+        {
+            // setup: failed to update
+            var inStatus = new[] { "TODO", "EXECUTING" };
+
+            // get all test keys to re-assign outcome
+            var testResults = testRun
+                .GetTests()
+                .Where(i => inStatus.Contains($"{i["status"]}"))
+                .Select(i => $"{i["key"]}");
+
+            // iterate
+            foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key)))
+            {
+                DoUpdateTestResults(testCase);
+            }
+
+            // test plan
+            AttachToTestPlan(testRun);
+        }
+
+        // TODO: implement raven v2.0 for assign test execution to test plan when available
+        private void AttachToTestPlan(RhinoTestRun testRun)
+        {
+            // attach to plan (if any)            
+            var tests = Configuration.TestsRepository.ToArray();
+            var planType = $"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.PlanType]}";
+            var plans = jiraClient
+                .GetIssues(bucketSize, issuesKeys: tests)
+                .Where(i => $"{i.SelectToken("fields.issuetype.name")}".Equals(planType, Compare))
+                .Select(i => $"{i["key"]}");
+
+            // exit conditions
+            if (!plans.Any())
+            {
+                return;
+            }
+
+            // build request
+            var requests = new List<(string Endpoint, StringContent Content)>();
+            const string endpointFormat = "/rest/raven/1.0/testplan/{0}/testexec";
+            foreach (var plan in plans)
+            {
+                var palyload = new
+                {
+                    Assignee = Configuration.ProviderConfiguration.User,
+                    Keys = new[] { testRun.Key }
+                };
+                var requestBody = JsonConvert.SerializeObject(palyload, JsonSettings);
+                var enpoint = string.Format(endpointFormat, plan);
+                var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+                requests.Add((enpoint, content));
+            }
+
+            // send
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(requests, options, request
+                => JiraClient.HttpClient.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult());
+        }
+        #endregion
+
+        #region *** PUT: Test Results ***
+        /// <summary>
+        /// Updates a single test results iteration under automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
+        public override void UpdateTestResult(RhinoTestCase testCase)
+        {
+            DoUpdateTestResults(testCase);
+        }
+        #endregion
+
+        // CAPABILITIES
+        private int GetBuketSize(IDictionary<string, object> capabilities)
+        {
+            // get bucket size value
+            if (capabilities?.ContainsKey(ProviderCapability.BucketSize) == false)
+            {
+                return 15;
+            }
+            int.TryParse($"{capabilities[ProviderCapability.BucketSize]}", out int bucketSizeOut);
+
+            // return final value
+            return bucketSizeOut == 0 ? 15 : bucketSizeOut;
+        }
+
+        private void PutIssueTypes(IDictionary<string, object> capabilities)
+        {
+            if (!capabilities.ContainsKey(XrayCapabilities.TestType))
+            {
+                capabilities[XrayCapabilities.TestType] = "Test";
+            }
+            if (!capabilities.ContainsKey(XrayCapabilities.SetType))
+            {
+                capabilities[XrayCapabilities.SetType] = "Test Set";
+            }
+            if (!capabilities.ContainsKey(XrayCapabilities.PlanType))
+            {
+                capabilities[XrayCapabilities.PlanType] = "Test Plan";
+            }
+            if (!capabilities.ContainsKey(XrayCapabilities.PreconditionsType))
+            {
+                capabilities[XrayCapabilities.PreconditionsType] = "Pre-Condition";
+            }
+        }
+
+        // UTILITIES
+        private void DoUpdateTestResults(RhinoTestCase testCase)
+        {
+            try
+            {
+                // setup
+                var notForUploadOutcomes = new[] { "TODO", "EXECUTING", "ABORTED" };
+
+                // exit conditions
+                var outcome = "TODO";
+                if (testCase.Context.ContainsKey("outcome"))
+                {
+                    outcome = $"{testCase.Context["outcome"]}";
+                }
+                testCase.SetOutcome(outcome);
+
+                // attachments
+                if (!notForUploadOutcomes.Contains(outcome.ToUpper()))
+                {
+                    testCase.UploadEvidences();
+                }
+
+                // fail message
+                if (outcome.Equals("FAIL", Compare) || testCase.Steps.Any(i => i.Exception != default))
+                {
+                    var comment = testCase.GetFailComment();
+                    testCase.PutResultComment(comment);
+                }
+            }
+            catch (Exception e) when (e != null)
+            {
+                logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
+            }
+        }
     }
 }

@@ -11,10 +11,13 @@ using Newtonsoft.Json.Linq;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Rhino.Connectors.AtlassianClients
 {
@@ -61,17 +64,18 @@ namespace Rhino.Connectors.AtlassianClients
             var apiVersion = authentication.Capabilities.ContainsKey("apiVersion")
                 ? $"{authentication.Capabilities["apiVersion"]}"
                 : "latest";
-            jqlFormat = string.Format("/rest/api/{0}/search?jql=id", apiVersion);
+            jqlFormat = string.Format("/rest/api/{0}/search?jql=", apiVersion);
             issueFormat = $"/rest/api/{apiVersion}/issue";
 
             // setup: provider authentication and base address
-            var header = $"{"admin"}:{"admin"}";
+            var header = $"{authentication.User}:{authentication.Password}";
             var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
             HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
             HttpClient.BaseAddress = new Uri(authentication.Collection);
         }
         #endregion
 
+        #region *** GET  ***
         /// <summary>
         /// Gets a Jira issue a JSON LINQ object.
         /// </summary>
@@ -79,7 +83,22 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns>JSON LINQ object representation of the issue.</returns>
         public JObject GetIssue(string issueKey)
         {
-            return DoGetIssue(issueKey);
+            return DoGetIssues(bucketSize: 1, issueKey).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Gets a Jira issue a JSON LINQ object.
+        /// </summary>
+        /// <param name="bucketSize">The number of parallel request to Jira. Each request will fetch 10 issues.</param>
+        /// <param name="issuesKeys">Issue key by which to fetch data.</param>
+        /// <returns>A collection of JSON LINQ object representation of the issue.</returns>
+        public IEnumerable<JObject> GetIssues(int bucketSize, params string[] issuesKeys)
+        {
+            // setup
+            bucketSize = bucketSize == 0 ? 4 : bucketSize;
+
+            // get issues
+            return DoGetIssues(bucketSize, issuesKeys);
         }
 
         /// <summary>
@@ -124,42 +143,143 @@ namespace Rhino.Connectors.AtlassianClients
         public string GetIssueType(string issueKey)
         {
             // get issue & validate response
-            var jsonObject = DoGetIssue(issueKey);
+            var jsonObject = DoGetIssues(bucketSize: 1, issueKey).FirstOrDefault();
 
             // extract issue type
-            return jsonObject == default ? "-1" : $"{jsonObject.SelectToken("fields.issuetype.name")}";
+            return DoGetIssueType(jsonObject);
         }
 
-        // UTILITIES
-        private JObject DoGetIssue(string issueKey)
+        /// <summary>
+        /// Gets the literal issue type as returned by Jira server.
+        /// </summary>
+        /// <param name="issueToken">Issue token by which to fetch data.</param>
+        /// <returns>The issue type as returned by Jira server.</returns>
+        public string GetIssueType(JObject issueToken)
+        {
+            return DoGetIssueType(issueToken);
+        }
+        #endregion
+
+        #region *** POST ***
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="issueBody">The request body for creating the issue.</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JObject CreateIssue(string issueBody)
+        {
+            return DoCraeteIssue($"{issueBody}");
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="issueToken">The request body for creating the issue.</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JObject CreateIssue(JObject issueToken)
+        {
+            return DoCraeteIssue($"{issueToken}");
+        }
+
+        private JObject DoCraeteIssue(string requestBody)
         {
             // constants: logging
-            const string E = "Fetching issue [{0}] returned with status code [{1}] and message [{2}]";
-            const string M = "Issue [{0}] fetched and converted into json object";
-            const string W = "Issue [{0}] was not found";
+            const string W = "Failed to the issue; response code [{0}]; reason phrase [{1}]";
+            const string M = "Issue [{0}] created.";
 
-            // compose endpoint
-            var endpoint = $"{jqlFormat}={issueKey}";
+            // get request body
+            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var response = HttpClient.PostAsync(issueFormat, content).GetAwaiter().GetResult();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.WarnFormat(W, response.StatusCode, response.ReasonPhrase);
+                return default;
+            }
+
+            // parse body
+            var responseBody = response.ToObject();
+
+            // update test run key
+            var key = responseBody["key"].ToString();
+            logger?.DebugFormat(M, key);
+
+            // results
+            return responseBody;
+        }
+        #endregion
+
+        // UTILITIES
+        private string DoGetIssueType(JObject issueToken)
+        {
+            return issueToken == default ? "-1" : $"{issueToken.SelectToken("fields.issuetype.name")}";
+        }
+
+        private IEnumerable<JObject> DoGetIssues(int bucketSize, params string[] issuesKeys)
+        {
+            // split in buckets
+            var buckets = issuesKeys.Split(10);
+
+            // build queries (groups of 10)
+            var jqls = new List<string>();
+            foreach (var bucket in buckets)
+            {
+                jqls.Add($"{jqlFormat} key in ({string.Join(",", bucket)})");
+            }
+
+            // setup
+            var objectCollection = new ConcurrentBag<JObject>();
+
+            // collect
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(jqls, options, jql =>
+            {
+                foreach (var item in GetIssuesByJql(jql))
+                {
+                    objectCollection.Add(item);
+                }
+            });
+            return objectCollection;
+        }
+
+        private IEnumerable<JObject> GetIssuesByJql(string jql)
+        {
+            // constants: logging
+            const string E = "Fetching issues [{0}] returned with status code [{1}] and message [{2}]";
+            const string M = "Issues [{0}] fetched and converted into json object";
+            const string W = "Issues [{0}] was not found";
 
             // get & verify response
-            var httpResponseMessage = HttpClient.GetAsync(endpoint).GetAwaiter().GetResult();
-            if (!httpResponseMessage.IsSuccessStatusCode)
+            var response = HttpClient.GetAsync(jql).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
             {
-                logger?.WarnFormat(E, issueKey, httpResponseMessage.StatusCode, httpResponseMessage.ReasonPhrase);
+                logger?.WarnFormat(E, jql, response.StatusCode, response.ReasonPhrase);
                 return default;
             }
 
             // parse into JObject
-            var issueToken = httpResponseMessage.ToObject()["issues"];
-            logger?.DebugFormat(M, issueKey);
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            logger?.DebugFormat(M, jql);
 
             // validate
-            if (!issueToken.Any())
+            if (!responseBody.IsJson())
             {
-                logger?.WarnFormat(W, issueKey);
-                return default;
+                logger?.WarnFormat(W, jql);
+                return Array.Empty<JObject>();
             }
-            return JObject.Parse($"{issueToken[0]}");
+
+            // deserialize
+            var obj = JObject.Parse(responseBody);
+
+            // validate
+            if (!obj.ContainsKey("issues") || !obj["issues"].Any())
+            {
+                logger?.WarnFormat(W, jql);
+                return Array.Empty<JObject>();
+            }
+
+            // parse and return
+            return obj["issues"].Select(i => JObject.Parse($"{i}"));
         }
     }
 }

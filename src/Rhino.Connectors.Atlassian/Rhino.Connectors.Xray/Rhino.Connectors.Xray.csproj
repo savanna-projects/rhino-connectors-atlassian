@@ -15,7 +15,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.9.4.3" />
+    <None Remove="Resources\create_test_execution_xray.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\create_test_execution_xray.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Rhino.Api" Version="2020.9.8.1" />
   </ItemGroup>
 
   <ItemGroup>
