@@ -15,15 +15,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Resources\create_test_execution_xray.txt" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <EmbeddedResource Include="Resources\create_bug_for_test_jira.txt" />
     <EmbeddedResource Include="Resources\create_test_execution_xray.txt" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.9.8.1" />
+    <PackageReference Include="Rhino.Api" Version="2020.9.9.1" />
   </ItemGroup>
 
   <ItemGroup>

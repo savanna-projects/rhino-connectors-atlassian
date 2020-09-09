@@ -19,7 +19,7 @@ namespace Rhino.Connectors.Xray.UnitTests
             {
                 TestsRepository = new[]
                 {
-                    "XDP-39", "XDP-128"
+                    "XDP-3"
                 },
                 Authentication = new Authentication
                 {
@@ -32,9 +32,11 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Password = "admin",
                     User = "admin",
                     Project = "XDP",
+                    BugManager = true,
                     Capabilities = new Dictionary<string, object>
                     {
-                        ["bucketSize"] = 15
+                        ["bucketSize"] = 15,
+                        ["dryRun"] = true
                     }
                 },
                 DriverParameters = new[]
@@ -42,7 +44,12 @@ namespace Rhino.Connectors.Xray.UnitTests
                     new Dictionary<string, object>
                     {
                         ["driver"] = "ChromeDriver",
-                        ["driverBinaries"] = @"D:\automation-env\web-drivers"
+                        ["driverBinaries"] = @"D:\automation-env\web-drivers",
+                        ["capabilities"] = new Dictionary<string, object>
+                        {
+                            ["build"] = "Test Build",
+                            ["project"] = "Bug Manager"
+                        }
                     }
                 },
                 ScreenshotsConfiguration = new RhinoScreenshotsConfiguration

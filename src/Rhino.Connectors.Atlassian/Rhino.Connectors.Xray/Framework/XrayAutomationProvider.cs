@@ -8,7 +8,6 @@ using Gravity.Extensions;
 using Gravity.Services.Comet;
 
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
@@ -44,17 +43,13 @@ namespace Rhino.Connectors.Xray.Framework
     {
         // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
-        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.Indented,
-            ContractResolver = new CamelCasePropertyNamesContractResolver()
-        };
 
         // state: global parameters
         private readonly ILogger logger;
         private readonly RhinoTestCaseFactory testCaseFactory;
         private readonly JiraClient jiraClient;
         private readonly int bucketSize;
+        private readonly IDictionary<string, object> capabilities;
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
@@ -99,12 +94,11 @@ namespace Rhino.Connectors.Xray.Framework
             this.logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
             testCaseFactory = new RhinoTestCaseFactory(new Orbit(types), logger);
             jiraClient = new JiraClient(configuration.GetJiraAuthentication());
-            // TODO: remove on the next Rhino.Api implementation
-            TestRun = new RhinoTestRun();
 
             // capabilities
             bucketSize = GetBuketSize(configuration.ProviderConfiguration.Capabilities);
             PutIssueTypes(configuration.ProviderConfiguration.Capabilities);
+            capabilities = configuration.ProviderConfiguration.Capabilities;
         }
         #endregion        
 
@@ -301,6 +295,9 @@ namespace Rhino.Connectors.Xray.Framework
                 return test;
             }
 
+            // setup project key
+            test.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
+
             // load test set (if available - will take the )
             var customField = jiraClient.GetCustomField(TestCaseSchema);
             var testSet = jsonObject.SelectToken($"..{customField}");
@@ -337,6 +334,13 @@ namespace Rhino.Connectors.Xray.Framework
         /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
         public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
+            // exit conditions
+            if (IsDryRun(capabilities))
+            {
+                testRun.Context["runtimeid"] = "-1";
+                return testRun;
+            }
+
             // setup: request body
             var customField = jiraClient.GetCustomField(TestExecutionSchema);
             var testCases = JsonConvert.SerializeObject(testRun.TestCases.Select(i => i.Key));
@@ -347,6 +351,7 @@ namespace Rhino.Connectors.Xray.Framework
                 .Replace("[run-title]", TestRun.Title)
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
+                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ProviderConfiguration.User);
             var responseBody = jiraClient.CreateIssue(requestBody);
 
@@ -370,6 +375,12 @@ namespace Rhino.Connectors.Xray.Framework
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
         public override void CompleteTestRun(RhinoTestRun testRun)
         {
+            // exit conditions
+            if (IsDryRun(capabilities))
+            {
+                return;
+            }
+
             // setup: failed to update
             var inStatus = new[] { "TODO", "EXECUTING" };
 
@@ -416,9 +427,9 @@ namespace Rhino.Connectors.Xray.Framework
                     Assignee = Configuration.ProviderConfiguration.User,
                     Keys = new[] { testRun.Key }
                 };
-                var requestBody = JsonConvert.SerializeObject(palyload, JsonSettings);
+                var requestBody = JsonConvert.SerializeObject(palyload, JiraClient.JsonSettings);
                 var enpoint = string.Format(endpointFormat, plan);
-                var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+                var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
                 requests.Add((enpoint, content));
             }
 
@@ -437,6 +448,65 @@ namespace Rhino.Connectors.Xray.Framework
         public override void UpdateTestResult(RhinoTestCase testCase)
         {
             DoUpdateTestResults(testCase);
+        }
+        #endregion
+
+        #region *** Bugs & Defects    ***
+        /// <summary>
+        /// Gets a list of open bugs.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to find bugs.</param>
+        /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
+        public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
+        {
+            // shortcuts
+            var bugType = $"{capabilities[XrayCapabilities.BugType]}";
+            const string typePath = "fields.issuetype.name";
+            const string statusPath = "fields.status.name";
+
+            // get test issue
+            var test = jiraClient.GetIssue(testCase.Key);
+
+            // get bugs
+            var bugsKeys = test
+                .SelectTokens("..inwardIssue")
+                .Where(i => $"{i.SelectToken(typePath)}"?.Equals(bugType) == true && $"{i.SelectToken(statusPath)}"?.Equals("Closed") != true)
+                .Select(i => $"{i["key"]}")
+                .ToArray();
+
+            // get issues
+            return jiraClient.GetIssues(bucketSize, issuesKeys: bugsKeys).Select(i => $"{i}");
+        }
+
+        /// <summary>
+        /// Creates a new bug under the specified automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider bug.</param>
+        /// <returns>The ID of the newly created entity.</returns>
+        public override string CreateBug(RhinoTestCase testCase)
+        {
+            // get bug response
+            var response = testCase.CreateBug(jiraClient);
+
+            // results
+            return response == default ? "-1" : $"{response["key"]}";
+        }
+
+        /// <summary>
+        /// Updates an existing bug (partial updates are supported, i.e. you can submit and update specific fields only).
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
+        public override void UpdateBug(RhinoTestCase testCase)
+        {
+        }
+
+        /// <summary>
+        /// Close all existing bugs.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
+        public override void CloseBugs(RhinoTestCase testCase)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 
@@ -471,6 +541,14 @@ namespace Rhino.Connectors.Xray.Framework
             if (!capabilities.ContainsKey(XrayCapabilities.PreconditionsType))
             {
                 capabilities[XrayCapabilities.PreconditionsType] = "Pre-Condition";
+            }
+            if (!capabilities.ContainsKey(XrayCapabilities.ExecutionType))
+            {
+                capabilities[XrayCapabilities.ExecutionType] = "Test Execution";
+            }
+            if (!capabilities.ContainsKey(XrayCapabilities.BugType))
+            {
+                capabilities[XrayCapabilities.BugType] = "Bug";
             }
         }
 
@@ -507,6 +585,15 @@ namespace Rhino.Connectors.Xray.Framework
             {
                 logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
             }
+        }
+
+        private bool IsDryRun(IDictionary<string, object> capabilities)
+        {
+            // setup conditions
+            var isKey = capabilities.ContainsKey(XrayCapabilities.dryRun);
+
+            // evaluate
+            return isKey && bool.TryParse($"{capabilities[XrayCapabilities.dryRun]}", out _);
         }
     }
 }

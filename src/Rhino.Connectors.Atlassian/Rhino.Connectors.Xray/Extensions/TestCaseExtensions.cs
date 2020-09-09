@@ -11,14 +11,17 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -32,12 +35,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private const string RavenRunFormat = "/rest/raven/2.0/api/testrun/{0}";
         private const string RavenAttachmentFormat = "/rest/raven/2.0/api/testrun/{0}/step/{1}/attachment";
 
-        // JSON Settings
-        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.Indented,
-            ContractResolver = new CamelCasePropertyNamesContractResolver()
-        };
+        private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
         /// <summary>
         /// Set XRay runtime ids on all steps under this RhinoTestCase.
@@ -92,8 +90,8 @@ namespace Rhino.Connectors.Xray.Extensions
             var routing = string.Format(RavenRunFormat, testCase.Context["runtimeid"]);
 
             // setup: content
-            var requestBody = JsonConvert.SerializeObject(new { Comment = comment }, JsonSettings);
-            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var requestBody = JsonConvert.SerializeObject(new { Comment = comment }, JiraClient.JsonSettings);
+            var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
 
             // update
             JiraClient.HttpClient.PutAsync(routing, content).GetAwaiter().GetResult();
@@ -125,8 +123,8 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 steps = GetUpdateRequestObject(testCase, outcome)
             };
-            var requestBody = JsonConvert.SerializeObject(request, JsonSettings);
-            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var requestBody = JsonConvert.SerializeObject(request, JiraClient.JsonSettings);
+            var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
 
             // update fields
             var route = string.Format(RavenRunFormat, $"{testCase.Context["runtimeid"]}");
@@ -169,6 +167,285 @@ namespace Rhino.Connectors.Xray.Extensions
         }
         #endregion
 
+        #region *** Bug Payload      ***
+        /// <summary>
+        /// Creates a bug based on this RhinoTestCase.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to create a bug.</param>
+        /// <returns>Bug creation results from Jira.</returns>
+        public static JObject CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
+        {
+            // setup
+            var issueBody = GetBugRequestTemplate(testCase, jiraClient);
+
+            // post
+            var response = jiraClient.CreateIssue(issueBody);
+            if(response == default)
+            {
+                return default;
+            }
+
+            // link to test case
+            jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key);
+
+            // add attachments
+            var files = GetScreenshots(testCase).ToArray();
+            jiraClient.AddAttachments($"{response["key"]}", files);
+
+            // add to context
+            testCase.Context["jiraBug"] = response;
+
+            // results
+            return response;
+        }
+
+        private static string GetBugRequestTemplate(RhinoTestCase testCase, JiraClient jiraClient)
+        {
+            // load JSON body
+            return Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_bug_for_test_jira.txt")
+                .Replace("[project-key]", $"{testCase.Context["projectKey"]}")
+                .Replace("[test-scenario]", testCase.Scenario)
+                .Replace("[test-priority]", GetPriority(testCase, jiraClient))
+                .Replace("[test-actions]", GetDescriptionMarkdown(testCase))
+                .Replace("[test-environment]", GetEnvironmentMarkdown(testCase))
+                .Replace("[test-id]", testCase.Key);
+        }
+
+        private static string GetPriority(RhinoTestCase testCase, JiraClient jiraClient)
+        {
+            // get priority token
+            var priorityData = jiraClient.GetIssueTypeFields("Bug", "priority");
+
+            // exit conditions
+            if (string.IsNullOrEmpty(priorityData))
+            {
+                return string.Empty;
+            }
+
+            // setup
+            var id = Regex.Match(input: testCase.Priority, @"\d+").Value;
+            var name = Regex.Match(input: testCase.Priority, @"(?<=\d+\s+-\s+)\w+").Value;
+
+            // extract
+            var priority = JObject
+                .Parse(priorityData)["allowedValues"]
+                .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
+
+            // results
+            return $"{priority["id"]}";
+        }
+
+        private static string GetEnvironmentMarkdown(RhinoTestCase testCase)
+        {
+            try
+            {
+                // setup
+                var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+
+                // setup conditions
+                var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
+                var isCapabilites = driverParams.ContainsKey("capabilities");
+                var isMobApp = !isWebApp
+                    && isCapabilites
+                    && ((IDictionary<string, object>)driverParams["capabilities"]).ContainsKey("app");
+
+                // get application
+                return isMobApp
+                    ? $"{((IDictionary<string, object>)driverParams["capabilities"])["app"]}"
+                    : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
+            }
+            catch (Exception e) when (e != null)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string GetDescriptionMarkdown(RhinoTestCase testCase)
+        {
+            try
+            {
+                // set header
+                var header =
+                    "\\r\\n----\\r\\n" +
+                    "*" + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
+                    "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
+                    "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
+                    "----\\r\\n";
+
+                // set steps
+                var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(GetStepMarkdown));
+
+                // results
+                return header + steps + GetPlatformMarkdown(testCase);
+            }
+            catch (Exception e) when (e != null)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string GetStepMarkdown(RhinoTestStep testStep)
+        {
+            // setup action
+            var action = "*" + testStep.Action.Replace("{", "\\\\{") + "*\\r\\n";
+
+            // setup
+            var expectedResults = Regex
+                .Split(testStep.Expected, "(\r\n|\r|\n)")
+                .Where(i => !string.IsNullOrEmpty(i) && !Regex.IsMatch(i, "(\r\n|\r|\n)"))
+                .ToArray();
+
+            var failedOn = testStep.Context.ContainsKey(ContextEntry.FailedOn)
+                ? (IEnumerable<int>)testStep.Context[ContextEntry.FailedOn]
+                : Array.Empty<int>();
+
+            // exit conditions
+            if (!failedOn.Any())
+            {
+                return action;
+            }
+
+            // build
+            var markdown = action + "||Result||Assertion||\\r\\n";
+            for (int i = 0; i < expectedResults.Length; i++)
+            {
+                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
+                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
+            }
+
+            // results
+            return markdown.Trim();
+        }
+
+        private static string GetPlatformMarkdown(RhinoTestCase testCase)
+        {
+            // setup
+            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+
+            // set header
+            var header =
+                "\\r\\n----\\r\\n" +
+                "*On Platform*: " + $"{driverParams["driver"]}\\r\\n" +
+                "----\\r\\n";
+
+            // setup conditions
+            var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
+            var isCapabilites = driverParams.ContainsKey("capabilities");
+            var isMobApp = !isWebApp
+                && isCapabilites
+                && ((IDictionary<string, object>)driverParams["capabilities"]).ContainsKey("app");
+
+            // get application
+            var application = isMobApp
+                ? ((IDictionary<string, object>)driverParams["capabilities"])["app"]
+                : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
+
+            // setup environment
+            var environment =
+                "*Application Under Test*\\r\\n" +
+                "||Name||Value||\\r\\n" +
+                "|Driver|" + $"{driverParams["driver"]}" + "|\\r\\n" +
+                "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\\r\\n" +
+                "|Application|" + application + "|\\r\\n";
+
+            var capabilites = isCapabilites
+                ? "*Capabilities*\\r\\n" + ((IDictionary<string, object>)driverParams["capabilities"]).ToXrayMarkdown() + "\\r\\n"
+                : string.Empty;
+
+            var dataSource = testCase.DataSource.Any()
+                ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToXrayMarkdown()
+                : string.Empty;
+
+            // results
+            return (header + environment + capabilites + dataSource).Trim();
+        }
+        #endregion
+
+        #region *** Bug/Test Match   ***
+        /// <summary>
+        /// Return true if a bug meta data match to test meta data.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to match to.</param>
+        /// <param name="bug">Bug JSON token to match by.</param>
+        /// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
+        public static bool IsBugMatch(this RhinoTestCase testCase, JObject bug)
+        {
+            // setup
+            var onBug = $"{bug}";
+            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+
+            // build fields
+            int.TryParse(Regex.Match(input: onBug, pattern: @"(?<=\WOn Iteration\W+)\d+").Value, out int iteration);
+            var driver = Regex.Match(input: onBug, pattern: @"(?<=\|Driver\|)\w+(?=\|)").Value;
+
+            // setup conditions
+            var isCapabilities = AssertCapabilities(testCase, onBug);
+            var isDataSource = AssertDataSource(testCase, onBug);
+            var isDriver = $"{driverParams["driver"]}".Equals(driver, Compare);
+            var isIteration = testCase.Iteration == iteration;
+
+            // assert
+            return isCapabilities && isDataSource && isDriver && isIteration;
+        }
+
+        private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
+        {
+            // setup
+            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+
+            // extract test capabilities
+            var tstCapabilities = driverParams.ContainsKey("capabilities")
+                ? ((IDictionary<string, object>)driverParams["capabilities"]).ToXrayMarkdown()
+                : string.Empty;
+
+            // normalize to markdown
+            var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
+            tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
+
+            // extract bug capabilities
+            var bugCapabilities = Regex.Match(
+                input: onBug,
+                pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
+
+            // normalize to markdown
+            var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
+            bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
+
+            // convert to data table and than to dictionary collection
+            var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+            var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+
+            // assert
+            return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
+        }
+
+        private static bool AssertDataSource(RhinoTestCase testCase, string onBug)
+        {
+            // extract test capabilities
+            var compareableTstData = testCase.DataSource?.Any() == true
+                ? testCase.DataSource.ToJson().ToUpper().Sort()
+                : string.Empty;
+
+            // extract bug capabilities
+            var bugData = Regex.Match(input: onBug, pattern: @"(?<=Local Data Source\W+\\r\\n\|\|).*(?=\|)").Value;
+
+            // normalize to markdown
+            var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
+            bugData = string.Join(Environment.NewLine, onBugData);
+
+            // convert to data table and than to dictionary collection
+            var compareableBugCapabilites = new DataTable()
+                .FromMarkDown(bugData)
+                .ToDictionary()
+                .ToJson()
+                .ToUpper()
+                .Sort();
+
+            // assert
+            return compareableBugCapabilites.Equals(compareableTstData, Compare);
+        }
+        #endregion
+
         // UTILITIES
         // execution runtime id
         private static int DoGetExecutionRuntime(RhinoTestCase testCase)
@@ -205,7 +482,7 @@ namespace Rhino.Connectors.Xray.Extensions
             foreach (var (Id, Data) in GetEvidence(testCase))
             {
                 var route = string.Format(RavenAttachmentFormat, run, Id);
-                var content = new StringContent(JsonConvert.SerializeObject(Data), Encoding.UTF8, "application/json");
+                var content = new StringContent(JsonConvert.SerializeObject(Data), Encoding.UTF8, JiraClient.MediaType);
                 JiraClient.HttpClient.PostAsync(route, content).GetAwaiter().GetResult();
             }
         }
@@ -213,10 +490,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private static IEnumerable<(long Id, IDictionary<string, object> Data)> GetEvidence(RhinoTestCase testCase)
         {
             // get screenshots
-            var screenshots = ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
-                .OrbitRequest
-                .Screenshots
-                .Select(i => i.Location);
+            var screenshots = GetScreenshots(testCase);
 
             // get for step
             var evidences = new ConcurrentBag<(long, IDictionary<string, object>)>();
@@ -232,7 +506,10 @@ namespace Rhino.Connectors.Xray.Extensions
                 // get attachment requests for test case
                 var reference = GetStepReference(((WebAutomation)testCase.Context[ContextEntry.WebAutomation]).Actions, referenceOut);
                 var evidence = GetEvidenceBody(screenshot);
-                evidences.Add(((long)testCase.Steps.ElementAt(reference).Context["runtimeid"], evidence));
+                var runtimeid = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
+                    ? (long)testCase.Steps.ElementAt(reference).Context["runtimeid"]
+                    : -1;
+                evidences.Add((runtimeid, evidence));
             }
 
             // results
@@ -290,14 +567,22 @@ namespace Rhino.Connectors.Xray.Extensions
                 .AppendLine("]")
                 .AppendLine()
                 .AppendLine("[Driver Parameters]")
-                .AppendLine(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams], JsonSettings))
+                .AppendLine(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams], JiraClient.JsonSettings))
                 .AppendLine()
                 .AppendLine("[Local Data Source]")
-                .Append(JsonConvert.SerializeObject(testCase.DataSource, JsonSettings))
+                .Append(JsonConvert.SerializeObject(testCase.DataSource, JiraClient.JsonSettings))
                 .AppendLine("{noformat}");
 
             // return
             return comment.ToString();
+        }
+
+        private static IEnumerable<string> GetScreenshots(RhinoTestCase testCase)
+        {
+            return ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
+                .OrbitRequest
+                .Screenshots
+                .Select(i => i.Location);
         }
     }
 }
