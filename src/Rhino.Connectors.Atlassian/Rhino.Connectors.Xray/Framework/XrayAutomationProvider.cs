@@ -459,23 +459,7 @@ namespace Rhino.Connectors.Xray.Framework
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
         public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
         {
-            // shortcuts
-            var bugType = $"{capabilities[XrayCapabilities.BugType]}";
-            const string typePath = "fields.issuetype.name";
-            const string statusPath = "fields.status.name";
-
-            // get test issue
-            var test = jiraClient.GetIssue(testCase.Key);
-
-            // get bugs
-            var bugsKeys = test
-                .SelectTokens("..inwardIssue")
-                .Where(i => $"{i.SelectToken(typePath)}"?.Equals(bugType) == true && $"{i.SelectToken(statusPath)}"?.Equals("Closed") != true)
-                .Select(i => $"{i["key"]}")
-                .ToArray();
-
-            // get issues
-            return jiraClient.GetIssues(bucketSize, issuesKeys: bugsKeys).Select(i => $"{i}");
+            return DoGetBugs(testCase);
         }
 
         /// <summary>
@@ -498,6 +482,7 @@ namespace Rhino.Connectors.Xray.Framework
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
         public override void UpdateBug(RhinoTestCase testCase)
         {
+
         }
 
         /// <summary>
@@ -507,6 +492,30 @@ namespace Rhino.Connectors.Xray.Framework
         public override void CloseBugs(RhinoTestCase testCase)
         {
             throw new NotImplementedException();
+        }
+
+        private IEnumerable<string> DoGetBugs(RhinoTestCase testCase)
+        {
+            // shortcuts
+            var bugType = $"{capabilities[XrayCapabilities.BugType]}";
+            const string typePath = "fields.issuetype.name";
+            const string statusPath = "fields.status.name";
+
+            // get test issue
+            var test = jiraClient.GetIssue(testCase.Key);
+
+            // get bugs
+            var bugsKeys = test
+                .SelectTokens("..inwardIssue")
+                .Where(i => $"{i.SelectToken(typePath)}"?.Equals(bugType) == true && $"{i.SelectToken(statusPath)}"?.Equals("Closed") != true)
+                .Select(i => $"{i["key"]}")
+                .ToArray();
+
+            // add to context
+            testCase.Context["bugs"] = bugsKeys;
+
+            // get issues
+            return jiraClient.GetIssues(bucketSize, issuesKeys: bugsKeys).Select(i => $"{i}");
         }
         #endregion
 

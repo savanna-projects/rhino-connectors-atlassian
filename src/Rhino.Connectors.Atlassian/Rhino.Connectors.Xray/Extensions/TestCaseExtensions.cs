@@ -11,6 +11,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 
@@ -25,6 +26,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -180,7 +182,7 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // post
             var response = jiraClient.CreateIssue(issueBody);
-            if(response == default)
+            if (response == default)
             {
                 return default;
             }
@@ -491,6 +493,13 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // get screenshots
             var screenshots = GetScreenshots(testCase);
+            var automation = GetWebAutomation(testCase);
+
+            // exit conditions
+            if (!screenshots.Any() || automation == default)
+            {
+                return Array.Empty<(long, IDictionary<string, object>)>();
+            }
 
             // get for step
             var evidences = new ConcurrentBag<(long, IDictionary<string, object>)>();
@@ -504,7 +513,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 }
 
                 // get attachment requests for test case
-                var reference = GetStepReference(((WebAutomation)testCase.Context[ContextEntry.WebAutomation]).Actions, referenceOut);
+                var reference = GetActionReference(testCase, referenceOut).Reference;
                 var evidence = GetEvidenceBody(screenshot);
                 var runtimeid = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
                     ? (long)testCase.Steps.ElementAt(reference).Context["runtimeid"]
@@ -514,19 +523,6 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // results
             return evidences;
-        }
-
-        private static int GetStepReference(IEnumerable<ActionRule> actions, int reference)
-        {
-            if (actions.ElementAt(reference).ActionType == ActionType.CloseBrowser || reference < 0)
-            {
-                return -1;
-            }
-            if (actions.ElementAt(reference).ActionType != ActionType.Assert)
-            {
-                return reference;
-            }
-            return GetStepReference(actions, reference - 1);
         }
 
         private static IDictionary<string, object> GetEvidenceBody(string screenshot)
@@ -579,10 +575,94 @@ namespace Rhino.Connectors.Xray.Extensions
 
         private static IEnumerable<string> GetScreenshots(RhinoTestCase testCase)
         {
+            // exit conditions
+            if (!testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
+            {
+                return Array.Empty<string>();
+            }
+
+            // get
             return ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
                 .OrbitRequest
                 .Screenshots
                 .Select(i => i.Location);
+        }
+
+        private static WebAutomation GetWebAutomation(RhinoTestCase testCase)
+        {
+            // exit conditions
+            if (!testCase.Context.ContainsKey(ContextEntry.WebAutomation))
+            {
+                return default;
+            }
+
+            // get
+            return (WebAutomation)testCase.Context[ContextEntry.WebAutomation];
+        }
+
+        // gets the first action reference which is not "Assert" in a given action rules collection
+        // and starting reference
+        private static (string Command, int Reference) GetActionReference(RhinoTestCase testCase, int reference)
+        {
+            // flatten
+            var actions = new List<(string Command, int Reference)>();
+            for (int i = 0; i < testCase.Steps.Count(); i++)
+            {
+                // setup
+                var onStep = testCase.Steps.ElementAt(i);
+
+                // TODO: change to SplitByLine when available
+                var assertions = Regex
+                    .Split(onStep.Expected, @"((\r)+)?(\n)+((\r)+)?")
+                    .Select(i => i.Trim())
+                    .Where(i => !string.IsNullOrEmpty(i))
+                    .Select(_ => (ActionType.Assert, i));
+
+                actions.Add((onStep.Command, i));
+                actions.AddRange(assertions);
+            }
+
+            // exit conditions
+            if (actions[reference].Command != ActionType.Assert)
+            {
+                return actions[reference];
+            }
+
+            // recurse
+            return GetActionReference(testCase, reference - 1);
+        }
+
+        // TODO: make public for testCase and testRun
+        public static int GetBucketSize(this RhinoTestCase testCase)
+        {
+            // setup
+            const int defaultBucketSize = 4;
+
+            try
+            {
+                // exit conditions
+                if (!testCase.Context.ContainsKey(ContextEntry.Configuration) && testCase.Context[ContextEntry.Configuration] != null)
+                {
+                    return defaultBucketSize;
+                }
+
+                // get bucket size
+                var configuration = (RhinoConfiguration)testCase.Context[ContextEntry.Configuration];
+
+                // exit conditions
+                if (configuration?.ProviderConfiguration?.Capabilities.ContainsKey("bucketSize") == false)
+                {
+                    return defaultBucketSize;
+                }
+
+                // parse
+                int.TryParse($"{configuration.ProviderConfiguration.Capabilities["bucketSize"]}", out int bucketOut);
+                return bucketOut == 0 ? defaultBucketSize : bucketOut;
+            }
+            catch (Exception e) when (e != null)
+            {
+                return defaultBucketSize;
+            }
         }
     }
 }

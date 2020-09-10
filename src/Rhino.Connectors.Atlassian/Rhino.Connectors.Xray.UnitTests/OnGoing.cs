@@ -36,7 +36,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Capabilities = new Dictionary<string, object>
                     {
                         ["bucketSize"] = 15,
-                        ["dryRun"] = true
+                        //["dryRun"] = true
                     }
                 },
                 DriverParameters = new[]
@@ -59,7 +59,8 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
-                    MaxParallel = 5
+                    MaxParallel = 5,
+                    Priority = 5
                 }
             };
             var c = new XrayConnector(configu).Execute();
