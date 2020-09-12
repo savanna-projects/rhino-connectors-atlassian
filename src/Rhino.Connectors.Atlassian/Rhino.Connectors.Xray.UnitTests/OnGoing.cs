@@ -3,7 +3,6 @@ using Gravity.Services.DataContracts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Connectors.Xray;
 
 using System.Collections.Generic;
 
@@ -12,14 +11,14 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-        [TestMethod]
-        public void TestMethod1()
+        //[TestMethod]
+        public void DemoConfiguration()
         {
             var configu = new RhinoConfiguration
             {
                 TestsRepository = new[]
                 {
-                    "XDP-3"
+                    "XDP-240"
                 },
                 Authentication = new Authentication
                 {
@@ -28,7 +27,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 ProviderConfiguration = new RhinoProviderConfiguration
                 {
-                    Collection= "http://localhost:8080",
+                    Collection = "http://localhost:8080",
                     Password = "admin",
                     User = "admin",
                     Project = "XDP",
@@ -63,7 +62,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Priority = 5
                 }
             };
-            var c = new XrayConnector(configu).Execute();
+            new XrayConnector(configu).Execute();
         }
     }
 }

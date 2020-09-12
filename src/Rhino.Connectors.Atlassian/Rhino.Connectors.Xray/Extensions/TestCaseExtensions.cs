@@ -14,6 +14,7 @@ using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
+using Rhino.Connectors.Xray.Contracts;
 
 using System;
 using System.Collections.Concurrent;
@@ -27,6 +28,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
+using RhinoUtilities = Rhino.Api.Extensions.Utilities;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -171,6 +174,65 @@ namespace Rhino.Connectors.Xray.Extensions
 
         #region *** Bug Payload      ***
         /// <summary>
+        /// Updates a bug based on this RhinoTestCase.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to update a bug.</param>
+        /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
+        public static bool UpdateBug(this RhinoTestCase testCase, JiraClient jiraClient, string issueKey)
+        {
+            // setup
+            var bugType = GetBugType(testCase);
+            var onBug = jiraClient.GetIssue(issueKey);
+
+            // setup conditions
+            var isDefault = onBug == default;
+            var isBug = !isDefault && $"{onBug.SelectToken("fields.issuetype.name")}".Equals(bugType, Compare);
+
+            // exit conditions
+            if (!isBug)
+            {
+                return false;
+            }
+
+            var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
+            return jiraClient.UpdateIssue(requestBody, issueKey);
+        }
+
+        private static string GetUpdateBugPayload(RhinoTestCase testCase, JObject onBug, JiraClient jiraClient)
+        {
+            // setup
+            var comment =
+                $"{RhinoUtilities.GetActionSignature("updated")} " +
+                $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
+
+            // verify if bug is already open
+            var description = $"{JObject.Parse(GetBugRequestTemplate(testCase, jiraClient)).SelectToken("fields.description")}";
+
+            // setup
+            var payload = new
+            {
+                Update = new
+                {
+                    Comment = new[]
+                    {
+                        new
+                        {
+                            Add = new
+                            {
+                                Body = comment
+                            }
+                        }
+                    }
+                },
+                Fields = new
+                {
+                    Description = description
+                }
+            };
+            return JsonConvert.SerializeObject(payload, JiraClient.JsonSettings);
+        }
+
+        /// <summary>
         /// Creates a bug based on this RhinoTestCase.
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to create a bug.</param>
@@ -188,14 +250,17 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // link to test case
-            jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key);
+            var comment =
+                $"{RhinoUtilities.GetActionSignature("created")} " +
+                $"On execution [{testCase.TestRunKey}]";
+            jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
 
             // add attachments
             var files = GetScreenshots(testCase).ToArray();
             jiraClient.AddAttachments($"{response["key"]}", files);
 
             // add to context
-            testCase.Context["jiraBug"] = response;
+            testCase.Context["bug"] = response;
 
             // results
             return response;
@@ -269,7 +334,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 // set header
                 var header =
                     "\\r\\n----\\r\\n" +
-                    "*" + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
+                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
                     "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
                     "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
                     "----\\r\\n";
@@ -360,6 +425,51 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // results
             return (header + environment + capabilites + dataSource).Trim();
+        }
+
+        /// <summary>
+        /// Close a bug based on this RhinoTestCase.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to close a bug.</param>
+        /// <param name="bugIssueKey">The bug issue key to close.</param>
+        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
+        /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
+        public static bool CloseBug(this RhinoTestCase testCase, string bugIssueKey, string resolution, JiraClient jiraClient)
+        {
+            // get existing bugs
+            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
+            var exists = bugs.Any(i => i.Equals(bugIssueKey, Compare));
+
+            // exit conditions
+            if (!exists)
+            {
+                return true;
+            }
+
+            // setup
+            var transitions = jiraClient.GetTransitions(bugIssueKey);
+            var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
+
+            // exit conditions
+            if (!transitions.Any())
+            {
+                return false;
+            }
+
+            // get transition
+            var transition = transitions.FirstOrDefault(i => i["to"].Equals("Closed", Compare));
+            if (transition == default)
+            {
+                return false;
+            }
+
+            //send transition
+            return jiraClient.Transition(
+                issueKey: bugIssueKey,
+                transitionId: transition["id"],
+                resolution: resolution,
+                comment);
         }
         #endregion
 
@@ -598,6 +708,29 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // get
             return (WebAutomation)testCase.Context[ContextEntry.WebAutomation];
+        }
+
+        // TODO: change to GetCapability value
+        private static string GetBugType(RhinoTestCase testCase)
+        {
+            // setup
+            var isKey = testCase.Context.ContainsKey(ContextEntry.Configuration);
+            var isValue = isKey && testCase.Context[ContextEntry.Configuration] != default;
+
+            // exit conditions
+            if (!isValue)
+            {
+                return default;
+            }
+
+            // setup
+            var configuration = ((RhinoConfiguration)testCase.Context[ContextEntry.Configuration]).ProviderConfiguration;
+            var isNotNull = configuration?.Capabilities != default;
+            isKey = isNotNull && configuration.Capabilities.ContainsKey(XrayCapabilities.BugType);
+            isValue = isKey && !string.IsNullOrEmpty($"{configuration.Capabilities[XrayCapabilities.BugType]}");
+
+            // results
+            return isValue ? $"{configuration.Capabilities[XrayCapabilities.BugType]}" : "Bug";
         }
 
         // gets the first action reference which is not "Assert" in a given action rules collection

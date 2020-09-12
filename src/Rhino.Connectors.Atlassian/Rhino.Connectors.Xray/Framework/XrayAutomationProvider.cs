@@ -469,11 +469,14 @@ namespace Rhino.Connectors.Xray.Framework
         /// <returns>The ID of the newly created entity.</returns>
         public override string CreateBug(RhinoTestCase testCase)
         {
-            // get bug response
-            var response = testCase.CreateBug(jiraClient);
+            // exit conditions
+            if (testCase.Actual)
+            {
+                return string.Empty;
+            }
 
-            // results
-            return response == default ? "-1" : $"{response["key"]}";
+            // create bug
+            return DoCreateBug(testCase);
         }
 
         /// <summary>
@@ -482,7 +485,30 @@ namespace Rhino.Connectors.Xray.Framework
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
         public override void UpdateBug(RhinoTestCase testCase)
         {
+            // get existing bugs
+            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
 
+            // exit conditions
+            if (bugs.All(i => string.IsNullOrEmpty(i)))
+            {
+                var isAny = DoGetBugs(testCase).Any();
+                if (!isAny && (!testCase.Actual && !testCase.Inconclusive))
+                {
+                    DoCreateBug(testCase);
+                }
+                return;
+            }
+
+            // possible duplicates
+            if (bugs.Count() > 1)
+            {
+                var onBugs = bugs.OrderBy(i => i).Skip(1);
+                DoCloseBugs(testCase, resolution: "Duplicate", bugs: onBugs);
+            }
+
+            // update
+            testCase.UpdateBug(jiraClient, issueKey: bugs.First());
         }
 
         /// <summary>
@@ -491,7 +517,33 @@ namespace Rhino.Connectors.Xray.Framework
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override void CloseBugs(RhinoTestCase testCase)
         {
-            throw new NotImplementedException();
+            // get existing bugs
+            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
+
+            // get conditions (double check for bugs)
+            if (!bugs.Any())
+            {
+                bugs = DoGetBugs(testCase);
+            }
+
+            // close bugs
+            DoCloseBugs(testCase, resolution: "Done", bugs);
+        }
+
+        private void DoCloseBugs(RhinoTestCase testCase, string resolution, IEnumerable<string> bugs)
+        {
+            // close bugs
+            foreach (var bug in bugs)
+            {
+                var isClosed = testCase.CloseBug(bugIssueKey: bug, resolution: resolution, jiraClient);
+
+                // logs
+                if (!isClosed)
+                {
+                    logger?.Error($"Was not able to close bug [{bug}] for test [{testCase.Key}].");
+                }
+            }
         }
 
         private IEnumerable<string> DoGetBugs(RhinoTestCase testCase)
@@ -516,6 +568,15 @@ namespace Rhino.Connectors.Xray.Framework
 
             // get issues
             return jiraClient.GetIssues(bucketSize, issuesKeys: bugsKeys).Select(i => $"{i}");
+        }
+
+        private string DoCreateBug(RhinoTestCase testCase)
+        {
+            // get bug response
+            var response = testCase.CreateBug(jiraClient);
+
+            // results
+            return response == default ? "-1" : $"{response["key"]}";
         }
         #endregion
 
