@@ -390,8 +390,13 @@ namespace Rhino.Connectors.Xray.Framework
                 .Where(i => inStatus.Contains($"{i["status"]}"))
                 .Select(i => $"{i["key"]}");
 
-            // iterate
-            foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key)))
+            // iterate: pass/fail
+            foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key) && !i.Inconclusive))
+            {
+                DoUpdateTestResults(testCase);
+            }
+            // iterate: inconclusive
+            foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
             {
                 DoUpdateTestResults(testCase);
             }

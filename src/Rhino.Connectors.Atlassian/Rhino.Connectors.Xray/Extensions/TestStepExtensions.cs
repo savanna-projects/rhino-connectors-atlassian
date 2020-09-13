@@ -3,16 +3,7 @@
  * 
  * RESOURCES
  */
-using Gravity.Services.DataContracts;
-
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-
 using Rhino.Api.Contracts.AutomationProvider;
-
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
