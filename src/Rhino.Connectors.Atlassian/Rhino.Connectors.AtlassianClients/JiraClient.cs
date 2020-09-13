@@ -5,6 +5,9 @@
  * https://docs.atlassian.com/software/jira/docs/api/REST/7.13.0/#api/2/issue/{issueIdOrKey}/attachments-addAttachment
  * https://stackoverflow.com/questions/21738782/does-the-jira-rest-api-require-submitting-a-transition-id-when-transitioning-an
  * https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-get
+ * 
+ * TODO: Factor HTTP Client
+ * https://stackoverflow.com/questions/51478525/httpclient-this-instance-has-already-started-one-or-more-requests-properties-ca
  */
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
@@ -90,17 +93,8 @@ namespace Rhino.Connectors.AtlassianClients
             issueFormat = $"/rest/api/{apiVersion}/issue";
             metaFormat = $"/rest/api/{apiVersion}/issue/createmeta?projectKeys={authentication.Project}&expand=projects.issuetypes.fields";
 
-            // setup: provider authentication and base address
-            var header = $"{authentication.User}:{authentication.Password}";
-            var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
-
-            // public client
-            HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
-            HttpClient.BaseAddress = new Uri(authentication.Collection);
-
-            // private client
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
-            httpClient.DefaultRequestHeaders.AddIfNotExists("X-Atlassian-Token", "no-check");
+            // setup
+            SetHttpClients(authentication);
         }
         #endregion
 
@@ -688,6 +682,40 @@ namespace Rhino.Connectors.AtlassianClients
 
             // parse and return
             return obj["issues"].Select(i => JObject.Parse($"{i}"));
+        }
+
+        private void SetHttpClients(JiraAuthentication authentication)
+        {
+            try
+            {
+                // setup: provider authentication and base address
+                var header = $"{authentication.User}:{authentication.Password}";
+                var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
+
+                // public client
+                if (HttpClient.DefaultRequestHeaders.Authorization == default)
+                {
+                    HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
+                }
+                if (HttpClient.BaseAddress == default)
+                {
+                    HttpClient.BaseAddress = new Uri(authentication.Collection);
+                }
+
+                // private client
+                if (httpClient.DefaultRequestHeaders.Authorization == default)
+                {
+                    httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
+                }
+                if (!httpClient.DefaultRequestHeaders.Contains("X-Atlassian-Token"))
+                {
+                    httpClient.DefaultRequestHeaders.AddIfNotExists("X-Atlassian-Token", "no-check");
+                }
+            }
+            catch (Exception e) when (e != null)
+            {
+                logger?.Fatal("Something went wrong with JiraClient.", e);
+            }
         }
     }
 }
