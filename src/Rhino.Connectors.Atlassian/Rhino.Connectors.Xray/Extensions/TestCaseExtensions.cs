@@ -8,10 +8,10 @@ using Gravity.Services.DataContracts;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Contracts.Interfaces;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.Xray.Contracts;
@@ -113,6 +113,130 @@ namespace Rhino.Connectors.Xray.Extensions
             return DoGetFailComment(testCase);
         }
 
+        /// <summary>
+        /// Gets a value from the capabilities dictionary under the ProviderConfiguration of this RhinoTestCase.
+        /// </summary>
+        /// <typeparam name="T">The capability type to return.</typeparam>
+        /// <param name="onContext">Context dictionary from which to get the capability.</param>
+        /// <param name="capability">The capability to get.</param>
+        /// <param name="defaultValue">The default value to get if the capability was not found.</param>
+        /// <returns>Capability value.</returns>
+        public static T GetCapability<T>(this IHasContext onContext, string capability, T defaultValue = default)
+        {
+            return DoGetCapability(onContext, capability, defaultValue);
+        }
+
+        #region *** To Issue Request ***
+        /// <summary>
+        /// Converts connector test case interface into a test management test case.
+        /// </summary>
+        /// <param name="testCase">Test case to convert</param>
+        /// <returns>Test management test case</returns>
+        public static string ToJiraXrayIssue(this RhinoTestCase testCase)
+        {
+            // exit conditions
+            ValidationXray(testCase);
+
+            // field: steps > description
+            var steps = GetSteps(testCase);
+            var description = testCase.Context.ContainsKey("description")
+                ? testCase.Context["description"]
+                : string.Empty;
+
+            // compose json
+            var payload = new Dictionary<string, object>
+            {
+                ["summary"] = testCase.Scenario,
+                ["description"] = description,
+                ["issuetype"] = new Dictionary<string, object>
+                {
+                    ["id"] = $"{testCase.Context["issuetype-id"]}"
+                },
+                ["project"] = new Dictionary<string, object>
+                {
+                    ["key"] = $"{testCase.Context["project-key"]}"
+                },
+                [$"{testCase.Context["manual-test-steps-custom-field"]}"] = new Dictionary<string, object>
+                {
+                    ["steps"] = steps
+                }
+            };
+
+            // test suite
+            if (!string.IsNullOrEmpty(testCase.TestSuite))
+            {
+                payload[$"{testCase.Context["test-sets-custom-field"]}"] = new[] { testCase.TestSuite };
+            }
+
+            // test plan
+            var testPlans = DoGetCapability(onContext: testCase, capability: XrayCapabilities.TestPlans, defaultValue: Array.Empty<string>());
+            var isTestPlan = testPlans.Length != 0 && testCase.Context.ContainsKey("test-plan-custom-field");
+            if (isTestPlan)
+            {
+                payload[$"{testCase.Context["test-plan-custom-field"]}"] = testPlans;
+            }
+            return JsonConvert.SerializeObject(new Dictionary<string, object>
+            {
+                ["fields"] = payload
+            });
+        }
+
+        private static void ValidationXray(RhinoTestCase testCase)
+        {
+            Validate(testCase.Context, "issuetype-id");
+            Validate(testCase.Context, "project-key");
+            Validate(testCase.Context, "manual-test-steps-custom-field");
+            Validate(testCase.Context, "test-sets-custom-field");
+        }
+
+        private static void Validate(IDictionary<string, object> context, string key)
+        {
+            // constants
+            const string L = "https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/";
+            const string M =
+                "TestCase.Context dictionary must have a key [{0}] with a valid value. Please check [{1}] for available values.";
+
+            // exit conditions
+            if (context.ContainsKey(key))
+            {
+                return;
+            }
+
+            // exception
+            var message = string.Format(M, key, L);
+            throw new InvalidOperationException(message) { HelpLink = L };
+        }
+
+        private static IEnumerable<IDictionary<string, object>> GetSteps(RhinoTestCase testCase)
+        {
+            var steps = new List<IDictionary<string, object>>();
+            for (int i = 0; i < testCase.Steps.Count(); i++)
+            {
+                // setup conditions
+                var isAction = !string.IsNullOrEmpty(testCase.Steps.ElementAt(i).Action);
+                if (!isAction)
+                {
+                    continue;
+                }
+
+                var onStep = testCase.Steps.ElementAt(i);
+                var step = new Dictionary<string, object>
+                {
+                    ["id"] = i + 1,
+                    ["index"] = i + 1,
+                    ["fields"] = new Dictionary<string, object>
+                    {
+                        ["Action"] = onStep.Action.Replace("{", "{{").Replace("}", "}}"),
+                        ["Expected Result"] = string.IsNullOrEmpty(onStep.Expected) ? string.Empty : onStep.Expected.Replace("{", "{{").Replace("}", "}}")
+                    }
+                };
+                // add to steps list
+                steps.Add(step);
+            }
+            return steps;
+        }
+        #endregion
+
         #region *** Set Outcome      ***
         /// <summary>
         /// Set XRay test execution results of test case by setting steps outcome.
@@ -180,7 +304,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static bool UpdateBug(this RhinoTestCase testCase, JiraClient jiraClient, string issueKey)
         {
             // setup
-            var bugType = GetBugType(testCase);
+            var bugType = DoGetCapability<string>(testCase, capability: XrayCapabilities.BugType, "Bug");
             var onBug = jiraClient.GetIssue(issueKey);
 
             // setup conditions
@@ -709,27 +833,34 @@ namespace Rhino.Connectors.Xray.Extensions
             return (WebAutomation)testCase.Context[ContextEntry.WebAutomation];
         }
 
-        // TODO: change to GetCapability value
-        private static string GetBugType(RhinoTestCase testCase)
+        // gets a capability value from test case configuration or default value if not possible
+        private static T DoGetCapability<T>(IHasContext onContext, string capability, T defaultValue = default)
         {
-            // setup
-            var isKey = testCase.Context.ContainsKey(ContextEntry.Configuration);
-            var isValue = isKey && testCase.Context[ContextEntry.Configuration] != default;
-
-            // exit conditions
-            if (!isValue)
+            try
             {
-                return default;
+                // setup
+                var isKey = onContext.Context.ContainsKey(ContextEntry.Configuration);
+                var isValue = isKey && onContext.Context[ContextEntry.Configuration] != default;
+
+                // exit conditions
+                if (!isValue)
+                {
+                    return defaultValue;
+                }
+
+                // setup
+                var configuration = ((RhinoConfiguration)onContext.Context[ContextEntry.Configuration]).ProviderConfiguration;
+                var isNotNull = configuration?.Capabilities != default;
+                isKey = isNotNull && configuration.Capabilities.ContainsKey(capability);
+                isValue = isKey && !string.IsNullOrEmpty($"{configuration.Capabilities[capability]}");
+
+                // results
+                return isValue ? (T)configuration.Capabilities[capability] : defaultValue;
             }
-
-            // setup
-            var configuration = ((RhinoConfiguration)testCase.Context[ContextEntry.Configuration]).ProviderConfiguration;
-            var isNotNull = configuration?.Capabilities != default;
-            isKey = isNotNull && configuration.Capabilities.ContainsKey(XrayCapabilities.BugType);
-            isValue = isKey && !string.IsNullOrEmpty($"{configuration.Capabilities[XrayCapabilities.BugType]}");
-
-            // results
-            return isValue ? $"{configuration.Capabilities[XrayCapabilities.BugType]}" : "Bug";
+            catch (Exception e) when (e != null)
+            {
+                return defaultValue;
+            }
         }
 
         // gets the first action reference which is not "Assert" in a given action rules collection
@@ -742,10 +873,8 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 // setup
                 var onStep = testCase.Steps.ElementAt(i);
-
-                // TODO: change to SplitByLine when available
-                var assertions = Regex
-                    .Split(onStep.Expected, @"((\r)+)?(\n)+((\r)+)?")
+                var assertions = onStep.Expected
+                    .SplitByLines()
                     .Select(i => i.Trim())
                     .Where(i => !string.IsNullOrEmpty(i))
                     .Select(_ => (ActionType.Assert, i));
@@ -762,39 +891,6 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // recurse
             return GetActionReference(testCase, reference - 1);
-        }
-
-        // TODO: make public for testCase and testRun
-        public static int GetBucketSize(this RhinoTestCase testCase)
-        {
-            // setup
-            const int defaultBucketSize = 4;
-
-            try
-            {
-                // exit conditions
-                if (!testCase.Context.ContainsKey(ContextEntry.Configuration) && testCase.Context[ContextEntry.Configuration] != null)
-                {
-                    return defaultBucketSize;
-                }
-
-                // get bucket size
-                var configuration = (RhinoConfiguration)testCase.Context[ContextEntry.Configuration];
-
-                // exit conditions
-                if (configuration?.ProviderConfiguration?.Capabilities.ContainsKey("bucketSize") == false)
-                {
-                    return defaultBucketSize;
-                }
-
-                // parse
-                int.TryParse($"{configuration.ProviderConfiguration.Capabilities["bucketSize"]}", out int bucketOut);
-                return bucketOut == 0 ? defaultBucketSize : bucketOut;
-            }
-            catch (Exception e) when (e != null)
-            {
-                return defaultBucketSize;
-            }
         }
     }
 }

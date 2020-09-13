@@ -193,8 +193,9 @@ namespace Rhino.Connectors.AtlassianClients
         /// Gets available field and values of an issue type.
         /// </summary>
         /// <param name="issueType">The issue type for which to get fields and values.</param>
+        /// <param name="path">The JSON Path to find the field.</param>
         /// <returns>Serialized field token.</returns>
-        public string GetIssueTypeFields(string issueType, string field)
+        public string GetIssueTypeFields(string issueType, string path)
         {
             // get meta
             var response = HttpClient.GetAsync(metaFormat).GetAwaiter().GetResult();
@@ -223,13 +224,13 @@ namespace Rhino.Connectors.AtlassianClients
             {
                 return string.Empty;
             }
-            else if (string.IsNullOrEmpty(field))
+            else if (string.IsNullOrEmpty(path))
             {
                 return $"{issueTypeToken}";
             }
 
             // field token
-            var issueFieldToken = issueTypeToken.SelectToken($"fields.{field}");
+            var issueFieldToken = issueTypeToken.SelectTokens(path).First();
 
             // exit conditions
             return issueFieldToken == null ? string.Empty : $"{issueFieldToken}";
@@ -583,6 +584,46 @@ namespace Rhino.Connectors.AtlassianClients
                 }
             };
             return JsonConvert.SerializeObject(dto, JsonSettings);
+        }
+
+        /// <summary>
+        /// Add comment to issue
+        /// </summary>
+        /// <param name="issueKey">Issue key on which to add comment.</param>
+        /// <param name="comment">Comment to apply.</param>
+        /// <returns><see cref="true"/> if successful; <see cref="false"/> if not.</returns>
+        public bool AddComment(string issueKey, string comment)
+        {
+            // setup
+            var payload = new
+            {
+                Update = new
+                {
+                    Comment = new[]
+                    {
+                        new
+                        {
+                            Add = new
+                            {
+                                Body = comment
+                            }
+                        }
+                    }
+                }
+            };
+            var requestBody = JsonConvert.SerializeObject(payload, JsonSettings);
+            var content = new StringContent(content: requestBody, Encoding.UTF8, MediaType);
+
+            // send
+            var endpoint = $"{issueFormat}/{issueKey}";
+            var response = HttpClient.PutAsync(endpoint, content).GetAwaiter().GetResult();
+
+            // assert
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"StatusCode = {response.StatusCode}: Was not able to add comment to issue [{issueKey}].");
+            }
+            return response.IsSuccessStatusCode;
         }
         #endregion
 

@@ -3,14 +3,14 @@
  * 
  * RESOURCES
  */
+using Gravity.Extensions;
+
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -52,9 +52,8 @@ namespace Rhino.Connectors.Xray.Extensions
                     Expected = $"{testStep["fields"]["Expected Result"]}".Replace("{{", "{").Replace("}}", "}")
                 };
 
-                // TODO: change to SplitByLine when available
                 // normalize line breaks from XRay
-                var onExpected = Regex.Split(step.Expected, @"((\r)+)?(\n)+((\r)+)?").Select(i => i.Trim()).Where(i => !string.IsNullOrEmpty(i));
+                var onExpected = step.Expected.SplitByLines();
                 step.Expected = string.Join(Environment.NewLine, onExpected);
 
                 // apply
