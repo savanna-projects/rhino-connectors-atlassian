@@ -636,7 +636,7 @@ namespace Rhino.Connectors.Xray.Framework
                 {
                     outcome = $"{testCase.Context["outcome"]}";
                 }
-                testCase.SetOutcome(outcome);
+                testCase.SetOutcome();
 
                 // attachments
                 if (!notForUploadOutcomes.Contains(outcome.ToUpper()))

@@ -22,15 +22,10 @@ namespace Rhino.Connectors.Xray.Extensions
         /// Gets an update request for XRay test case result, under a test execution entity.
         /// </summary>
         /// <param name="testStep">RhinoTestStep by which to create request.</param>
-        /// <param name="outcome">The test case out come to set for this RhinoTestStep.</param>
-        public static object GetUpdateRequest(this RhinoTestStep testStep, string outcome)
+        public static object GetUpdateRequest(this RhinoTestStep testStep)
         {
             // set outcome
             var onOutcome = testStep.Actual ? "PASS" : "FAIL";
-            if (!string.IsNullOrEmpty(outcome) && !(outcome.Equals("PASS") || outcome.Equals("FAIL")))
-            {
-                onOutcome = outcome;
-            }
 
             // set request object
             return new
@@ -42,28 +37,28 @@ namespace Rhino.Connectors.Xray.Extensions
             };
         }
 
-        // TODO: remove on next Rhino.Api update.
-        /// <summary>
-        /// Populates screenshots from steps exceptions into test steps context.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase object.</param>
-        public static void AddExceptionsScreenshot(this RhinoTestCase testCase)
-        {
-            // extract
-            var imagesCollection = ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
-                .OrbitRequest
-                .Exceptions
-                .Where(i => !string.IsNullOrEmpty(i.Screenshot) && i.Action != ActionType.Assert);
+        //// TODO: remove on next Rhino.Api update.
+        ///// <summary>
+        ///// Populates screenshots from steps exceptions into test steps context.
+        ///// </summary>
+        ///// <param name="testCase">RhinoTestCase object.</param>
+        //public static void AddExceptionsScreenshot(this RhinoTestCase testCase)
+        //{
+        //    // extract
+        //    var imagesCollection = ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
+        //        .OrbitRequest
+        //        .Exceptions
+        //        .Where(i => !string.IsNullOrEmpty(i.Screenshot) && i.Action != ActionType.Assert);
 
-            // apply
-            foreach (var image in imagesCollection)
-            {
-                if (image.ActionReference > testCase.Steps.Count())
-                {
-                    break;
-                }
-                testCase.Steps.ElementAt(image.ActionReference).Context["screenshot"] = image.Screenshot;
-            }
-        }
+        //    // apply
+        //    foreach (var image in imagesCollection)
+        //    {
+        //        if (image.ActionReference > testCase.Steps.Count())
+        //        {
+        //            break;
+        //        }
+        //        testCase.Steps.ElementAt(image.ActionReference).Context["screenshot"] = image.Screenshot;
+        //    }
+        //}
     }
 }
