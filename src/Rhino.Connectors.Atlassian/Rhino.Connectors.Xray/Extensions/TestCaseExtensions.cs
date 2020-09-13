@@ -118,15 +118,14 @@ namespace Rhino.Connectors.Xray.Extensions
         /// Set XRay test execution results of test case by setting steps outcome.
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
-        /// <param name="outcome"></param>
         /// <returns>-1 if failed to update, 0 for success.</returns>
         /// <remarks>Must contain runtimeid field in the context.</remarks>
-        public static int SetOutcome(this RhinoTestCase testCase, string outcome)
+        public static int SetOutcome(this RhinoTestCase testCase)
         {
             // get request content
             var request = new
             {
-                steps = GetUpdateRequestObject(testCase, outcome)
+                steps = GetUpdateRequestObject(testCase)
             };
             var requestBody = JsonConvert.SerializeObject(request, JiraClient.JsonSettings);
             var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
@@ -143,7 +142,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return 0;
         }
 
-        private static List<object> GetUpdateRequestObject(RhinoTestCase testCase, string outcome)
+        private static List<object> GetUpdateRequestObject(RhinoTestCase testCase)
         {
             // add exceptions images - if exists or relevant
             if (testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
@@ -155,7 +154,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var steps = new List<object>();
             foreach (var testStep in testCase.Steps)
             {
-                steps.Add(testStep.GetUpdateRequest(outcome));
+                steps.Add(testStep.GetUpdateRequest());
             }
             return steps;
         }
