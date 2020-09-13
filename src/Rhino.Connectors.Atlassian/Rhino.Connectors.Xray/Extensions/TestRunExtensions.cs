@@ -6,13 +6,11 @@
 using Gravity.Extensions;
 
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients;
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 
 namespace Rhino.Connectors.Xray.Extensions

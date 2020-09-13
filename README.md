@@ -14,3 +14,4 @@ The list of optional capabilities which you can pass with Rhino ProviderConfigur
 |bugType          |string |Bug issue type capability, if not set "Bug" is the default.                                                  |
 |dryRun           |boolean|Holds a boolean value rather or not to create Test Execution entity when running tests.                      |
 |bucketSize       |number |How many parallel requests can be sent to Jira/XRay API when executing a large number of tests. Default is 4.|
+|testPlans        |array  |Holds test plans keys. If set, when test is created it will also be associated with these test plans.        |

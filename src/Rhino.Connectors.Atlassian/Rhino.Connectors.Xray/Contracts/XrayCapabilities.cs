@@ -53,6 +53,11 @@ namespace Rhino.Connectors.Xray.Contracts
         /// Holds a boolean value rather or not to create Test Execution entity when running tests.
         /// </summary>
         [DataMember]
-        public const string dryRun = "dryRun";
+        public const string DryRun = "dryRun";
+
+        /// <summary>
+        /// Holds test plans keys. If set, when test is created it will also be associated with these test plans.
+        /// </summary>
+        public const string TestPlans = "testPlans";
     }
 }

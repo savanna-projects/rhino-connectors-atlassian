@@ -3,16 +3,7 @@
  * 
  * RESOURCES
  */
-using Gravity.Services.DataContracts;
-
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-
 using Rhino.Api.Contracts.AutomationProvider;
-
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -36,29 +27,5 @@ namespace Rhino.Connectors.Xray.Extensions
                 ActualResult = testStep.ReasonPhrase
             };
         }
-
-        //// TODO: remove on next Rhino.Api update.
-        ///// <summary>
-        ///// Populates screenshots from steps exceptions into test steps context.
-        ///// </summary>
-        ///// <param name="testCase">RhinoTestCase object.</param>
-        //public static void AddExceptionsScreenshot(this RhinoTestCase testCase)
-        //{
-        //    // extract
-        //    var imagesCollection = ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
-        //        .OrbitRequest
-        //        .Exceptions
-        //        .Where(i => !string.IsNullOrEmpty(i.Screenshot) && i.Action != ActionType.Assert);
-
-        //    // apply
-        //    foreach (var image in imagesCollection)
-        //    {
-        //        if (image.ActionReference > testCase.Steps.Count())
-        //        {
-        //            break;
-        //        }
-        //        testCase.Steps.ElementAt(image.ActionReference).Context["screenshot"] = image.Screenshot;
-        //    }
-        //}
     }
 }
