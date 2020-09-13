@@ -21,7 +21,10 @@ namespace Rhino.Connectors.Xray
     /// <summary>
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
-    [Connector(Connector.JiraXRay)]
+    [Connector(
+        value: Connector.JiraXRay,
+        Name = "Connector - Atlassian XRay, On-Premise",
+        Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
     public class XrayConnector : RhinoConnector
     {
         #region *** Constructors   ***
