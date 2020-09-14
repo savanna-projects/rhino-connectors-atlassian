@@ -52,13 +52,34 @@ namespace Rhino.Connectors.Xray
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
         public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
-            : base(configuration, types, logger)
+            : this(configuration, types, logger, connect: true)
         {
             // setup provider manager
             ProviderManager = new XrayAutomationProvider(configuration, types, logger);
 
             // connect on constructing
             Connect();
+        }
+
+        /// <summary>
+        /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
+        /// </summary>
+        /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
+        /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
+        /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
+        /// <param name="connect"><see cref="true"/> for immediately connect after construct <see cref="false"/> skip connection.</param>
+        /// <remarks>If you skip connection you must explicitly call Connect method.</remarks>
+        public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
+            : base(configuration, types, logger)
+        {
+            // setup provider manager
+            ProviderManager = new XrayAutomationProvider(configuration, types, logger);
+
+            // connect on constructing
+            if (connect)
+            {
+                Connect();
+            }
         }
         #endregion
 
