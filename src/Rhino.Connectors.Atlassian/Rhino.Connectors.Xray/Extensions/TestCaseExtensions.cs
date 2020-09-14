@@ -404,7 +404,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private static string GetPriority(RhinoTestCase testCase, JiraClient jiraClient)
         {
             // get priority token
-            var priorityData = jiraClient.GetIssueTypeFields("Bug", "priority");
+            var priorityData = jiraClient.GetIssueTypeFields("Bug", "fields.priority");
 
             // exit conditions
             if (string.IsNullOrEmpty(priorityData))
