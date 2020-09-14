@@ -3,12 +3,14 @@
  * 
  * RESOURCES
  */
+using Newtonsoft.Json.Linq;
+
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
-    internal static class DictionaryExtensions
+    public static class DictionaryExtensions
     {
         /// <summary>
         /// Gets a markdown table reflection of the provided map collection.
@@ -54,6 +56,32 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // exit conditions
             if (data.Keys.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            // build header
+            var markdown = "||Key||Value||\\r\\n";
+
+            // append rows
+            foreach (var item in data)
+            {
+                markdown += $"|{item.Key}|{item.Value}|\\r\\n";
+            }
+
+            // results
+            return markdown.Trim();
+        }
+
+        /// <summary>
+        /// Gets a markdown table reflection of the provided map collection.
+        /// </summary>
+        /// <param name="data">A JSON Object by which to create table.</param>
+        /// <returns>XRay style table.</returns>
+        public static string ToXrayMarkdown(this JObject data)
+        {
+            // exit conditions
+            if (!data.Children().Any())
             {
                 return string.Empty;
             }

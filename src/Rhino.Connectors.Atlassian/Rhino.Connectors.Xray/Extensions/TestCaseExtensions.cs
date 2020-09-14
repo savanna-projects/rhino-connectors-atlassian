@@ -27,7 +27,6 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 
 using RhinoUtilities = Rhino.Api.Extensions.Utilities;
 
@@ -538,9 +537,15 @@ namespace Rhino.Connectors.Xray.Extensions
                 "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\\r\\n" +
                 "|Application|" + application + "|\\r\\n";
 
-            var capabilites = isCapabilites
-                ? "*Capabilities*\\r\\n" + ((IDictionary<string, object>)driverParams["capabilities"]).ToXrayMarkdown() + "\\r\\n"
-                : string.Empty;
+            var capabilites = string.Empty;
+            if (isCapabilites)
+            {
+                capabilites = driverParams["capabilities"] is JObject @object
+                    ? @object.ToString(Formatting.Indented)
+                    : JsonConvert.SerializeObject(driverParams["capabilities"], Formatting.Indented);
+
+                capabilites = "*Capabilities*\\r\\n{noformat}" + capabilites + "{noformat}";
+            }
 
             var dataSource = testCase.DataSource.Any()
                 ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToXrayMarkdown()

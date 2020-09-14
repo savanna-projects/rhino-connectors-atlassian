@@ -12,7 +12,7 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-        [TestMethod]
+        //[TestMethod]
         public void DemoConfiguration()
         {
             var configu = new RhinoConfiguration
@@ -66,7 +66,7 @@ namespace Rhino.Connectors.Xray.UnitTests
             new XrayConnector(configu).Execute();
         }
 
-        [TestMethod]
+        //[TestMethod]
         public void DemoCreateTestCase()
         {
             var configu = new RhinoConfiguration
