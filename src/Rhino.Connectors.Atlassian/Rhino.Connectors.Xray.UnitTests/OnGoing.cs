@@ -60,7 +60,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
                     MaxParallel = 5,
-                    Priority = 5
+                    Priority = 5,
                 }
             };
             new XrayConnector(configu).Execute();
