@@ -11,7 +11,6 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients;
-using Rhino.Connectors.Xray.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -244,6 +243,37 @@ namespace Rhino.Connectors.Xray.Extensions
             }
         }
 
+        private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
+        {
+            return testCase.DataSource.Any()
+                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource)
+                : string.Empty;
+        }
+
+        private static string DescriptionToBugMarkdown(RhinoTestCase testCase)
+        {
+            try
+            {
+                // set header
+                var header =
+                    "\\r\\n----\\r\\n" +
+                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
+                    "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
+                    "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
+                    "----\\r\\n";
+
+                // set steps
+                var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(StepToBugMarkdown));
+
+                // results
+                return header + steps + PlatformToBugMarkdown(testCase);
+            }
+            catch (Exception e) when (e != null)
+            {
+                return string.Empty;
+            }
+        }
+
         private static string PlatformToBugMarkdown(RhinoTestCase testCase)
         {
             // setup
@@ -276,41 +306,14 @@ namespace Rhino.Connectors.Xray.Extensions
                 "|Application|" + application + "|\\r\\n";
 
             // setup capabilities
-            var capabilites = "*Capabilities*\\r\\n{noformat}" + $"{driverParams[Capabilities]}" + "{noformat}";
+            var capabilites =
+                "*Capabilities*\\r\\n" +
+                "{noformat}" +
+                $"{JsonConvert.SerializeObject(driverParams[Capabilities])}" +
+                "{noformat}";
 
             // results
             return (header + environment + capabilites).Trim();
-        }
-
-        private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
-        {
-            return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource)
-                : string.Empty;
-        }
-
-        private static string DescriptionToBugMarkdown(RhinoTestCase testCase)
-        {
-            try
-            {
-                // set header
-                var header =
-                    "\\r\\n----\\r\\n" +
-                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
-                    "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
-                    "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
-                    "----\\r\\n";
-
-                // set steps
-                var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(StepToBugMarkdown));
-
-                // results
-                return header + steps + PlatformToBugMarkdown(testCase);
-            }
-            catch (Exception e) when (e != null)
-            {
-                return string.Empty;
-            }
         }
 
         private static string DictionariesToMarkdown(IEnumerable<IDictionary<string, object>> data)
