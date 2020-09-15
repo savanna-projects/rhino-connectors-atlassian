@@ -23,7 +23,6 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -328,7 +327,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
 
             // verify if bug is already open
-            var template = GetBugRequestTemplate(testCase, jiraClient);
+            var template = testCase.BugMarkdown(jiraClient);
             var description = $"{JObject.Parse(template).SelectToken("fields.description")}";
 
             // setup
@@ -363,7 +362,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static JObject CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
         {
             // setup
-            var issueBody = GetBugRequestTemplate(testCase, jiraClient);
+            var issueBody = testCase.BugMarkdown(jiraClient);
 
             // post
             var response = jiraClient.CreateIssue(issueBody);
@@ -387,173 +386,6 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // results
             return response;
-        }
-
-        private static string GetBugRequestTemplate(RhinoTestCase testCase, JiraClient jiraClient)
-        {
-            // load JSON body
-            return Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_bug_for_test_jira.txt")
-                .Replace("[project-key]", $"{testCase.Context["projectKey"]}")
-                .Replace("[test-scenario]", testCase.Scenario)
-                .Replace("[test-priority]", GetPriority(testCase, jiraClient))
-                .Replace("[test-actions]", GetDescriptionMarkdown(testCase))
-                .Replace("[test-environment]", GetEnvironmentMarkdown(testCase))
-                .Replace("[test-id]", testCase.Key);
-        }
-
-        private static string GetPriority(RhinoTestCase testCase, JiraClient jiraClient)
-        {
-            // get priority token
-            var priorityData = jiraClient.GetIssueTypeFields("Bug", "fields.priority");
-
-            // exit conditions
-            if (string.IsNullOrEmpty(priorityData))
-            {
-                return string.Empty;
-            }
-
-            // setup
-            var id = Regex.Match(input: testCase.Priority, @"\d+").Value;
-            var name = Regex.Match(input: testCase.Priority, @"(?<=\d+\s+-\s+)\w+").Value;
-
-            // extract
-            var priority = JObject
-                .Parse(priorityData)["allowedValues"]
-                .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
-
-            // results
-            return $"{priority["id"]}";
-        }
-
-        private static string GetEnvironmentMarkdown(RhinoTestCase testCase)
-        {
-            try
-            {
-                // setup
-                var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
-
-                // setup conditions
-                var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
-                var isCapabilites = driverParams.ContainsKey("capabilities");
-                var isMobApp = !isWebApp
-                    && isCapabilites
-                    && ((IDictionary<string, object>)driverParams["capabilities"]).ContainsKey("app");
-
-                // get application
-                return isMobApp
-                    ? $"{((IDictionary<string, object>)driverParams["capabilities"])["app"]}"
-                    : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
-            }
-            catch (Exception e) when (e != null)
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string GetDescriptionMarkdown(RhinoTestCase testCase)
-        {
-            try
-            {
-                // set header
-                var header =
-                    "\\r\\n----\\r\\n" +
-                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
-                    "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
-                    "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
-                    "----\\r\\n";
-
-                // set steps
-                var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(GetStepMarkdown));
-
-                // results
-                return header + steps + GetPlatformMarkdown(testCase);
-            }
-            catch (Exception e) when (e != null)
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string GetStepMarkdown(RhinoTestStep testStep)
-        {
-            // setup action
-            var action = "*" + testStep.Action.Replace("{", "\\\\{") + "*\\r\\n";
-
-            // setup
-            var expectedResults = Regex
-                .Split(testStep.Expected, "(\r\n|\r|\n)")
-                .Where(i => !string.IsNullOrEmpty(i) && !Regex.IsMatch(i, "(\r\n|\r|\n)"))
-                .ToArray();
-
-            var failedOn = testStep.Context.ContainsKey(ContextEntry.FailedOn)
-                ? (IEnumerable<int>)testStep.Context[ContextEntry.FailedOn]
-                : Array.Empty<int>();
-
-            // exit conditions
-            if (!failedOn.Any())
-            {
-                return action;
-            }
-
-            // build
-            var markdown = action + "||Result||Assertion||\\r\\n";
-            for (int i = 0; i < expectedResults.Length; i++)
-            {
-                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
-                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
-        }
-
-        private static string GetPlatformMarkdown(RhinoTestCase testCase)
-        {
-            // setup
-            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
-
-            // set header
-            var header =
-                "\\r\\n----\\r\\n" +
-                "*On Platform*: " + $"{driverParams["driver"]}\\r\\n" +
-                "----\\r\\n";
-
-            // setup conditions
-            var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
-            var isCapabilites = driverParams.ContainsKey("capabilities");
-            var isMobApp = !isWebApp
-                && isCapabilites
-                && ((IDictionary<string, object>)driverParams["capabilities"]).ContainsKey("app");
-
-            // get application
-            var application = isMobApp
-                ? ((IDictionary<string, object>)driverParams["capabilities"])["app"]
-                : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
-
-            // setup environment
-            var environment =
-                "*Application Under Test*\\r\\n" +
-                "||Name||Value||\\r\\n" +
-                "|Driver|" + $"{driverParams["driver"]}" + "|\\r\\n" +
-                "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\\r\\n" +
-                "|Application|" + application + "|\\r\\n";
-
-            var capabilites = string.Empty;
-            if (isCapabilites)
-            {
-                capabilites = driverParams["capabilities"] is JObject @object
-                    ? @object.ToString(Formatting.Indented)
-                    : JsonConvert.SerializeObject(driverParams["capabilities"], Formatting.Indented);
-
-                capabilites = "*Capabilities*\\r\\n{noformat}" + capabilites + "{noformat}";
-            }
-
-            var dataSource = testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToXrayMarkdown()
-                : string.Empty;
-
-            // results
-            return (header + environment + capabilites + dataSource).Trim();
         }
 
         /// <summary>
