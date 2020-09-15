@@ -328,7 +328,8 @@ namespace Rhino.Connectors.Xray.Extensions
                 $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
 
             // verify if bug is already open
-            var description = $"{JObject.Parse(GetBugRequestTemplate(testCase, jiraClient)).SelectToken("fields.description")}";
+            var template = GetBugRequestTemplate(testCase, jiraClient);
+            var description = $"{JObject.Parse(template).SelectToken("fields.description")}";
 
             // setup
             var payload = new
