@@ -235,7 +235,7 @@ namespace Rhino.Connectors.Xray.Extensions
 
                 // get application
                 return isMobApp
-                    ? $"{driverParams.SelectToken("capabilities.app")}"
+                    ? JsonConvert.SerializeObject($"{driverParams.SelectToken("capabilities.app")}")
                     : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
             }
             catch (Exception e) when (e != null)
