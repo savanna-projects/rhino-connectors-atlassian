@@ -36,7 +36,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Capabilities = new Dictionary<string, object>
                     {
                         ["bucketSize"] = 15,
-                        ["dryRun"] = true
+                        ["dryRun"] = false
                     }
                 },
                 DriverParameters = new[]
