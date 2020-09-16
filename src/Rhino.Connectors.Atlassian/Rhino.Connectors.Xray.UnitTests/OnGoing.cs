@@ -49,6 +49,15 @@ namespace Rhino.Connectors.Xray.UnitTests
                         {
                             ["build"] = "Test Build",
                             ["project"] = "Bug Manager"
+                        },
+                        ["options"] = new Dictionary<string, object>
+                        {
+                            ["arguments"] = new[]
+                            {
+                                "--ignore-certificate-errors",
+                                "--disable-popup-blocking",
+                                "--incognito"
+                            }
                         }
                     }
                 },

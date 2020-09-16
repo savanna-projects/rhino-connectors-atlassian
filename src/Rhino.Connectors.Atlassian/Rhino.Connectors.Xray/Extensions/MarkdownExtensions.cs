@@ -202,7 +202,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 // get application
                 return isMobApp
                     ? $"{driverParams.SelectToken("capabilities.app")}"
-                    : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
+                    : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument.Replace(@"""", @"\""");
             }
             catch (Exception e) when (e != null)
             {
@@ -213,7 +213,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
         {
             return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource)
+                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource).Replace(@"""", @"\""")
                 : string.Empty;
         }
 
@@ -233,7 +233,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(StepToBugMarkdown));
 
                 // results
-                return header + steps;
+                return header.Replace(@"""", @"\""") + steps;
             }
             catch (Exception e) when (e != null)
             {
@@ -251,15 +251,15 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // set header
             var header =
-                "\\r\\n----\\r\\n" +
-                "*On Platform*: " + $"{driverParams["driver"]}\\r\\n" +
-                "----\\r\\n";
+                "\r\n----\r\n" +
+                "*On Platform*: " + $"{driverParams["driver"]}\r\n" +
+                "----\r\n";
 
             // setup conditions
             var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
             var isCapabilites = driverParams.ContainsKey(Capabilities);
             var isMobApp = !isWebApp && isCapabilites && driverParams.SelectToken(AppPath) != null;
-            var isOptions = driverParams.ContainsKey(Options);
+            var isOptions = driverParams.ContainsKey(Options) && driverParams.SelectToken(Options) != null;
 
             // get application
             var application = isMobApp
@@ -268,32 +268,41 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // setup environment
             var environment =
-                "*Application Under Test*\\r\\n" +
-                "||Name||Value||\\r\\n" +
-                "|Driver|" + $"{driverParams["driver"]}" + "|\\r\\n" +
-                "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\\r\\n" +
+                "*Application Under Test*\r\n" +
+                "||Name||Value||\r\n" +
+                "|Driver|" + $"{driverParams["driver"]}" + "|\r\n" +
+                "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\r\n" +
                 "|Application|" + application + "|";
 
             // setup capabilities
-            var capabilites = !isCapabilites
-                ? string.Empty
-                :
-                "\\r\\n*Capabilities*\\r\\n" +
-                "{noformat}" +
-                $"{driverParams.SelectToken(Capabilities)}"?.Replace(@"\r", @"\\r").Replace(@"\n", @"\\n").Replace(@"""", @"\""") +
-                "{noformat}";
+            var capabilites = string.Empty;
+            var capabilitesToken = driverParams.SelectToken(Capabilities);
+            if (isCapabilites && capabilitesToken != null)
+            {
+                var data = JsonConvert.DeserializeObject<IDictionary<string, object>>($"{capabilitesToken}");
+                capabilites = "\r\n*Capabilities*\r\n" + DictionaryToMarkdown(data);
+            }
 
             // setup driver options
-            var options = isOptions
-                ? string.Empty
-                :
-                "\\r\\n*Options*\\r\\n" +
-                "{noformat}" +
-                $"{driverParams.SelectToken(Options)}"?.Replace(@"\r", @"\\r").Replace(@"\n", @"\\n").Replace(@"""", @"\""") +
-                "{noformat}";
+            var options = string.Empty;
+            if (isOptions)
+            {
+                var optionsAsObject =
+                    JsonConvert.DeserializeObject<IDictionary<string, object>>($"{driverParams.SelectToken(Options)}");
+                var optionsAsStr = JsonConvert.SerializeObject(optionsAsObject, Formatting.Indented);
+
+                options =
+                    "\r\n*Options*\r\n" +
+                    "{code:json}" +
+                    $"{optionsAsStr}" +
+                    "{code}";
+            }
 
             // results
-            return (header + environment + capabilites + options).Trim();
+            var lines = Regex
+                .Split(header + environment + capabilites + options, @"((\r)+)?(\n)+((\r)+)?")
+                .Where(i => !i.StartsWith("\r") && !i.StartsWith("\n"));
+            return string.Join("\\r\\n", lines).Replace(@"""", @"\""");
         }
 
         private static string StepToBugMarkdown(RhinoTestStep testStep)
@@ -326,7 +335,7 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // results
-            return markdown.Trim();
+            return markdown.Replace(@"""", @"\""").Trim();
         }
 
         private static string DictionariesToMarkdown(IEnumerable<IDictionary<string, object>> data)
