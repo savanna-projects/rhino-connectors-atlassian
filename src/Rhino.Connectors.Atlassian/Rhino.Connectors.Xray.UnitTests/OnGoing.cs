@@ -64,7 +64,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 ScreenshotsConfiguration = new RhinoScreenshotsConfiguration
                 {
                     KeepOriginal = true,
-                    ReturnScreenshots = true
+                    ReturnScreenshots = false
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {

@@ -315,8 +315,23 @@ namespace Rhino.Connectors.Xray.Extensions
                 return false;
             }
 
+            // update body
             var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
-            return jiraClient.UpdateIssue(requestBody, issueKey);
+            var isUpdate = jiraClient.UpdateIssue(requestBody, issueKey);
+            if (!isUpdate)
+            {
+                return isUpdate;
+            }
+
+            // delete all attachments
+            jiraClient.DeleteAttachments(issueKey: $"{onBug["key"]}");
+
+            // upload new attachments
+            var files = GetScreenshots(testCase).ToArray();
+            jiraClient.AddAttachments($"{onBug["key"]}", files);
+
+            // results
+            return isUpdate;
         }
 
         private static string GetUpdateBugPayload(RhinoTestCase testCase, JObject onBug, JiraClient jiraClient)

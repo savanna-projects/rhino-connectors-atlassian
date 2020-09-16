@@ -44,6 +44,7 @@ namespace Rhino.Connectors.AtlassianClients
         private readonly string jqlFormat;
         private readonly string issueFormat;
         private readonly string metaFormat;
+        private readonly string attachmentFormat;
         private static readonly HttpClient httpClient = new HttpClient();
 
         /// <summary>
@@ -92,6 +93,7 @@ namespace Rhino.Connectors.AtlassianClients
             jqlFormat = string.Format("/rest/api/{0}/search?jql=", apiVersion);
             issueFormat = $"/rest/api/{apiVersion}/issue";
             metaFormat = $"/rest/api/{apiVersion}/issue/createmeta?projectKeys={authentication.Project}&expand=projects.issuetypes.fields";
+            attachmentFormat = $"/rest/api/{apiVersion}/attachment";
 
             // setup
             SetHttpClients(authentication);
@@ -652,7 +654,46 @@ namespace Rhino.Connectors.AtlassianClients
         }
         #endregion
 
+        #region *** DELETE       ***
+        /// <summary>
+        /// Remove an attachment from an issue.
+        /// </summary>
+        /// <param name="issueKey">The issue key by which to remove attachments.</param>
+        public void DeleteAttachments(string issueKey)
+        {
+            DoDeleteAttachments(issueKey, bucketSize: 4);
+        }
+
+        /// <summary>
+        /// Remove an attachment from an issue.
+        /// </summary>
+        /// <param name="issueKey">The issue key by which to remove attachments.</param>
+        /// <param name="bucketSize">The number of parallel request to Jira. Each request will delete 1 attachment.</param>
+        public void DeleteAttachments(string issueKey, int bucketSize)
+        {
+            DoDeleteAttachments(issueKey, bucketSize);
+        }
+        #endregion
+
         // UTILITIES
+        private JObject DoGetIssue(string issueKey, string queryString)
+        {
+            // setup
+            var endpoint = $"{issueFormat}/{issueKey}{queryString}";
+
+            // get
+            var response = HttpClient.GetAsync(endpoint).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Was not able to get issue {issueKey}{queryString}; Reason [{response.ReasonPhrase}]");
+                return default;
+            }
+
+            // parse
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JObject.Parse(responseBody);
+        }
+
         private string DoGetIssueType(JObject issueToken)
         {
             return issueToken == default ? "-1" : $"{issueToken.SelectToken("fields.issuetype.name")}";
@@ -723,6 +764,37 @@ namespace Rhino.Connectors.AtlassianClients
 
             // parse and return
             return obj["issues"].Select(i => JObject.Parse($"{i}"));
+        }
+
+        private void DoDeleteAttachments(string issueKey, int bucketSize)
+        {
+            // get issue
+            var issue = DoGetIssue(issueKey, queryString: "?fields=attachment");
+            if (issue == default)
+            {
+                logger?.Warn($"Issue {issueKey} was not found.");
+                return;
+            }
+
+            // check for attachments
+            var attachments = issue.SelectToken("fields.attachment");
+            if (attachments?.Any() != true)
+            {
+                logger?.Warn($"Issue {issueKey} have no attachments.");
+                return;
+            }
+
+            // build
+            var deleteRequests = new List<string>();
+            foreach (var attachment in attachments)
+            {
+                deleteRequests.Add($"{attachmentFormat}/{attachment["id"]}");
+            }
+
+            // delete
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(deleteRequests, options, deleteRequest
+                => HttpClient.DeleteAsync(deleteRequest).GetAwaiter().GetResult());
         }
 
         private void SetHttpClients(JiraAuthentication authentication)
