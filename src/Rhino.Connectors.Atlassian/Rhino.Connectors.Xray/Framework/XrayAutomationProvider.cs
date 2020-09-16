@@ -714,9 +714,11 @@ namespace Rhino.Connectors.Xray.Framework
         {
             // setup conditions
             var isKey = capabilities.ContainsKey(XrayCapabilities.DryRun);
+            var value = isKey ? $"{capabilities[XrayCapabilities.DryRun]}" : "false";
 
             // evaluate
-            return isKey && bool.TryParse($"{capabilities[XrayCapabilities.DryRun]}", out _);
+            bool.TryParse(value, out bool dryRunOut);
+            return isKey && dryRunOut;
         }
     }
 }
