@@ -161,39 +161,6 @@ namespace Rhino.Connectors.Xray.Extensions
         #endregion
 
         // UTILITIES
-        private static string StepToBugMarkdown(RhinoTestStep testStep)
-        {
-            // setup action
-            var action = "*" + testStep.Action.Replace("{", "\\\\{") + "*\\r\\n";
-
-            // setup
-            var expectedResults = Regex
-                .Split(testStep.Expected, "(\r\n|\r|\n)")
-                .Where(i => !string.IsNullOrEmpty(i) && !Regex.IsMatch(i, "(\r\n|\r|\n)"))
-                .ToArray();
-
-            var failedOn = testStep.Context.ContainsKey(ContextEntry.FailedOn)
-                ? (IEnumerable<int>)testStep.Context[ContextEntry.FailedOn]
-                : Array.Empty<int>();
-
-            // exit conditions
-            if (!failedOn.Any())
-            {
-                return action;
-            }
-
-            // build
-            var markdown = action + "||Result||Assertion||\\r\\n";
-            for (int i = 0; i < expectedResults.Length; i++)
-            {
-                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
-                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
-        }
-
         private static string PriorityToBugMarkdown(RhinoTestCase testCase, JiraClient jiraClient)
         {
             // get priority token
@@ -266,7 +233,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(StepToBugMarkdown));
 
                 // results
-                return header + steps + PlatformToBugMarkdown(testCase);
+                return header + steps;
             }
             catch (Exception e) when (e != null)
             {
@@ -278,6 +245,7 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // setup
             const string Capabilities = "capabilities";
+            const string Options = "options";
             const string AppPath = "capabilities.app";
             var driverParams = JObject.Parse(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams]));
 
@@ -291,6 +259,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
             var isCapabilites = driverParams.ContainsKey(Capabilities);
             var isMobApp = !isWebApp && isCapabilites && driverParams.SelectToken(AppPath) != null;
+            var isOptions = driverParams.ContainsKey(Options);
 
             // get application
             var application = isMobApp
@@ -303,17 +272,53 @@ namespace Rhino.Connectors.Xray.Extensions
                 "||Name||Value||\\r\\n" +
                 "|Driver|" + $"{driverParams["driver"]}" + "|\\r\\n" +
                 "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\\r\\n" +
-                "|Application|" + application + "|\\r\\n";
+                "|Application|" + application + "|";
 
             // setup capabilities
-            var capabilites =
-                "*Capabilities*\\r\\n" +
-                "{noformat}" +
-                $"{JsonConvert.SerializeObject(driverParams[Capabilities])}" +
-                "{noformat}";
+            var capabilites = isCapabilites
+                ? "\\r\\n*Capabilities*\\r\\n{noformat}" + $"{driverParams.SelectToken(Capabilities)}"?.Replace(@"""", @"\""") + "{noformat}"
+                : string.Empty;
+
+            // setup driver options
+            var options = isOptions
+                ? "\\r\\n*Options*\\r\\n{noformat}" + $"{driverParams.SelectToken(Options)}"?.Replace(@"""", @"\""") + "{noformat}"
+                : string.Empty;
 
             // results
-            return (header + environment + capabilites).Trim();
+            return (header + environment + capabilites + options).Trim();
+        }
+
+        private static string StepToBugMarkdown(RhinoTestStep testStep)
+        {
+            // setup action
+            var action = "*" + testStep.Action.Replace("{", "\\\\{") + "*\\r\\n";
+
+            // setup
+            var expectedResults = Regex
+                .Split(testStep.Expected, "(\r\n|\r|\n)")
+                .Where(i => !string.IsNullOrEmpty(i) && !Regex.IsMatch(i, "(\r\n|\r|\n)"))
+                .ToArray();
+
+            var failedOn = testStep.Context.ContainsKey(ContextEntry.FailedOn)
+                ? (IEnumerable<int>)testStep.Context[ContextEntry.FailedOn]
+                : Array.Empty<int>();
+
+            // exit conditions
+            if (!failedOn.Any())
+            {
+                return action;
+            }
+
+            // build
+            var markdown = action + "||Result||Assertion||\\r\\n";
+            for (int i = 0; i < expectedResults.Length; i++)
+            {
+                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
+                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
+            }
+
+            // results
+            return markdown.Trim();
         }
 
         private static string DictionariesToMarkdown(IEnumerable<IDictionary<string, object>> data)
