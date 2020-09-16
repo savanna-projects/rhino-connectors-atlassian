@@ -275,14 +275,22 @@ namespace Rhino.Connectors.Xray.Extensions
                 "|Application|" + application + "|";
 
             // setup capabilities
-            var capabilites = isCapabilites
-                ? "\\r\\n*Capabilities*\\r\\n{noformat}" + $"{driverParams.SelectToken(Capabilities)}"?.Replace(@"""", @"\""") + "{noformat}"
-                : string.Empty;
+            var capabilites = !isCapabilites
+                ? string.Empty
+                :
+                "\\r\\n*Capabilities*\\r\\n" +
+                "{noformat}" +
+                $"{driverParams.SelectToken(Capabilities)}"?.Replace(@"\r", @"\\r").Replace(@"\n", @"\\n").Replace(@"""", @"\""") +
+                "{noformat}";
 
             // setup driver options
             var options = isOptions
-                ? "\\r\\n*Options*\\r\\n{noformat}" + $"{driverParams.SelectToken(Options)}"?.Replace(@"""", @"\""") + "{noformat}"
-                : string.Empty;
+                ? string.Empty
+                :
+                "\\r\\n*Options*\\r\\n" +
+                "{noformat}" +
+                $"{driverParams.SelectToken(Options)}"?.Replace(@"\r", @"\\r").Replace(@"\n", @"\\n").Replace(@"""", @"\""") +
+                "{noformat}";
 
             // results
             return (header + environment + capabilites + options).Trim();
