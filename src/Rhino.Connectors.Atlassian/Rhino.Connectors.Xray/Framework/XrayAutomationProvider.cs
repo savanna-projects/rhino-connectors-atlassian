@@ -452,6 +452,9 @@ namespace Rhino.Connectors.Xray.Framework
 
             // test plan
             AttachToTestPlan(testRun);
+
+            // close
+            testRun.Close(jiraClient, resolution: "Done");
         }
 
         // TODO: implement raven v2.0 for assign test execution to test plan when available
