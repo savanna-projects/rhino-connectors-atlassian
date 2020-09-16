@@ -12,7 +12,7 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-        //[TestMethod]
+        [TestMethod]
         public void DemoConfiguration()
         {
             var configu = new RhinoConfiguration
@@ -49,13 +49,22 @@ namespace Rhino.Connectors.Xray.UnitTests
                         {
                             ["build"] = "Test Build",
                             ["project"] = "Bug Manager"
+                        },
+                        ["options"] = new Dictionary<string, object>
+                        {
+                            ["arguments"] = new[]
+                            {
+                                "--ignore-certificate-errors",
+                                "--disable-popup-blocking",
+                                "--incognito"
+                            }
                         }
                     }
                 },
                 ScreenshotsConfiguration = new RhinoScreenshotsConfiguration
                 {
                     KeepOriginal = true,
-                    ReturnScreenshots = true
+                    ReturnScreenshots = false
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {

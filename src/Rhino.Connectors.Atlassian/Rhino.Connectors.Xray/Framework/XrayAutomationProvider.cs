@@ -307,6 +307,16 @@ namespace Rhino.Connectors.Xray.Framework
                 test.TestSuite = $"{testSet.First}";
             }
 
+            // load test-plans if any
+            customField = jiraClient.GetCustomField(AssociatedPlanSchema);
+            var testPlans = jsonObject.SelectToken($"..{customField}");
+            var onTestPlans = new List<string>();
+            foreach (var testPlan in testPlans)
+            {
+                onTestPlans.Add($"{testPlan}");
+            }
+            test.Context["testPlans"] = onTestPlans.Count > 0 ? onTestPlans : new List<string>();
+
             // load data-sources (multiple preconditions data loading)
             customField = jiraClient.GetCustomField(PreconditionSchema);
             var preconditions = jsonObject.SelectToken($"..{customField}");
@@ -447,13 +457,8 @@ namespace Rhino.Connectors.Xray.Framework
         // TODO: implement raven v2.0 for assign test execution to test plan when available
         private void AttachToTestPlan(RhinoTestRun testRun)
         {
-            // attach to plan (if any)            
-            var tests = Configuration.TestsRepository.ToArray();
-            var planType = $"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.PlanType]}";
-            var plans = jiraClient
-                .GetIssues(bucketSize, issuesKeys: tests)
-                .Where(i => $"{i.SelectToken("fields.issuetype.name")}".Equals(planType, Compare))
-                .Select(i => $"{i["key"]}");
+            // attach to plan (if any)
+            var plans = testRun.TestCases.SelectMany(i => (List<string>)i.Context["testPlans"]).Distinct();
 
             // exit conditions
             if (!plans.Any())
