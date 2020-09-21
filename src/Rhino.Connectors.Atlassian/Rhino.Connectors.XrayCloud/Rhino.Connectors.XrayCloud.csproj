@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Rhino.Api" Version="2020.9.13.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj" />
+  </ItemGroup>
+
+</Project>
