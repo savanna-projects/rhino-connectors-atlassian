@@ -14,7 +14,7 @@ using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Contracts.Interfaces;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
-using Rhino.Connectors.Xray.Contracts;
+using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Concurrent;
@@ -167,7 +167,7 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // test plan
-            var testPlans = DoGetCapability(onContext: testCase, capability: XrayCapabilities.TestPlans, defaultValue: Array.Empty<string>());
+            var testPlans = DoGetCapability(onContext: testCase, capability: AtlassianCapabilities.TestPlans, defaultValue: Array.Empty<string>());
             var isTestPlan = testPlans.Length != 0 && testCase.Context.ContainsKey("test-plan-custom-field");
             if (isTestPlan)
             {
@@ -302,7 +302,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static bool UpdateBug(this RhinoTestCase testCase, JiraClient jiraClient, string issueKey)
         {
             // setup
-            var bugType = DoGetCapability<string>(testCase, capability: XrayCapabilities.BugType, "Bug");
+            var bugType = DoGetCapability<string>(testCase, capability: AtlassianCapabilities.BugType, "Bug");
             var onBug = jiraClient.GetIssue(issueKey);
 
             // setup conditions

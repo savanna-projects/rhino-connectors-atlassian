@@ -13,7 +13,7 @@ using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
-using Rhino.Connectors.Xray.Contracts;
+using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.Xray.Extensions;
 
 using System;
@@ -159,7 +159,7 @@ namespace Rhino.Connectors.Xray.Framework
         }
 
         // process test cases & test sets based on associated test set 
-        [Description(XrayCapabilities.PlanType)]
+        [Description(AtlassianCapabilities.PlanType)]
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
             // constants: logging
@@ -199,8 +199,8 @@ namespace Rhino.Connectors.Xray.Framework
             var type = jiraClient.GetIssueType(issueKey);
 
             // setup conditions & exit conditions
-            var isTest = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.TestType]}", Compare);
-            var isTestSet = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.SetType]}", Compare);
+            var isTest = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}", Compare);
+            var isTestSet = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.SetType]}", Compare);
             if (!isTest && !isTestSet)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -211,14 +211,14 @@ namespace Rhino.Connectors.Xray.Framework
         }
 
         // process test cases based on associated test set
-        [Description(XrayCapabilities.SetType)]
+        [Description(AtlassianCapabilities.SetType)]
         private IEnumerable<RhinoTestCase> GetBySet(string issueKey)
         {
             return DoGetBySet(issueKey);
         }
 
         // process test cases based on associated test set
-        [Description(XrayCapabilities.ExecutionType)]
+        [Description(AtlassianCapabilities.ExecutionType)]
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
             // constants: logging
@@ -247,7 +247,7 @@ namespace Rhino.Connectors.Xray.Framework
         }
 
         // process a single test
-        [Description(XrayCapabilities.TestType)]
+        [Description(AtlassianCapabilities.TestType)]
         private IEnumerable<RhinoTestCase> GetByTest(string issueKey)
         {
             // setup
@@ -349,7 +349,7 @@ namespace Rhino.Connectors.Xray.Framework
 
             // shortcuts
             var onProject = Configuration.ProviderConfiguration.Project;
-            var testType = $"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.TestType]}";
+            var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(issueType: testType, path: "id")}";
@@ -400,7 +400,7 @@ namespace Rhino.Connectors.Xray.Framework
                 .Replace("[run-title]", TestRun.Title)
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
-                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[XrayCapabilities.ExecutionType]}")
+                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ProviderConfiguration.User);
             var responseBody = jiraClient.CreateIssue(requestBody);
 
@@ -602,7 +602,7 @@ namespace Rhino.Connectors.Xray.Framework
         private IEnumerable<string> DoGetBugs(RhinoTestCase testCase)
         {
             // shortcuts
-            var bugType = $"{capabilities[XrayCapabilities.BugType]}";
+            var bugType = $"{capabilities[AtlassianCapabilities.BugType]}";
             const string typePath = "fields.issuetype.name";
             const string statusPath = "fields.status.name";
 
@@ -649,29 +649,29 @@ namespace Rhino.Connectors.Xray.Framework
 
         private void PutIssueTypes(IDictionary<string, object> capabilities)
         {
-            if (!capabilities.ContainsKey(XrayCapabilities.TestType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.TestType))
             {
-                capabilities[XrayCapabilities.TestType] = "Test";
+                capabilities[AtlassianCapabilities.TestType] = "Test";
             }
-            if (!capabilities.ContainsKey(XrayCapabilities.SetType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.SetType))
             {
-                capabilities[XrayCapabilities.SetType] = "Test Set";
+                capabilities[AtlassianCapabilities.SetType] = "Test Set";
             }
-            if (!capabilities.ContainsKey(XrayCapabilities.PlanType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.PlanType))
             {
-                capabilities[XrayCapabilities.PlanType] = "Test Plan";
+                capabilities[AtlassianCapabilities.PlanType] = "Test Plan";
             }
-            if (!capabilities.ContainsKey(XrayCapabilities.PreconditionsType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.PreconditionsType))
             {
-                capabilities[XrayCapabilities.PreconditionsType] = "Pre-Condition";
+                capabilities[AtlassianCapabilities.PreconditionsType] = "Pre-Condition";
             }
-            if (!capabilities.ContainsKey(XrayCapabilities.ExecutionType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.ExecutionType))
             {
-                capabilities[XrayCapabilities.ExecutionType] = "Test Execution";
+                capabilities[AtlassianCapabilities.ExecutionType] = "Test Execution";
             }
-            if (!capabilities.ContainsKey(XrayCapabilities.BugType))
+            if (!capabilities.ContainsKey(AtlassianCapabilities.BugType))
             {
-                capabilities[XrayCapabilities.BugType] = "Bug";
+                capabilities[AtlassianCapabilities.BugType] = "Bug";
             }
         }
 
@@ -713,8 +713,8 @@ namespace Rhino.Connectors.Xray.Framework
         private bool IsDryRun(IDictionary<string, object> capabilities)
         {
             // setup conditions
-            var isKey = capabilities.ContainsKey(XrayCapabilities.DryRun);
-            var value = isKey ? $"{capabilities[XrayCapabilities.DryRun]}" : "false";
+            var isKey = capabilities.ContainsKey(AtlassianCapabilities.DryRun);
+            var value = isKey ? $"{capabilities[AtlassianCapabilities.DryRun]}" : "false";
 
             // evaluate
             bool.TryParse(value, out bool dryRunOut);

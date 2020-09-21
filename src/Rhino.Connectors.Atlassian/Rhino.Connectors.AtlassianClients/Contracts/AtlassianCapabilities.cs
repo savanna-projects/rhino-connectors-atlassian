@@ -5,13 +5,13 @@
  */
 using System.Runtime.Serialization;
 
-namespace Rhino.Connectors.Xray.Contracts
+namespace Rhino.Connectors.AtlassianClients.Contracts
 {
     /// <summary>
     /// Constants for XRay Connector capabilities
     /// </summary>
     [DataContract]
-    public static class XrayCapabilities
+    public static class AtlassianCapabilities
     {
         /// <summary>
         /// Test case issue type capability, if not set "Test" is the default.
@@ -58,6 +58,7 @@ namespace Rhino.Connectors.Xray.Contracts
         /// <summary>
         /// Holds test plans keys. If set, when test is created it will also be associated with these test plans.
         /// </summary>
+        [DataMember]
         public const string TestPlans = "testPlans";
     }
 }
