@@ -2,7 +2,10 @@
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
+using Newtonsoft.Json.Linq;
+
 using Rhino.Api;
+using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
@@ -14,11 +17,9 @@ using Rhino.Connectors.Xray.Cloud.Extensions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -72,6 +73,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             // capabilities
             bucketSize = configuration.GetBuketSize();
             configuration.PutIssueTypes();
+            capabilities = configuration.ProviderConfiguration.Capabilities;
         }
         #endregion
 
@@ -83,111 +85,215 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         /// <returns>A collection of Rhino.Api.Contracts.AutomationProvider.RhinoTestCase</returns>
         public override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
         {
+            // setup: issues map
+            var map = new ConcurrentDictionary<string, string>();
+
+            // build issues map
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(ids, options, id => map[id] = jiraClient.GetIssueType(issueKey: id));
+
+            // entities
+            var byTests = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare)).Select(i => i.Key);
+            var bySets = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare)).Select(i => i.Key);
+            var byPlans = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.PlanType]}", Compare)).Select(i => i.Key);
+
             // setup
             var testCases = new ConcurrentBag<RhinoTestCase>();
 
-            // iterate - one by one on debug, parallel on production
-            foreach (var issueKeys in ids.Split(bucketSize))
+            // get and apply
+            var onTestCases = GetByTests(byTests.ToArray());
+            testCases.AddRange(onTestCases);
+
+            onTestCases = GetBySets(bySets.ToArray());
+            testCases.AddRange(onTestCases);
+
+            onTestCases = GetByTests(byPlans.ToArray());
+            testCases.AddRange(onTestCases);
+
+            // results
+            // TODO: remove .DistinctBy(i => i.Key) on the next RhinoApi Update
+            return testCases.DistinctBy(i => i.Key);
+        }
+
+        // gets a collection of RhinoTestCase based on test issue
+        private IEnumerable<RhinoTestCase> GetByTests(params string[] issueKeys)
+        {
+            return DoGetByTests(issueKeys);
+        }
+
+        // gets a collection of RhinoTestCase based on test set issue
+        private IEnumerable<RhinoTestCase> GetBySets(params string[] issueKeys)
+        {
+            // setup
+            var onkeys = xpandClient.GetTestsBySets(bucketSize, issueKeys).Select(i => $"{i["key"]}");
+
+            // get tests
+            return DoGetByTests(onkeys.ToArray());
+        }
+        #endregion
+
+        #region *** Process Test      ***
+        private IEnumerable<RhinoTestCase> DoGetByTests(params string[] issueKeys)
+        {
+            // exit conditions
+            if (issueKeys.Length == 0)
             {
-                var options = new ParallelOptions
+                return Array.Empty<RhinoTestCase>();
+            }
+
+            // parse into connector test case
+            var testCases = Get(issueKeys);
+
+            // get all pipeline methods
+            var methods = new List<MethodInfo>(GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+                .Where(i => i.GetCustomAttribute<PipelineAttribute>() != null));
+
+            // order execute
+            for (int i = 0; i < methods.Count; i++)
+            {
+                var onMethods = methods.Where(m => m.GetCustomAttribute<PipelineAttribute>().Order == i);
+                if (!onMethods.Any())
                 {
-                    MaxDegreeOfParallelism = bucketSize
-                };
-                Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
+                    continue;
+                }
+                OnMethodsError(methods: onMethods);
+                testCases = onMethods.First().Invoke(this, new[] { testCases }) as IEnumerable<RhinoTestCase>;
+            }
+
+            // complete
+            return testCases;
+        }
+
+        private void OnMethodsError(IEnumerable<MethodInfo> methods)
+        {
+            if (methods.Count() > 1)
+            {
+                var consolidate = string.Join(", ", methods.Select(i => i.Name));
+                var message =
+                    $"Pipeline methods [{consolidate}] have the same order index." +
+                    " Please make sure each method has a unique PiplineAttribute.Order value.";
+                throw new InvalidOperationException(message);
+            }
+        }
+
+        // gets a collection of RhinoTestCase by issue keys
+        private IEnumerable<RhinoTestCase> Get(params string[] issueKeys)
+        {
+            // parse into JObject
+            var jsonObjects = xpandClient.GetTestCases(bucketSize, issueKeys);
+
+            // parse into connector test case
+            var testCases = !jsonObjects.Any() ? Array.Empty<RhinoTestCase>() : jsonObjects.Select(i => i.ToRhinoTestCase());
+            if (!testCases.Any())
+            {
+                return Array.Empty<RhinoTestCase>();
             }
             return testCases;
         }
 
-        private IEnumerable<RhinoTestCase> GetTests(string issueKey)
-        {
-            // get issue type
-            var issueType = jiraClient.GetIssueType(issueKey);
-            var capability = string.Empty;
-            var typeEntry = Configuration.ProviderConfiguration.Capabilities.Where(i => $"{i.Value}".Equals(issueType, Compare));
-            if (typeEntry.Any())
-            {
-                capability = $"{typeEntry.ElementAt(0).Key}";
-            }
-
-            // get fetching method
-            var method = GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-                .Where(i => i.GetCustomAttribute<DescriptionAttribute>() != null)
-                .FirstOrDefault(i => i.GetCustomAttribute<DescriptionAttribute>().Description.Equals(capability, Compare));
-
-            // exit conditions
-            if (method == default)
-            {
-                var message =
-                    $"Tests were not loaded. Was not able to find execution method for [{issueKey}] issue type.";
-                logger?.Error(message);
-                return Array.Empty<RhinoTestCase>();
-            }
-
-            // invoke and return results
-            return method.Invoke(this, new object[] { issueKey }) as IEnumerable<RhinoTestCase>;
-        }
-
-        // process a single test
-        [Description(AtlassianCapabilities.TestType)]
-        private IEnumerable<RhinoTestCase> GetByTest(string issueKey)
+        // GET TEST CASES PIPELINE METHODS
+        // puts the first test set founds under each test case as RhinoTestCase.TestSuite
+        [Pipeline(order: 0)]
+        private IEnumerable<RhinoTestCase> PutTestSuite(IEnumerable<RhinoTestCase> testCases)
         {
             // setup
-            var testCase = DoGetByTest(issueKey);
+            var onTestCases = new ConcurrentBag<RhinoTestCase>();
 
-            // results
-            return new[] { testCase };
-        }
-
-        private RhinoTestCase DoGetByTest(string issueKey)
-        {
-            // parse into JObject
-            var jsonObject = xpandClient.GetTestCase(issueKey);
-
-            // parse into connector test case
-            var test = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
-            if (test.Key.Equals("-1"))
+            // iterate
+            foreach (var testCase in testCases)
             {
-                return test;
+                var isContext = testCase.Context.ContainsKey(nameof(testCase)) && testCase.Context[nameof(testCase)] is JObject;
+                if (!isContext)
+                {
+                    logger?.Error($"Test case [{testCase.Key}] does not have [testCase] context entry");
+                    continue;
+                }
+                var jsonObject = (JObject)testCase.Context[nameof(testCase)];
+
+                var testSets = xpandClient.GetSetsByTest(jsonObject);
+                if (!testSets.Any())
+                {
+                    continue;
+                }
+                testCase.TestSuite = $"{jiraClient.GetIssue(issueKey: testSets.First())["key"]}";
+                onTestCases.Add(testCase);
             }
 
-            //// setup project key
-            //test.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
+            // results
+            return onTestCases;
+        }
 
-            //// load test set (if available - will take the )
-            //var customField = jiraClient.GetCustomField(TestCaseSchema);
-            //var testSet = jsonObject.SelectToken($"..{customField}");
-            //if (testSet.Any())
-            //{
-            //    test.TestSuite = $"{testSet.First}";
-            //}
+        // puts all test plans related to these tests in the test context
+        [Pipeline(order: 1)]
+        private IEnumerable<RhinoTestCase> PutTestPlans(IEnumerable<RhinoTestCase> testCases)
+        {
+            // setup
+            var onTestCases = new ConcurrentBag<RhinoTestCase>();
 
-            //// load test-plans if any
-            //customField = jiraClient.GetCustomField(AssociatedPlanSchema);
-            //var testPlans = jsonObject.SelectToken($"..{customField}");
-            //var onTestPlans = new List<string>();
-            //foreach (var testPlan in testPlans)
-            //{
-            //    onTestPlans.Add($"{testPlan}");
-            //}
-            //test.Context["testPlans"] = onTestPlans.Count > 0 ? onTestPlans : new List<string>();
+            // iterate
+            foreach (var testCase in testCases)
+            {
+                var isContext = testCase.Context.ContainsKey(nameof(testCase)) && testCase.Context[nameof(testCase)] is JObject;
+                if (!isContext)
+                {
+                    onTestCases.Add(testCase);
+                    logger?.Error($"Test case [{testCase.Key}] does not have [testCase] context entry");
+                    continue;
+                }
+                var jsonObject = (JObject)testCase.Context[nameof(testCase)];
 
-            //// load data-sources (multiple preconditions data loading)
-            //customField = jiraClient.GetCustomField(PreconditionSchema);
-            //var preconditions = jsonObject.SelectToken($"..{customField}");
-            //if (!preconditions.Any())
-            //{
-            //    return test;
-            //}
+                var testPlans = xpandClient.GetPlansByTest(jsonObject);
+                if (!testPlans.Any())
+                {
+                    onTestCases.Add(testCase);
+                    testCase.Context["testPlans"] = Array.Empty<string>();
+                    continue;
+                }
+                testCase.Context["testPlans"] = jiraClient.GetIssues(bucketSize, testPlans.ToArray()).Select(i => $"{i["key"]}");
+                onTestCases.Add(testCase);
+            }
 
-            //// load preconditions
-            //var mergedDataSource = preconditions
-            //    .Select(i => new DataTable().FromMarkDown($"{jiraClient.GetIssue($"{i}").SelectToken("fields.description")}".Trim(), default))
-            //    .Merge();
-            //test.DataSource = mergedDataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
+            // results
+            return onTestCases;
+        }
 
-            // return populated test
-            return test;
+        // puts a combined data source from each test preconditions into RhinoTestCase.DataSource
+        [Pipeline(order: 2)]
+        private IEnumerable<RhinoTestCase> PutDataSource(IEnumerable<RhinoTestCase> testCases)
+        {
+            // setup
+            var onTestCases = new ConcurrentBag<RhinoTestCase>();
+
+            // iterate
+            foreach (var testCase in testCases)
+            {
+                var isContext = testCase.Context.ContainsKey(nameof(testCase)) && testCase.Context[nameof(testCase)] is JObject;
+                if (!isContext)
+                {
+                    onTestCases.Add(testCase);
+                    logger?.Error($"Test case [{testCase.Key}] does not have [testCase] context entry");
+                    continue;
+                }
+                var jsonObject = (JObject)testCase.Context[nameof(testCase)];
+
+                var preconditions = xpandClient.GetPreconditionsByTest(jsonObject);
+                if (!preconditions.Any())
+                {
+                    onTestCases.Add(testCase);
+                    continue;
+                }
+
+                var mergedDataSource = preconditions
+                    .Select(i => new DataTable().FromMarkDown($"{jiraClient.GetIssue($"{i}").SelectToken("fields.description")}".Trim(), default))
+                    .Merge();
+                testCase.DataSource = mergedDataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
+
+                onTestCases.Add(testCase);
+            }
+
+            // results
+            return onTestCases;
         }
         #endregion
     }

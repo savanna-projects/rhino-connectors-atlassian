@@ -21,7 +21,7 @@ namespace Rhino.Connectors.Xray.UnitTests
             {
                 TestsRepository = new[]
                 {
-                    "XT-1", "XT-7", "XT-6"
+                    "XT-7", "XT-8", "XT-9"/*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {

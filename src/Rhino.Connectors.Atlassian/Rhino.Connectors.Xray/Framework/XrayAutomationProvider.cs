@@ -115,7 +115,8 @@ namespace Rhino.Connectors.Xray.Framework
                 };
                 Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
             }
-            return testCases;
+            // TODO: remove .DistinctBy(i => i.Key) on the next RhinoApi Update
+            return testCases.DistinctBy(i => i.Key);
         }
 
         private IEnumerable<RhinoTestCase> GetTests(string issueKey)

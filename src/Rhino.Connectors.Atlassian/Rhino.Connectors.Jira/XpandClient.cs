@@ -14,12 +14,12 @@ using Newtonsoft.Json.Serialization;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
+using Rhino.Connectors.Xray.Cloud.Extensions;
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
@@ -32,6 +32,11 @@ namespace Rhino.Connectors.Xray.Cloud
         // constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
         private const string StepsFormat = "/api/internal/test/{0}/steps?startAt=0&maxResults=100";
+        private const string SetsFromTestsFormat = "/api/internal/issuelinks/testset/{0}/tests?direction=inward";
+        private const string PlansFromTestsFormat = "/api/internal/issuelinks/testPlan/{0}/tests?direction=inward";
+        private const string PreconditionsFormat = "/api/internal/issuelinks/test/{0}/preConditions";
+        private const string TestsBySetFormat = "/api/internal/issuelinks/testset/{0}/tests";
+        private const string TestsByPlanFormat = "/api/internal/testplan/{0}/tests";
 
         // members
         private readonly ILogger logger;
@@ -51,7 +56,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         public const string MediaType = "application/json";
 
-        #region *** Constructors ***
+        #region *** Constructors      ***
         /// <summary>
         /// Creates a new instance of JiraClient.
         /// </summary>
@@ -74,21 +79,70 @@ namespace Rhino.Connectors.Xray.Cloud
         }
         #endregion
 
-        #region *** Properties   ***
+        #region *** Properties        ***
         /// <summary>
         /// Jira authentication information.
         /// </summary>
         public JiraAuthentication Authentication { get; }
         #endregion
 
+        #region *** Get Tests         ***
         public JObject GetTestCase(string issueKey)
         {
             return DoGetTestCases(bucketSize: 1, issueKey).FirstOrDefault();
         }
 
+        public IEnumerable<JObject> GetTestsBySets(int bucketSize, params string[] issueKeys)
+        {
+            return DoGetByPlanOrSet(bucketSize, TestsBySetFormat, issueKeys);
+        }
+
+        public IEnumerable<JObject> GetTestsByPlans(int bucketSize, params string[] issueKeys)
+        {
+            return DoGetByPlanOrSet(bucketSize, TestsByPlanFormat, issueKeys);
+        }
+
         public IEnumerable<JObject> GetTestCases(int bucketSize, params string[] issueKeys)
         {
             return DoGetTestCases(bucketSize, issueKeys);
+        }
+
+        public IEnumerable<JObject> DoGetByPlanOrSet(int bucketSize, string endpointFormar, params string[] issueKeys)
+        {
+            // setup
+            var testSets = jiraClient.GetIssues(bucketSize, issueKeys);
+
+            // exit conditions
+            if (!testSets.Any())
+            {
+                logger?.Warn("Was not able to get test cases from set/plan. Sets/Plans were not found or error occurred.");
+                return Array.Empty<JObject>();
+            }
+
+            // get requests list
+            var data = testSets.Select(i => (Key: $"{i["key"]}", Endpoint: string.Format(endpointFormar, $"{i["id"]}")));
+
+            // get all tests
+            var tests = new ConcurrentBag<string>();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(data, options, d =>
+            {
+                var client = GetClientWithToken(d.Key);
+                var response = client.GetAsync(d.Endpoint).GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode)
+                {
+                    return;
+                }
+                var testsArray = JArray.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                var onTests = testsArray.Select(i => $"{i["id"]}");
+                tests.AddRange(onTests);
+            });
+
+            // get issue keys
+            var testCases = jiraClient.GetIssues(bucketSize, tests.ToArray()).Select(i => $"{i["key"]}");
+
+            // get test cases
+            return DoGetTestCases(bucketSize, testCases.ToArray());
         }
 
         private IEnumerable<JObject> DoGetTestCases(int bucketSize, params string[] issueKeys)
@@ -166,6 +220,118 @@ namespace Rhino.Connectors.Xray.Cloud
             // results
             return testCases;
         }
+        #endregion
+
+        #region *** Get Sets          ***
+        /// <summary>
+        /// Get test sets list based on test case response.
+        /// </summary>
+        /// <param name="testCase">Test case response body.</param>
+        /// <returns>Test sets list (issue ids).</returns>
+        public IEnumerable<string> GetSetsByTest(JObject testCase)
+        {
+            // setup
+            var id = $"{testCase["id"]}";
+            var key = $"{testCase["key"]}";
+
+            // get client > send request
+            var client = GetClientWithToken(key);
+            var endpoint = string.Format(SetsFromTestsFormat, id);
+            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
+
+            // validate
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Was unable to get test sets for [{key}].");
+                return Array.Empty<string>();
+            }
+
+            // extract
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var responseObjt = JArray.Parse(responseBody);
+            if (!responseObjt.Any())
+            {
+                logger?.Debug($"No tests set for test [{key}].");
+                return Array.Empty<string>();
+            }
+            client.Dispose();
+            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+        }
+        #endregion
+
+        #region *** Get Plans         ***
+        /// <summary>
+        /// Get test plans list based on test case response.
+        /// </summary>
+        /// <param name="testCase">Test case response body.</param>
+        /// <returns>Test plans list (issue ids).</returns>
+        public IEnumerable<string> GetPlansByTest(JObject testCase)
+        {
+            // setup
+            var id = $"{testCase["id"]}";
+            var key = $"{testCase["key"]}";
+
+            // get client > send request
+            var client = GetClientWithToken(key);
+            var endpoint = string.Format(PlansFromTestsFormat, id);
+            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
+
+            // validate
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Was unable to get plans for [{key}].");
+                return Array.Empty<string>();
+            }
+
+            // extract
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var responseObjt = JArray.Parse(responseBody);
+            if (!responseObjt.Any())
+            {
+                logger?.Debug($"No test plans for test [{key}].");
+                return Array.Empty<string>();
+            }
+            client.Dispose();
+            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+        }
+        #endregion
+
+        #region *** Get Preconditions ***
+        /// <summary>
+        /// Get preconditions list based on test case response.
+        /// </summary>
+        /// <param name="testCase">Test case response body.</param>
+        /// <returns>Preconditions list (issue ids).</returns>
+        public IEnumerable<string> GetPreconditionsByTest(JObject testCase)
+        {
+            // setup
+            var id = $"{testCase["id"]}";
+            var key = $"{testCase["key"]}";
+
+            // get client > send request
+            var client = GetClientWithToken(key);
+            var endpoint = string.Format(PreconditionsFormat, id);
+            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
+
+            // validate
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Was unable to preconditions for [{key}].");
+                return Array.Empty<string>();
+            }
+
+            // extract
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var responseObjt = JArray.Parse(responseBody);
+            if (!responseObjt.Any())
+            {
+                logger?.Debug($"No preconditions for test [{key}].");
+                return Array.Empty<string>();
+            }
+            client.Dispose();
+            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+        }
+        #endregion
 
         // UTILITIES
         private string GetToken(string issueKey)
