@@ -2,6 +2,7 @@ using Gravity.Services.DataContracts;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.Xray.Cloud;
@@ -21,7 +22,7 @@ namespace Rhino.Connectors.Xray.UnitTests
             {
                 TestsRepository = new[]
                 {
-                    "XT-7", "XT-8", "XT-9"/*, "XT-1", "XT-6"*/
+                    "XT-7"/*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -39,7 +40,8 @@ namespace Rhino.Connectors.Xray.UnitTests
                     {
                         ["bucketSize"] = 15,
                         ["dryRun"] = false,
-                        [AtlassianCapabilities.TestType] = "Xray Test"
+                        [AtlassianCapabilities.TestType] = "Xray Test",
+                        [AtlassianCapabilities.PreconditionsType] = "Precondition"
                     }
                 },
                 DriverParameters = new[]
@@ -75,7 +77,9 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Priority = 5,
                 }
             };
-            new XrayCloudConnector(configu).Execute();
+            var connector = new XrayCloudConnector(configu);
+            //var testCases = connector.ProviderManager.GetTestCases("XT-7").First();
+            connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());
         }
 
         //[TestMethod]

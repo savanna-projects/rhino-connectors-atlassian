@@ -37,6 +37,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private const string PreconditionsFormat = "/api/internal/issuelinks/test/{0}/preConditions";
         private const string TestsBySetFormat = "/api/internal/issuelinks/testset/{0}/tests";
         private const string TestsByPlanFormat = "/api/internal/testplan/{0}/tests";
+        private const string PreconditionToTestCaseFormat = "/api/internal/issuelinks/test/{0}/preConditions";
 
         // members
         private readonly ILogger logger;
@@ -136,6 +137,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 var testsArray = JArray.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                 var onTests = testsArray.Select(i => $"{i["id"]}");
                 tests.AddRange(onTests);
+                client.Dispose();
             });
 
             // get issue keys
@@ -333,6 +335,39 @@ namespace Rhino.Connectors.Xray.Cloud
         }
         #endregion
 
+        public void AddPrecondition(string precondition, string test)
+        {
+            // setup
+            var onTest = jiraClient.GetIssue(test);
+            var onPrecondition = jiraClient.GetIssue(precondition);
+
+            // apply
+            var isTest = onTest != default && onTest.ContainsKey("id");
+            var isPrecondition = onPrecondition != default && onPrecondition.ContainsKey("id");
+
+            // exit conditions
+            if (!isTest || !isPrecondition)
+            {
+                logger?.Fatal($"Was not able to add precondition [{precondition}] to test [{test}]");
+                return;
+            }
+
+            // setup request
+            var endpoint = string.Format(PreconditionToTestCaseFormat, $"{onTest["id"]}");
+            var requestBody = JsonConvert.SerializeObject(new[] { precondition });
+            var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
+
+            // setup client > send request
+            var client = GetClientWithToken(issueKey: test);
+            var response = client.PostAsync(endpoint, content).GetAwaiter().GetResult();
+
+            // log
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Fatal($"Was not able to add precondition [{precondition}] to test [{test}]; Error code: {response.StatusCode}");
+            }
+        }
+
         // UTILITIES
         private string GetToken(string issueKey)
         {
@@ -375,7 +410,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
         }
 
-        private HttpClient GetClientWithToken(string issueKey)
+        public HttpClient GetClientWithToken(string issueKey)
         {
             // get token
             var token = GetToken(issueKey);

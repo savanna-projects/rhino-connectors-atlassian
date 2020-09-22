@@ -2,6 +2,7 @@
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api;
@@ -139,6 +140,132 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
 
             // get tests
             return DoGetByTests(onkeys.ToArray());
+        }
+        #endregion
+
+        #region *** CREATE: Test Case ***
+        /// <summary>
+        /// Creates a new test case under the specified automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
+        /// <returns>The ID of the newly created entity.</returns>
+        public override string CreateTestCase(RhinoTestCase testCase)
+        {
+            // constants: logging
+            const string M = "Test created under project [{0}] and assigned to [{1}] test set.";
+
+            // create jira issue
+            var issue = CreateJiraTestCaseIssue(testCase);
+
+            // apply to context
+            testCase.Context["jira-issue-id"] = issue == default ? string.Empty : $"{issue["id"]}";
+
+            // create test steps
+            PutTestSteps(bucketSize, testCase);
+
+            // create & apply preconditions
+            var testCaseKey = $"{issue["key"]}";
+            var precondition = CreatePrecondition(testCaseKey, testCase.DataSource);
+            xpandClient.AddPrecondition($"{precondition.SelectToken("id")}", testCaseKey);
+
+            // comment
+            var comment = Utilities.GetActionSignature(action: "created");
+            jiraClient.AddComment(issueKey: issue["key"].ToString(), comment);
+
+            // success
+            Logger?.InfoFormat(M, Configuration.ProviderConfiguration.Project, testCase?.TestSuite);
+
+            // results
+            return $"{issue}";
+        }
+
+        private JObject CreateJiraTestCaseIssue(RhinoTestCase testCase)
+        {
+            // shortcuts
+            var onProject = Configuration.ProviderConfiguration.Project;
+            var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
+
+            // setup context
+            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(issueType: testType, path: "id")}";
+            testCase.Context["project-key"] = onProject;
+
+            // setup request body
+            var requestBody = testCase.ToJiraCreateExecutionRequest();
+            var issue = jiraClient.CreateIssue(requestBody);
+            if (issue == default || !issue.ContainsKey("id"))
+            {
+                logger?.Fatal("Was not able to create a test case.");
+                return default;
+            }
+            return issue;
+        }
+
+        private void PutTestSteps(int bucketSize, RhinoTestCase testCase)
+        {
+            // setup test steps
+            var stepRequests = testCase.ToXrayStepsRequests();
+            var client = xpandClient.GetClientWithToken(testCase.Key);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+
+            Parallel.ForEach(stepRequests, options, request =>
+            {
+                var response = client.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.Fatal($"Was unable to create test step for test [{testCase.Key}].");
+                }
+            });
+        }
+
+        private JObject CreatePrecondition(string issueKey, IEnumerable<IDictionary<string, object>> dataSource)
+        {
+            // constants: logging
+            const string M = "Preconditions [{0}] created under project [{1}].";
+
+            // shortcuts
+            var onProject = Configuration.ProviderConfiguration.Project;
+            var preconditionsType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.PreconditionsType]}";
+            var id = $"{jiraClient.GetIssueTypeFields(issueType: preconditionsType, path: "id")}";
+
+            // get precondition markdown
+            var markdown = dataSource.ToMarkdown().Replace("\\r\\n", "\r\n");
+
+            // setup request
+            var requestObjt = new Dictionary<string, object>
+            {
+                ["summary"] = $"Data Set: Created for [{issueKey}]",
+                ["description"] = markdown,
+                ["issuetype"] = new Dictionary<string, object>
+                {
+                    ["id"] = id
+                },
+                ["project"] = new Dictionary<string, object>
+                {
+                    ["key"] = onProject
+                }
+            };
+            var requestBody = JsonConvert.SerializeObject(new Dictionary<string, object>
+            {
+                ["fields"] = requestObjt
+            });
+
+            // send
+            var issue = jiraClient.CreateIssue(requestBody);
+
+            // exit conditions
+            if (issue == default || !issue.ContainsKey("id"))
+            {
+                logger?.Fatal($"Was not able to create preconditions for [{issueKey}]");
+                return default;
+            }
+
+            // comment
+            var comment = Utilities.GetActionSignature(action: "created");
+            jiraClient.AddComment(issueKey: issue["key"].ToString(), comment);
+
+            // success
+            Logger?.InfoFormat(M, $"{issue["key"]}", Configuration.ProviderConfiguration.Project);
+            return issue;
         }
         #endregion
 

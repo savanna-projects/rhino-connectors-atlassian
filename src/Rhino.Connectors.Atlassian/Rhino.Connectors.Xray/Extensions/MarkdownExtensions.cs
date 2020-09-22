@@ -11,6 +11,7 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients;
+using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Generic;
@@ -120,7 +121,7 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <returns>XRay style table.</returns>
         public static string ToXrayMarkdown(this IEnumerable<IDictionary<string, object>> data)
         {
-            return DictionariesToMarkdown(data);
+            return data.ToMarkdown();
         }
 
         /// <summary>
@@ -213,7 +214,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
         {
             return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource).Replace(@"""", @"\""")
+                ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToMarkdown().Replace(@"""", @"\""")
                 : string.Empty;
         }
 
@@ -336,36 +337,6 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // results
             return markdown.Replace(@"""", @"\""").Trim();
-        }
-
-        private static string DictionariesToMarkdown(IEnumerable<IDictionary<string, object>> data)
-        {
-            // exit conditions
-            if (!data.Any())
-            {
-                return string.Empty;
-            }
-
-            // get columns
-            var columns = data.First().Select(i => i.Key);
-
-            // exit conditions
-            if (!columns.Any())
-            {
-                return string.Empty;
-            }
-
-            // build header
-            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
-
-            // build rows
-            foreach (var dataRow in data)
-            {
-                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
         }
 
         private static string DictionaryToMarkdown(IDictionary<string, object> data)
