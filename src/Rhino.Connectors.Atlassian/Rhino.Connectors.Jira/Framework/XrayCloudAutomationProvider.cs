@@ -107,7 +107,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             onTestCases = GetBySets(bySets.ToArray());
             testCases.AddRange(onTestCases);
 
-            onTestCases = GetByTests(byPlans.ToArray());
+            onTestCases = GetByPlans(byPlans.ToArray());
             testCases.AddRange(onTestCases);
 
             // results
@@ -126,6 +126,16 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         {
             // setup
             var onkeys = xpandClient.GetTestsBySets(bucketSize, issueKeys).Select(i => $"{i["key"]}");
+
+            // get tests
+            return DoGetByTests(onkeys.ToArray());
+        }
+
+        // gets a collection of RhinoTestCase based on test plan issue
+        private IEnumerable<RhinoTestCase> GetByPlans(params string[] issueKeys)
+        {
+            // setup
+            var onkeys = xpandClient.GetTestsByPlans(bucketSize, issueKeys).Select(i => $"{i["key"]}");
 
             // get tests
             return DoGetByTests(onkeys.ToArray());
