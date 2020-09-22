@@ -53,13 +53,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
         public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : this(configuration, types, logger, connect: true)
-        {
-            // setup provider manager
-            ProviderManager = new XrayAutomationProvider(configuration, types, logger);
-
-            // connect on constructing
-            Connect();
-        }
+        { }
 
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.

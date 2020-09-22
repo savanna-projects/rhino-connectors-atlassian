@@ -14,6 +14,7 @@ using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.Xray.Extensions;
 
 using System;
@@ -26,9 +27,6 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-#if !DEBUG
-using System.Threading.Tasks;
-#endif
 
 using Utilities = Rhino.Api.Extensions.Utilities;
 
@@ -91,8 +89,8 @@ namespace Rhino.Connectors.Xray.Framework
             jiraClient = new JiraClient(configuration.GetJiraAuthentication());
 
             // capabilities
-            bucketSize = GetBuketSize(configuration.ProviderConfiguration.Capabilities);
-            PutIssueTypes(configuration.ProviderConfiguration.Capabilities);
+            bucketSize = configuration.GetBuketSize();
+            configuration.PutIssueTypes();
             capabilities = configuration.ProviderConfiguration.Capabilities;
         }
         #endregion        
@@ -111,19 +109,11 @@ namespace Rhino.Connectors.Xray.Framework
             // iterate - one by one on debug, parallel on production
             foreach (var issueKeys in ids.Split(bucketSize))
             {
-#if DEBUG
-                foreach (var key in issueKeys)
-                {
-                    testCases.AddRange(GetTests(key));
-                }
-#endif
-#if !DEBUG
                 var options = new ParallelOptions
                 {
                     MaxDegreeOfParallelism = bucketSize
                 };
                 Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
-#endif
             }
             return testCases;
         }
@@ -384,7 +374,7 @@ namespace Rhino.Connectors.Xray.Framework
         public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
             // exit conditions
-            if (IsDryRun(capabilities))
+            if (Configuration.IsDryRun())
             {
                 testRun.Context["runtimeid"] = "-1";
                 return testRun;
@@ -425,7 +415,7 @@ namespace Rhino.Connectors.Xray.Framework
         public override void CompleteTestRun(RhinoTestRun testRun)
         {
             // exit conditions
-            if (IsDryRun(capabilities))
+            if (Configuration.IsDryRun())
             {
                 return;
             }
@@ -633,48 +623,6 @@ namespace Rhino.Connectors.Xray.Framework
         }
         #endregion
 
-        // CAPABILITIES
-        private int GetBuketSize(IDictionary<string, object> capabilities)
-        {
-            // get bucket size value
-            if (capabilities?.ContainsKey(ProviderCapability.BucketSize) == false)
-            {
-                return 15;
-            }
-            int.TryParse($"{capabilities[ProviderCapability.BucketSize]}", out int bucketSizeOut);
-
-            // return final value
-            return bucketSizeOut == 0 ? 15 : bucketSizeOut;
-        }
-
-        private void PutIssueTypes(IDictionary<string, object> capabilities)
-        {
-            if (!capabilities.ContainsKey(AtlassianCapabilities.TestType))
-            {
-                capabilities[AtlassianCapabilities.TestType] = "Test";
-            }
-            if (!capabilities.ContainsKey(AtlassianCapabilities.SetType))
-            {
-                capabilities[AtlassianCapabilities.SetType] = "Test Set";
-            }
-            if (!capabilities.ContainsKey(AtlassianCapabilities.PlanType))
-            {
-                capabilities[AtlassianCapabilities.PlanType] = "Test Plan";
-            }
-            if (!capabilities.ContainsKey(AtlassianCapabilities.PreconditionsType))
-            {
-                capabilities[AtlassianCapabilities.PreconditionsType] = "Pre-Condition";
-            }
-            if (!capabilities.ContainsKey(AtlassianCapabilities.ExecutionType))
-            {
-                capabilities[AtlassianCapabilities.ExecutionType] = "Test Execution";
-            }
-            if (!capabilities.ContainsKey(AtlassianCapabilities.BugType))
-            {
-                capabilities[AtlassianCapabilities.BugType] = "Bug";
-            }
-        }
-
         // UTILITIES
         private void DoUpdateTestResults(RhinoTestCase testCase)
         {
@@ -708,17 +656,6 @@ namespace Rhino.Connectors.Xray.Framework
             {
                 logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
             }
-        }
-
-        private bool IsDryRun(IDictionary<string, object> capabilities)
-        {
-            // setup conditions
-            var isKey = capabilities.ContainsKey(AtlassianCapabilities.DryRun);
-            var value = isKey ? $"{capabilities[AtlassianCapabilities.DryRun]}" : "false";
-
-            // evaluate
-            bool.TryParse(value, out bool dryRunOut);
-            return isKey && dryRunOut;
         }
     }
 }

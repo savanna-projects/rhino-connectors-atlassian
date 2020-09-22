@@ -3,6 +3,8 @@ using Gravity.Services.DataContracts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.Xray.Cloud;
 
 using System.Collections.Generic;
 using System.Linq;
@@ -12,14 +14,14 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-        //[TestMethod]
+        [TestMethod]
         public void DemoConfiguration()
         {
             var configu = new RhinoConfiguration
             {
                 TestsRepository = new[]
                 {
-                    "XDP-39"
+                    "XT-1", "XT-7", "XT-6"
                 },
                 Authentication = new Authentication
                 {
@@ -28,15 +30,16 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 ProviderConfiguration = new RhinoProviderConfiguration
                 {
-                    Collection = "http://localhost:8080",
-                    Password = "admin",
-                    User = "admin",
-                    Project = "XDP",
+                    Collection = "https://pangobugs.atlassian.net",
+                    Password = "aLNwnhE8fupLguQ6fwYo8A00",
+                    User = "s_roei@msn.com",
+                    Project = "XT",
                     BugManager = true,
                     Capabilities = new Dictionary<string, object>
                     {
                         ["bucketSize"] = 15,
-                        ["dryRun"] = false
+                        ["dryRun"] = false,
+                        [AtlassianCapabilities.TestType] = "Xray Test"
                     }
                 },
                 DriverParameters = new[]
@@ -72,7 +75,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Priority = 5,
                 }
             };
-            new XrayConnector(configu).Execute();
+            new XrayCloudConnector(configu).Execute();
         }
 
         //[TestMethod]

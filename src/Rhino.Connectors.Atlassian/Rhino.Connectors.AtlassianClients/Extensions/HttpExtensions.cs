@@ -9,7 +9,7 @@ using System.Net.Http.Headers;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
-    internal static class HttpExtensions
+    public static class HttpExtensions
     {
         /// <summary>
         /// Adds the specified header and its value into the <see cref="HttpHeaders"/> collection.

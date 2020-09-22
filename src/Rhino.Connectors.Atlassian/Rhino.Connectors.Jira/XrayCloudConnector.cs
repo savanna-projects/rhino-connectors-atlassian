@@ -2,7 +2,8 @@
  * CHANGE LOG - keep only last 5 threads
  * 
  * RESSOURCES
- * https://github.com/Xray-App/xray-postman-collections
+ * https://docs.getxray.app/display/XRAYCLOUD/REST+API
+ * https://docs.getxray.app/display/XRAYCLOUD/Global+Settings%3A+API+Keys
  */
 using Gravity.Abstraction.Logging;
 
@@ -10,14 +11,14 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
-using Rhino.Connectors.XrayCloud.Framework;
+using Rhino.Connectors.Xray.Cloud.Framework;
 
 using System;
 using System.Collections.Generic;
 
-namespace Rhino.Connectors.XrayCloud
+namespace Rhino.Connectors.Xray.Cloud
 {
-    // TODO: change value to constant when available on next Rhino.Api update.
+    // TODO: change value to constant when available on the next Rhino.Api update
     /// <summary>
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
@@ -27,7 +28,7 @@ namespace Rhino.Connectors.XrayCloud
         Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
     public class XrayCloudConnector : RhinoConnector
     {
-        #region *** Constructors   ***
+        #region *** Constructors ***
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
         /// </summary>
@@ -53,13 +54,7 @@ namespace Rhino.Connectors.XrayCloud
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
         public XrayCloudConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : this(configuration, types, logger, connect: true)
-        {
-            // setup provider manager
-            ProviderManager = new XrayCloudAutomationProvider(configuration, types, logger);
-
-            // connect on constructing
-            Connect();
-        }
+        { }
 
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
