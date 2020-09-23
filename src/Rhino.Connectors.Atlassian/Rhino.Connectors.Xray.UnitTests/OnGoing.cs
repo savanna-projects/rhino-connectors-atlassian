@@ -20,6 +20,7 @@ namespace Rhino.Connectors.Xray.UnitTests
         {
             var configu = new RhinoConfiguration
             {
+                Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
                     "XT-7"/*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
@@ -73,13 +74,13 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
-                    MaxParallel = 5,
-                    Priority = 5,
+                    MaxParallel = 1
                 }
             };
             var connector = new XrayCloudConnector(configu);
+            connector.Execute();
             //var testCases = connector.ProviderManager.GetTestCases("XT-7").First();
-            connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());
+            //connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());
         }
 
         //[TestMethod]

@@ -23,6 +23,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.Cloud
@@ -38,6 +39,10 @@ namespace Rhino.Connectors.Xray.Cloud
         private const string TestsBySetFormat = "/api/internal/issuelinks/testset/{0}/tests";
         private const string TestsByPlanFormat = "/api/internal/testplan/{0}/tests";
         private const string PreconditionToTestCaseFormat = "/api/internal/issuelinks/test/{0}/preConditions";
+        private const string TestsToExecutionFormat = "/api/internal/issuelinks/testexec/{0}/tests";
+        private const string TestExecutionDetailsFormat = "/view/page/execute-test?testIssueKey={0}&testExecIssueKey={1}&jwt={2}";
+        private const string TestRunStepStatusFormat = "/api/internal/testRun/{0}/step/{1}/status";
+        private const string TestRunStatusFormat = "/api/internal/testrun/{0}/status";
 
         // members
         private readonly ILogger logger;
@@ -366,6 +371,156 @@ namespace Rhino.Connectors.Xray.Cloud
             {
                 logger?.Fatal($"Was not able to add precondition [{precondition}] to test [{test}]; Error code: {response.StatusCode}");
             }
+        }
+
+        public void AddTestsToExecution(int bucketSize, string execution, params string[] tests)
+        {
+            // setup
+            var onExecution = jiraClient.GetIssue(execution);
+            var id = $"{onExecution.SelectToken("id")}";
+            var key = $"{onExecution.SelectToken("key")}";
+            var onTests = jiraClient
+                .GetIssues(bucketSize, tests)
+                .Select(i => $"{i.SelectToken("id")}")
+                .Where(i => i != default)
+                .Distinct()
+                .Split(200);
+
+            // exit conditions
+            if (string.IsNullOrEmpty(id))
+            {
+                logger?.Error($"Was not able to find execution [{execution}]");
+                return;
+            }
+
+            // build requests
+            var requests = new List<(string Endpoint, HttpContent Content)>();
+            var endpoint = string.Format(TestsToExecutionFormat, id);
+            foreach (var bulk in onTests)
+            {
+                var requestBody = JsonConvert.SerializeObject(bulk);
+                var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
+                requests.Add((endpoint, content));
+            }
+
+            // apply
+            var client = GetClientWithToken(key);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(requests, options, request =>
+            {
+                var response = client.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.Error($"Was not able to attach test case to [{key}] execution");
+                }
+            });
+            client.Dispose();
+        }
+
+        public JObject GetExecutionDetails(string execution, string test)
+        {
+            // setup
+            var issues = jiraClient.GetIssues(bucketSize: 2, execution, test);
+
+            // exit conditions
+            if (!issues.Any())
+            {
+                logger?.Error($"Was not able to find issues [{execution}, {test}].");
+                return default;
+            }
+
+            // setup
+            var onExecution = issues
+                .FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(execution) || $"{i.SelectToken("id")}".Equals(execution));
+            var onTest = issues
+                .FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(test) || $"{i.SelectToken("id")}".Equals(test));
+
+            // exit conditions
+            if(onExecution == default)
+            {
+                logger?.Error($"Was not able to find execution [{execution}].");
+                return default;
+            }
+            if(onTest == default)
+            {
+                logger?.Error($"Was not able to find test [{test}].");
+                return default;
+            }
+
+            // setup            
+            var executionKey = $"{onExecution["key"]}";
+            var testKey = $"{onTest["key"]}";
+            var client = GetClientWithToken(executionKey);
+            var token = client.DefaultRequestHeaders.GetValues("X-acpt").FirstOrDefault();
+            var requestUri = string.Format(TestExecutionDetailsFormat, testKey, executionKey, token);
+
+            // send
+            var response = client.GetAsync(requestUri).GetAwaiter().GetResult();
+
+            // exit  conditions
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Error code: [{response.StatusCode}]; Was not able to get execution details [{test}].");
+                return default;
+            }
+
+            // parse 
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var json = Regex.Match(input: responseBody, pattern: "(?<=id=\"test-run\" value=\")[^\"]*").Value.Replace("&quot;", "\"");
+
+            // cleanup
+            client.Dispose();
+
+            // results
+            return string.IsNullOrEmpty(json) ? default : JObject.Parse(json);
+        }
+
+        public void PutStepsRunStatus(string executionKey, string run, params (string Step, string Status)[] steps)
+        {
+            // setup
+            var requests = new List<(string RequestUri, HttpContent Content)>();
+            foreach (var (Step, Status) in steps)
+            {
+                var requestUri = string.Format(TestRunStepStatusFormat, run, Step);
+                var content = new StringContent(@"{""status"":""" + Status.ToUpper() + @"""}", Encoding.UTF8, MediaType);
+                requests.Add((requestUri, content));
+            }
+
+            // send requests
+            var client = GetClientWithToken(executionKey);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+            Parallel.ForEach(requests, options, request =>
+            {
+                var response = client.PostAsync(request.RequestUri, request.Content).GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.Error($"Was unable to update test results for [{request.RequestUri}]");
+                }
+            });
+            client.Dispose();
+        }
+
+        public void PutTestRunStatus(string executionKey, string run, string status)
+        {
+            // setup
+            var project = $"{jiraClient.GetIssue(executionKey).SelectToken("fields.project.id")}";
+            var requestUri = string.Format(TestRunStatusFormat, run);
+            var requestObjt = new Dictionary<string, object>
+            {
+                ["projectId"] = project,
+                ["status"] = status.ToUpper()
+            };
+            var requestBody = JsonConvert.SerializeObject(requestObjt);
+            var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
+
+            // send requests
+            var client = GetClientWithToken(executionKey);
+            var response = client.PostAsync(requestUri, content).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Was unable to update test results for [{requestUri}]");
+            }
+            client.Dispose();
         }
 
         // UTILITIES

@@ -91,6 +91,53 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
         }
         #endregion
 
+        #region *** Set Outcome      ***
+        /// <summary>
+        /// Set XRay test execution results of test case by setting steps outcome.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
+        /// <returns>-1 if failed to update, 0 for success.</returns>
+        /// <remarks>Must contain runtimeid field in the context.</remarks>
+        public static int SetOutcome(this RhinoTestCase testCase)
+        {
+            //// get request content
+            //var request = new
+            //{
+            //    steps = GetUpdateRequestObject(testCase)
+            //};
+            //var requestBody = JsonConvert.SerializeObject(request, JiraClient.JsonSettings);
+            //var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
+
+            //// update fields
+            //var route = string.Format(RavenRunFormat, $"{testCase.Context["runtimeid"]}");
+            //var response = JiraClient.HttpClient.PutAsync(route, content).GetAwaiter().GetResult();
+
+            //// results
+            //if (!response.IsSuccessStatusCode)
+            //{
+            //    return -1;
+            //}
+            return 0;
+        }
+
+        private static List<object> GetUpdateRequestObject(RhinoTestCase testCase)
+        {
+            // add exceptions images - if exists or relevant
+            //if (testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
+            //{
+            //    testCase.AddExceptionsScreenshot();
+            //}
+
+            // collect steps
+            var steps = new List<object>();
+            //foreach (var testStep in testCase.Steps)
+            //{
+            //    steps.Add(testStep.GetUpdateRequest());
+            //}
+            return steps;
+        }
+        #endregion
+
         // VALIDATION UTILITY
         private static void Validate(RhinoTestCase testCase, params string[] keys)
         {

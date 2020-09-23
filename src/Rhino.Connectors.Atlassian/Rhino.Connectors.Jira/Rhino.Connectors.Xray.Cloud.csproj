@@ -16,10 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\create_test_execution_xray.txt" />
     <None Remove="Resources\get_token.txt" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\create_test_execution_xray.txt" />
     <EmbeddedResource Include="Resources\get_token.txt" />
   </ItemGroup>
 

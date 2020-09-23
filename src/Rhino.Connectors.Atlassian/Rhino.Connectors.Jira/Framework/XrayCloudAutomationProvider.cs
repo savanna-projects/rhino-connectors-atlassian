@@ -269,6 +269,167 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         }
         #endregion
 
+        #region *** CREATE: Test Run  ***
+        /// <summary>
+        /// Creates an automation provider test run entity. Use this method to implement the automation
+        /// provider test run creation and to modify the loaded Rhino.Api.Contracts.AutomationProvider.RhinoTestRun.
+        /// </summary>
+        /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun object to modify before creating.</param>
+        /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
+        public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
+        {
+            // exit conditions
+            if (Configuration.IsDryRun())
+            {
+                testRun.Context["runtimeid"] = "-1";
+                return testRun;
+            }
+
+            // create jira issue
+            CreateOnJira(testRun);
+
+            // apply tests
+            xpandClient.AddTestsToExecution(bucketSize, testRun.Key, testRun.TestCases.Select(i => i.Key).ToArray());
+
+            // get execution details for all tests (run on distinct tests for payload efficiency)
+            PutExecutionDetails(testRun);
+
+            // updated test run
+            return testRun;
+        }
+
+        private void CreateOnJira(RhinoTestRun testRun)
+        {
+            // create execution issue
+            var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
+                .Replace("[project-key]", Configuration.ProviderConfiguration.Project)
+                .Replace("[run-title]", TestRun.Title)
+                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.ExecutionType]}")
+                .Replace("[assignee]", Configuration.ProviderConfiguration.User);
+            var responseBody = jiraClient.CreateIssue(requestBody);
+
+            // setup
+            testRun.Key = $"{responseBody["key"]}";
+            testRun.Link = $"{responseBody["self"]}";
+            testRun.Context["runtimeid"] = $"{responseBody["id"]}";
+        }
+
+        private void PutExecutionDetails(RhinoTestRun testRun)
+        {
+            // setup
+            var detailsMap = new ConcurrentBag<(string Key, JObject Details)>();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+
+            // get
+            Parallel.ForEach(testRun.TestCases.DistinctBy(i => i.Key), options, testCase =>
+            {
+                var details = xpandClient.GetExecutionDetails(testRun.Key, testCase.Key);
+                detailsMap.Add((testCase.Key, details));
+            });
+
+            // apply
+            foreach (var (Key, Details) in detailsMap)
+            {
+                foreach (var onTest in testRun.TestCases.Where(i => i.Key.Equals(Key, Compare)))
+                {
+                    onTest.Context["executionDetails"] = Details;
+                }
+            }
+        }
+
+        //// TODO: implement persistent retry (until all done or until timeout)        
+        ///// <summary>
+        ///// Completes automation provider test run results, if any were missed or bypassed.
+        ///// </summary>
+        ///// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
+        //public override void CompleteTestRun(RhinoTestRun testRun)
+        //{
+        //    // exit conditions
+        //    if (Configuration.IsDryRun())
+        //    {
+        //        return;
+        //    }
+
+        //    // setup: failed to update
+        //    var inStatus = new[] { "TODO", "EXECUTING" };
+
+        //    // get all test keys to re-assign outcome
+        //    var testResults = testRun
+        //        .GetTests()
+        //        .Where(i => inStatus.Contains($"{i["status"]}"))
+        //        .Select(i => $"{i["key"]}");
+
+        //    // iterate: pass/fail
+        //    foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key) && !i.Inconclusive))
+        //    {
+        //        DoUpdateTestResults(testCase);
+        //    }
+        //    // iterate: inconclusive
+        //    foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
+        //    {
+        //        DoUpdateTestResults(testCase);
+        //    }
+
+        //    // test plan
+        //    AttachToTestPlan(testRun);
+
+        //    // close
+        //    testRun.Close(jiraClient, resolution: "Done");
+        //}
+
+        //// TODO: implement raven v2.0 for assign test execution to test plan when available
+        //private void AttachToTestPlan(RhinoTestRun testRun)
+        //{
+        //    // attach to plan (if any)
+        //    var plans = testRun.TestCases.SelectMany(i => (List<string>)i.Context["testPlans"]).Distinct();
+
+        //    // exit conditions
+        //    if (!plans.Any())
+        //    {
+        //        return;
+        //    }
+
+        //    // build request
+        //    var requests = new List<(string Endpoint, StringContent Content)>();
+        //    const string endpointFormat = "/rest/raven/1.0/testplan/{0}/testexec";
+        //    foreach (var plan in plans)
+        //    {
+        //        var palyload = new
+        //        {
+        //            Assignee = Configuration.ProviderConfiguration.User,
+        //            Keys = new[] { testRun.Key }
+        //        };
+        //        var requestBody = JsonConvert.SerializeObject(palyload, JiraClient.JsonSettings);
+        //        var enpoint = string.Format(endpointFormat, plan);
+        //        var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
+        //        requests.Add((enpoint, content));
+        //    }
+
+        //    // send
+        //    var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+        //    Parallel.ForEach(requests, options, request
+        //        => JiraClient.HttpClient.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult());
+        //}
+        #endregion
+
+        #region *** PUT: Test Run     ***
+        /// <summary>
+        /// Updates a single test results iteration under automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
+        public override void UpdateTestResult(RhinoTestCase testCase)
+        {
+            // validate (double check on execution details)
+            if (!testCase.Context.ContainsKey("executionDetails"))
+            {
+                testCase.Context["executionDetails"] = xpandClient.GetExecutionDetails("", testCase.Key);
+            }
+
+            // update
+            DoUpdateTestResults(testCase);
+        }
+        #endregion
+
         #region *** Process Test      ***
         private IEnumerable<RhinoTestCase> DoGetByTests(params string[] issueKeys)
         {
@@ -433,5 +594,43 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             return onTestCases;
         }
         #endregion
+
+        // UTILITIES
+        private void DoUpdateTestResults(RhinoTestCase testCase)
+        {
+            try
+            {
+                // setup
+                var executionDetails = (JObject)testCase.Context["executionDetails"];
+                var run = $"{executionDetails["_id"]}";
+                var steps = executionDetails["steps"].Select(i => $"{i["id"]}").ToArray();
+
+                // exit conditions
+                if (!testCase.Context.ContainsKey("outcome") || $"{testCase.Context["outcome"]}".Equals("EXECUTING", Compare))
+                {
+                    xpandClient.PutTestRunStatus(testCase.TestRunKey, run, "EXECUTING");
+                    logger.Trace($"Test {testCase.Key} is running. No status changes made.");
+                    return;
+                }
+
+                // build
+                var data = new List<(string, string)>();
+                for (int i = 0; i < steps.Length; i++)
+                {
+                    var result = testCase.Steps.ElementAt(i).Actual ? "PASSED" : "FAILED";
+                    data.Add((steps[i], result));
+                }
+
+                // apply on steps
+                xpandClient.PutStepsRunStatus(testCase.TestRunKey, run, data.ToArray());
+
+                // apply on test
+                xpandClient.PutTestRunStatus(testCase.TestRunKey, run, $"{testCase.Context["outcome"]}");
+            }
+            catch (Exception e) when (e != null)
+            {
+                logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
+            }
+        }
     }
 }
