@@ -116,7 +116,7 @@ namespace Rhino.Connectors.Xray.Cloud
         public IEnumerable<JObject> DoGetByPlanOrSet(int bucketSize, string endpointFormar, params string[] issueKeys)
         {
             // setup
-            var testSets = jiraClient.GetIssues(bucketSize, issueKeys);
+            var testSets = jiraClient.GetIssues(issueKeys);
 
             // exit conditions
             if (!testSets.Any())
@@ -146,7 +146,7 @@ namespace Rhino.Connectors.Xray.Cloud
             });
 
             // get issue keys
-            var testCases = jiraClient.GetIssues(bucketSize, tests.ToArray()).Select(i => $"{i["key"]}");
+            var testCases = jiraClient.GetIssues(tests).Select(i => $"{i["key"]}");
 
             // get test cases
             return DoGetTestCases(bucketSize, testCases.ToArray());
@@ -161,7 +161,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // setup
-            var issues = jiraClient.GetIssues(bucketSize, issueKeys);
+            var issues = jiraClient.GetIssues(issueKeys);
             var testCases = new ConcurrentBag<JObject>();
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
 
@@ -380,7 +380,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var id = $"{onExecution.SelectToken("id")}";
             var key = $"{onExecution.SelectToken("key")}";
             var onTests = jiraClient
-                .GetIssues(bucketSize, tests)
+                .GetIssues(tests)
                 .Select(i => $"{i.SelectToken("id")}")
                 .Where(i => i != default)
                 .Distinct()
@@ -420,7 +420,7 @@ namespace Rhino.Connectors.Xray.Cloud
         public JObject GetExecutionDetails(string execution, string test)
         {
             // setup
-            var issues = jiraClient.GetIssues(bucketSize: 2, execution, test);
+            var issues = jiraClient.GetIssues(new[] { execution, test });
 
             // exit conditions
             if (!issues.Any())
@@ -533,17 +533,15 @@ namespace Rhino.Connectors.Xray.Cloud
             try
             {
                 // get request
-                var requestBody = Assembly
+                var payload = Assembly
                     .GetExecutingAssembly()
                     .ReadEmbeddedResource("get_token.txt")
                     .Replace("[project-key]", jiraClient.Authentication.Project)
                     .Replace("[issue-key]", issueKey);
-
-                // setup: request content
-                var content = new StringContent(content: requestBody, Encoding.UTF8, MediaType);
+                var request = JiraUtilities.GenericPostRequest(Authentication, "/rest/gira/1/", payload);
 
                 // get response
-                var response = JiraClient.HttpClient.PostAsync("/rest/gira/1/", content).GetAwaiter().GetResult();
+                var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
                 if (!response.IsSuccessStatusCode)
                 {
                     logger?.Fatal(errorMessage);

@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients;
+using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Generic;
@@ -29,10 +30,12 @@ namespace Rhino.Connectors.Xray.Extensions
         public static IEnumerable<IDictionary<string, object>> GetTests(this RhinoTestRun testRun)
         {
             // setup
+            var authentication = testRun.GetAuthentication();
             var route = string.Format(RavenTestsFormat, testRun.Key);
+            var request = JiraUtilities.GenericGetRequest(authentication, route);
 
             // get results
-            var response = JiraClient.HttpClient.GetAsync(route).GetAwaiter().GetResult();
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
             // return all tests
             var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
@@ -46,8 +49,8 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <summary>
         /// Close a bug based on this RhinoTestCase.
         /// </summary>
-        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
         /// <param name="testRun">RhinoTestCase by which to close a bug.</param>
+        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
         /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
         public static bool Close(this RhinoTestRun testRun, JiraClient jiraClient, string resolution)
         {
@@ -69,8 +72,8 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             //send transition
-            return jiraClient.Transition(
-                issueKey: testRun.Key,
+            return jiraClient.CreateTransition(
+                idOrKey: testRun.Key,
                 transitionId: transition["id"],
                 resolution: resolution,
                 comment);

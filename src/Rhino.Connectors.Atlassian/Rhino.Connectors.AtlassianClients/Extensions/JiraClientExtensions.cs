@@ -32,6 +32,32 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         }
 
         /// <summary>
+        /// Gets a capability from JiraAuthentication capabilities dictionary.
+        /// </summary>
+        /// <typeparam name="T">The value type to be returned from the capabilities dictionary.</typeparam>
+        /// <param name="authentication">JiraAuthentication instance from which to get the capability.</param>
+        /// <param name="capability">The capability name.</param>
+        /// <param name="defaultValue">Default value to be returned if the capability cannot be found.</param>
+        /// <returns>The capability value of the provided type or default value.</returns>
+        public static T GetCapability<T>(this JiraAuthentication authentication, string capability, T defaultValue)
+        {
+            try
+            {
+                // setup
+                var isCapabilities = authentication?.Capabilities != default;
+                var isCapability = isCapabilities && authentication.Capabilities.ContainsKey(capability);
+
+                // get
+                return !isCapability ? defaultValue : (T)authentication.Capabilities[capability];
+            }
+            catch (Exception e) when (e != null)
+            {
+                return defaultValue;
+            }
+        }
+
+        #region *** Authentication Header ***
+        /// <summary>
         /// Gets a <see cref="AuthenticationHeaderValue"/> object.
         /// </summary>
         /// <param name="configuration">RhinoConfiguration to create <see cref="AuthenticationHeaderValue"/> by.</param>
@@ -60,5 +86,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             // header
             return new AuthenticationHeaderValue("Basic", encodedHeader);
         }
+        #endregion
     }
 }

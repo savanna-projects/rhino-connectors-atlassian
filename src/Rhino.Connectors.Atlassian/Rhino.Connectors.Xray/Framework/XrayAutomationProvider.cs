@@ -25,7 +25,6 @@ using System.Data;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -343,7 +342,7 @@ namespace Rhino.Connectors.Xray.Framework
             var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
-            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(issueType: testType, path: "id")}";
+            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
             testCase.Context["test-sets-custom-field"] = jiraClient.GetCustomField(schema: TestSetSchema);
             testCase.Context["manual-test-steps-custom-field"] = jiraClient.GetCustomField(schema: ManualTestStepSchema);
@@ -355,7 +354,7 @@ namespace Rhino.Connectors.Xray.Framework
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.AddComment(issueKey: issue["key"].ToString(), comment);
+            jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
             Logger?.InfoFormat(M, onProject, testCase?.TestSuite);
@@ -461,7 +460,7 @@ namespace Rhino.Connectors.Xray.Framework
             }
 
             // build request
-            var requests = new List<(string Endpoint, StringContent Content)>();
+            var requests = new List<HttpRequestMessage>();
             const string endpointFormat = "/rest/raven/1.0/testplan/{0}/testexec";
             foreach (var plan in plans)
             {
@@ -470,16 +469,14 @@ namespace Rhino.Connectors.Xray.Framework
                     Assignee = Configuration.ProviderConfiguration.User,
                     Keys = new[] { testRun.Key }
                 };
-                var requestBody = JsonConvert.SerializeObject(palyload, JiraClient.JsonSettings);
-                var enpoint = string.Format(endpointFormat, plan);
-                var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
-                requests.Add((enpoint, content));
+                var route = string.Format(endpointFormat, plan);
+                requests.Add(JiraUtilities.GenericPostRequest(testRun.GetAuthentication(), route, palyload));
             }
 
             // send
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
             Parallel.ForEach(requests, options, request
-                => JiraClient.HttpClient.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult());
+                => JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult());
         }
         #endregion
 
@@ -611,7 +608,7 @@ namespace Rhino.Connectors.Xray.Framework
             testCase.Context["bugs"] = bugsKeys;
 
             // get issues
-            return jiraClient.GetIssues(bucketSize, issuesKeys: bugsKeys).Select(i => $"{i}");
+            return jiraClient.GetIssues(bugsKeys).Select(i => $"{i}");
         }
 
         private string DoCreateBug(RhinoTestCase testCase)

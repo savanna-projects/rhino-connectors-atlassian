@@ -5,16 +5,12 @@
  * https://docs.atlassian.com/software/jira/docs/api/REST/7.13.0/#api/2/issue/{issueIdOrKey}/attachments-addAttachment
  * https://stackoverflow.com/questions/21738782/does-the-jira-rest-api-require-submitting-a-transition-id-when-transitioning-an
  * https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-get
- * 
- * TODO: Factor HTTP Client
- * https://stackoverflow.com/questions/51478525/httpclient-this-instance-has-already-started-one-or-more-requests-properties-ca
  */
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -22,11 +18,8 @@ using Rhino.Connectors.AtlassianClients.Extensions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Rhino.Connectors.AtlassianClients
@@ -41,32 +34,11 @@ namespace Rhino.Connectors.AtlassianClients
 
         // members
         private readonly ILogger logger;
-        private readonly string jqlFormat;
-        private readonly string issueFormat;
-        private readonly string metaFormat;
-        private readonly string attachmentFormat;
-        private static readonly HttpClient httpClient = new HttpClient();
 
-        /// <summary>
-        /// Gets the <see cref="System.Net.Http.HttpClient"/> used by this JiraClient.
-        /// </summary>
-        public static readonly HttpClient HttpClient = new HttpClient();
+        // private properties
+        private string CreateMessage => $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} UTC: Automatically created by Rhino engine.";
 
-        /// <summary>
-        /// Gets the JSON serialization settings used by this JiraClient.
-        /// </summary>
-        public static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.Indented,
-            ContractResolver = new CamelCasePropertyNamesContractResolver()
-        };
-
-        /// <summary>
-        /// Gets the HTTP requests media type used by this JiraClient.
-        /// </summary>
-        public const string MediaType = "application/json";
-
-        #region *** Constructors ***
+        #region *** Constructors   ***
         /// <summary>
         /// Creates a new instance of JiraClient.
         /// </summary>
@@ -86,53 +58,217 @@ namespace Rhino.Connectors.AtlassianClients
             Authentication = authentication;
             this.logger = logger?.CreateChildLogger(loggerName: nameof(JiraClient));
 
-            // url format
-            var apiVersion = authentication.Capabilities.ContainsKey("apiVersion")
-                ? $"{authentication.Capabilities["apiVersion"]}"
-                : "latest";
-            jqlFormat = string.Format("/rest/api/{0}/search?jql=", apiVersion);
-            issueFormat = $"/rest/api/{apiVersion}/issue";
-            metaFormat = $"/rest/api/{apiVersion}/issue/createmeta?projectKeys={authentication.Project}&expand=projects.issuetypes.fields";
-            attachmentFormat = $"/rest/api/{apiVersion}/attachment";
-
-            // setup
-            SetHttpClients(authentication);
+            // project meta data
+            ProjectMeta = GetProjectMeta(authentication);
         }
         #endregion
 
-        #region *** Properties   ***
+        #region *** Properties     ***
         /// <summary>
-        /// Jira authentication information.
+        /// Gets the Jira authentication information used by this client.
         /// </summary>
         public JiraAuthentication Authentication { get; }
+
+        /// <summary>
+        /// Gets the project meta data used by this client.
+        /// </summary>
+        public JObject ProjectMeta { get; }
         #endregion
 
-        #region *** GET          ***
+        #region *** Get: Issue     ***
         /// <summary>
         /// Gets a Jira issue a JSON LINQ object.
         /// </summary>
-        /// <param name="issueKey">Issue key by which to fetch data.</param>
+        /// <param name="idOrKey">Issue key or id by which to fetch data.</param>
         /// <returns>JSON LINQ object representation of the issue.</returns>
-        public JObject GetIssue(string issueKey)
+        public JObject GetIssue(string idOrKey)
         {
-            return DoGetIssues(bucketSize: 1, issueKey).FirstOrDefault();
+            return DoGetIssues(bucketSize: 1, idsOrKeys: new[] { idOrKey }).FirstOrDefault();
         }
 
         /// <summary>
         /// Gets a Jira issue a JSON LINQ object.
         /// </summary>
-        /// <param name="bucketSize">The number of parallel request to Jira. Each request will fetch 10 issues.</param>
-        /// <param name="issuesKeys">Issue key by which to fetch data.</param>
+        /// <param name="idsOrKeys">A collection of issue key or by which to fetch data.</param>
         /// <returns>A collection of JSON LINQ object representation of the issue.</returns>
-        public IEnumerable<JObject> GetIssues(int bucketSize, params string[] issuesKeys)
+        public IEnumerable<JObject> GetIssues(IEnumerable<string> idsOrKeys)
         {
             // setup
-            bucketSize = bucketSize == 0 ? 4 : bucketSize;
+            var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
+            logger?.Trace($"Set [{nameof(bucketSize)}] to [{bucketSize}]");
 
             // get issues
-            return DoGetIssues(bucketSize, issuesKeys);
+            return DoGetIssues(bucketSize, idsOrKeys);
         }
 
+        /// <summary>
+        /// Gets a Jira issue a JSON LINQ object.
+        /// </summary>
+        /// <param name="jql">JQL to search by.</param>
+        /// <returns>A collection of JSON LINQ object representation of the issue.</returns>
+        public IEnumerable<JObject> GetIssues(string jql)
+        {
+            return GetIssuesByJql(jql);
+        }
+        #endregion
+
+        #region *** Post: Issue    ***
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JObject CreateIssue(string issueBody)
+        {
+            return DoCraeteOrUpdate(idOrKey: string.Empty, issueBody);
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JObject CreateIssue(JObject issueBody)
+        {
+            return DoCraeteOrUpdate(idOrKey: string.Empty, $"{issueBody}");
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JObject CreateIssue(object issueBody)
+        {
+            // setup
+            var onBody = JsonConvert.SerializeObject(issueBody, JiraUtilities.JsonSettings);
+
+            // post
+            return DoCraeteOrUpdate(idOrKey: string.Empty, issueBody: onBody);
+        }
+        #endregion
+
+        #region *** Put: Issue     ***
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns><see cref="true"/> if update was successful; <see cref="false"/> if not.</returns>
+        public bool UpdateIssue(string idOrKey, string issueBody)
+        {
+            return DoCraeteOrUpdate(idOrKey, issueBody) != default;
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns><see cref="true"/> if update was successful; <see cref="false"/> if not.</returns>
+        public bool UpdateIssue(string idOrKey, JObject issueBody)
+        {
+            return DoCraeteOrUpdate(idOrKey, $"{issueBody}") != default;
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
+        /// <param name="issueBody">The request body for creating the issue (JSON formatted).</param>
+        /// <returns><see cref="true"/> if update was successful; <see cref="false"/> if not.</returns>
+        public bool UpdateIssue(string idOrKey, object issueBody)
+        {
+            // setup
+            var onBody = JsonConvert.SerializeObject(issueBody, JiraUtilities.JsonSettings);
+
+            // post
+            return DoCraeteOrUpdate(idOrKey, issueBody: onBody) != default;
+        }
+        #endregion
+
+        #region *** Attachments    ***
+        /// <summary>
+        /// Add one or more attachments to an issue.
+        /// </summary>
+        /// <param name="idOrKey">The issue key under which to upload the files.</param>
+        /// <param name="files">A collection of files to upload.</param>
+        /// <remarks>Default parallel size is 10.</remarks>
+        public void AddAttachments(string idOrKey, params string[] files)
+        {
+            // setup
+            var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 10);
+
+            // get requests
+            var requests = files.Select(i => JiraUtilities.AddAttachmentRequest(Authentication, idOrKey, path: i));
+
+            // setup
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+
+            // add
+            Parallel.ForEach(requests, options, DoAddAttachment);
+        }
+
+        private void DoAddAttachment(HttpRequestMessage request)
+        {
+            try
+            {
+                var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger?.Warn(
+                        $"Add-Attachment = [{request.RequestUri.AbsoluteUri}]; " +
+                        $"Get-Status = [{response.StatusCode}]; " +
+                        $"Get-Reason = [{response.ReasonPhrase}]");
+                }
+            }
+            catch (Exception e) when (e != null)
+            {
+                logger?.Error($"Add-Attachment [{request.RequestUri.AbsoluteUri}] = [False]", e);
+            }
+        }
+
+        /// <summary>
+        /// Remove all attachments from an issue.
+        /// </summary>
+        /// <param name="idOrKey">The issue key or id by which to remove attachments.</param>
+        /// <remarks>Default parallel size is 10.</remarks>
+        public void DeleteAttachments(string idOrKey)
+        {
+            // setup
+            var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 10);
+
+            // get issue
+            var issue = DoGetIssue(idOrKey, queryString: "?fields=attachment");
+            if (issue == default)
+            {
+                logger?.Warn("Get-Issue = [False]");
+                return;
+            }
+
+            // check for attachments
+            var attachments = issue.SelectToken("fields.attachment");
+            if (attachments?.Any() == false)
+            {
+                logger?.Warn($"Issue {idOrKey} have no attachments.");
+                return;
+            }
+
+            // build
+            var requests = new List<HttpRequestMessage>();
+            foreach (var attachment in attachments)
+            {
+                requests.Add(JiraUtilities.DeleteAttachmentRequest(Authentication, $"{attachment["id"]}"));
+            }
+
+            // delete
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            Parallel.ForEach(requests, options, request
+                => JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult());
+        }
+        #endregion
+
+        #region *** Get: MetaData  ***
         /// <summary>
         /// Gets a custom field name (e.g. customfield_11) by it's schema.
         /// </summary>
@@ -140,86 +276,61 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns>Custom field name (e.g. customfield_11).</returns>
         public string GetCustomField(string schema)
         {
-            // constants: logging
-            const string W = "Fetching custom field for schema [{0}] returned with status code [{1}] and message [{2}]";
-            const string M = "Custom field [{0}] found for schema [{1}]";
-
-            // compose endpoint
-            var routing = $"{issueFormat}/createmeta?projectKeys={Authentication.Project}&expand=projects.issuetypes.fields";
-
-            // get & verify response
-            var httpResponseMessage = HttpClient.GetAsync(routing).GetAwaiter().GetResult();
-            if (!httpResponseMessage.IsSuccessStatusCode)
+            // exit conditions
+            if (ProjectMeta == default)
             {
-                logger?.WarnFormat(W, schema, httpResponseMessage.StatusCode, httpResponseMessage.ReasonPhrase);
-                return "-1";
+                return default;
             }
 
-            // parse into JObject
-            var jsonObject = httpResponseMessage.ToObject();
-
             // compose custom field key
-            var customFields = jsonObject.SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
+            var customFields = ProjectMeta.SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
             var customField = $"customfield_{customFields.Parent.Parent["customId"]}";
 
             // logging
-            logger?.DebugFormat(M, customField, schema);
+            logger?.Debug($"Get-CustomField [{schema}] = [{customField}]");
             return customField;
         }
 
         /// <summary>
         /// Gets the literal issue type as returned by Jira server.
         /// </summary>
-        /// <param name="issueKey">Issue key by which to fetch data.</param>
+        /// <param name="idOrKey">The issue key or id by which to get type.</param>
         /// <returns>The issue type as returned by Jira server.</returns>
-        public string GetIssueType(string issueKey)
+        public string GetIssueType(string idOrKey)
         {
             // get issue & validate response
-            var jsonObject = DoGetIssues(bucketSize: 1, issueKey).FirstOrDefault();
+            var issue = DoGetIssues(bucketSize: 1, new[] { idOrKey }).FirstOrDefault();
 
             // extract issue type
-            return DoGetIssueType(jsonObject);
+            return ExtractIssueType(issue);
         }
 
         /// <summary>
         /// Gets the literal issue type as returned by Jira server.
         /// </summary>
-        /// <param name="issueToken">Issue token by which to fetch data.</param>
+        /// <param name="issue">Issue token by which to fetch data.</param>
         /// <returns>The issue type as returned by Jira server.</returns>
-        public string GetIssueType(JObject issueToken)
+        public string GetIssueType(JObject issue)
         {
-            return DoGetIssueType(issueToken);
+            return ExtractIssueType(issue);
         }
 
         /// <summary>
         /// Gets available field and values of an issue type.
         /// </summary>
-        /// <param name="issueType">The issue type for which to get fields and values.</param>
-        /// <param name="path">The JSON Path to find the field.</param>
+        /// <param name="idOrKey">The issue type for which to get fields and values.</param>
+        /// <param name="path">A <see cref="string"/> that contains a JSONPath expression.</param>
         /// <returns>Serialized field token.</returns>
-        public string GetIssueTypeFields(string issueType, string path)
+        public string GetIssueTypeFields(string idOrKey, string path)
         {
-            // get meta
-            var response = HttpClient.GetAsync(metaFormat).GetAwaiter().GetResult();
-
             // exit conditions
-            if (!response.IsSuccessStatusCode)
-            {
-                return string.Empty;
-            }
-
-            // parse
-            var metaBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var metaObjt = JObject.Parse(metaBody)["projects"].FirstOrDefault();
-
-            // exit conditions
-            if (metaBody == default)
+            if (ProjectMeta == default)
             {
                 return string.Empty;
             }
 
             // issue type
-            var issueTypeToken = metaObjt["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(issueType, Compare));
+            var issueTypeToken = ProjectMeta["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
 
             // exit conditions
             if (issueTypeToken == default)
@@ -241,19 +352,19 @@ namespace Rhino.Connectors.AtlassianClients
         /// <summary>
         /// Gets available transitions by issue.
         /// </summary>
-        /// <param name="issueKey">The key of the issue by which to get transitions.</param>
+        /// <param name="idOrKey">The key of the issue by which to get transitions.</param>
         /// <returns>A collection of transitions.</returns>
-        public IEnumerable<IDictionary<string, string>> GetTransitions(string issueKey)
+        public IEnumerable<IDictionary<string, string>> GetTransitions(string idOrKey)
         {
-            // setup
-            var endpoint = $"{issueFormat}/{issueKey}/transitions?expand=transitions.fields";
-
-            // get
-            var response = HttpClient.GetAsync(endpoint).GetAwaiter().GetResult();
-
-            // exit conditions
+            // get & verify response
+            var request = JiraUtilities.GetTransitionsRequest(Authentication, idOrKey);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
             if (!response.IsSuccessStatusCode)
             {
+                logger?.Warn(
+                    $"Get-Request = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
                 return Array.Empty<IDictionary<string, string>>();
             }
 
@@ -283,54 +394,7 @@ namespace Rhino.Connectors.AtlassianClients
         }
         #endregion
 
-        #region *** POST         ***
-        /// <summary>
-        /// Creates an issue under Jira Server.
-        /// </summary>
-        /// <param name="issueBody">The request body for creating the issue.</param>
-        /// <returns>Response as JSON LINQ Object instance.</returns>
-        public JObject CreateIssue(string issueBody)
-        {
-            return DoCraeteIssue($"{issueBody}");
-        }
-
-        /// <summary>
-        /// Creates an issue under Jira Server.
-        /// </summary>
-        /// <param name="issueToken">The request body for creating the issue.</param>
-        /// <returns>Response as JSON LINQ Object instance.</returns>
-        public JObject CreateIssue(JObject issueToken)
-        {
-            return DoCraeteIssue($"{issueToken}");
-        }
-
-        private JObject DoCraeteIssue(string requestBody)
-        {
-            // constants: logging
-            const string W = "Failed to the issue; response code [{0}]; reason phrase [{1}]";
-            const string M = "Issue [{0}] created.";
-
-            // get request body
-            var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
-            var response = HttpClient.PostAsync(issueFormat, content).GetAwaiter().GetResult();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.WarnFormat(W, response.StatusCode, response.ReasonPhrase);
-                return default;
-            }
-
-            // parse body
-            var responseBody = response.ToObject();
-
-            // update test run key
-            var key = responseBody["key"].ToString();
-            logger?.DebugFormat(M, key);
-
-            // results
-            return responseBody;
-        }
-
+        #region *** Post: MetaData ***
         /// <summary>
         /// Creates an issue link between 2 issues.
         /// </summary>
@@ -340,19 +404,15 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns>Response as JSON LINQ Object instance.</returns>
         public void CreateIssueLink(string linkType, string inward, string outward)
         {
-            DoCreateIssueLink(
-                linkType,
-                inward,
-                outward,
-                comment: $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} UTC: Automatically created by Rhino engine.");
+            DoCreateIssueLink(linkType, inward, outward, comment: CreateMessage);
         }
 
         /// <summary>
         /// Creates an issue link between 2 issues.
         /// </summary>
         /// <param name="linkType">The name of the link type to create (e.g. Blocks).</param>
-        /// <param name="inward">The key if the inward issue (i.e. the issue which blocks).</param>
-        /// <param name="outward">The key if the outward issue (i.e. the issue which is blocked by).</param>
+        /// <param name="inward">The key of the inward issue (i.e. the issue which blocks).</param>
+        /// <param name="outward">The key of the outward issue (i.e. the issue which is blocked by).</param>
         /// <param name="comment">Comment to create for this link.</param>
         /// <returns>Response as JSON LINQ Object instance.</returns>
         public void CreateIssueLink(string linkType, string inward, string outward, string comment)
@@ -362,361 +422,120 @@ namespace Rhino.Connectors.AtlassianClients
 
         private void DoCreateIssueLink(string linkType, string inward, string outward, string comment)
         {
-            // setup
-            var requestObjt = new
-            {
-                Type = new
-                {
-                    Name = linkType
-                },
-                InwardIssue = new
-                {
-                    Key = inward
-                },
-                OutwardIssue = new
-                {
-                    Key = outward
-                },
-                Comment = new
-                {
-                    Body = comment
-                }
-            };
-            var requestBody = JsonConvert.SerializeObject(requestObjt, JsonSettings);
-
             // content & request
-            var content = new StringContent(content: requestBody, Encoding.UTF8, MediaType);
-            var response = HttpClient.PostAsync("/rest/api/latest/issueLink", content).GetAwaiter().GetResult();
+            var request = JiraUtilities.CreateLinkRequest(Authentication, linkType, inward, outward, comment);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
             // logging
             if (response.IsSuccessStatusCode)
             {
-                logger?.Debug($"Link of type [{linkType}] was created between [{inward}] and [{outward}]");
+                logger?.Debug($"Create-IssueLink [{linkType}] [{inward}] [{outward}] = [True]");
             }
             else
             {
                 var exception = new HttpRequestException(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-                var message =
-                    $"Was not able to create link of type [{linkType}] between [{inward}] and [{outward}]; Status code [{response.StatusCode}]";
+                var message = $"Create-IssueLink [{linkType}] [{inward}] [{outward}] = [False]";
                 logger?.Error(message, exception);
             }
         }
 
         /// <summary>
-        /// Add one or more attachments to an issue.
+        /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
         /// </summary>
-        /// <param name="issueKey">The issue key under which to upload the files.</param>
-        /// <param name="files">A collection of files to upload.</param>
-        /// <remarks>Default parallel size is 10.</remarks>
-        public void AddAttachments(string issueKey, params string[] files)
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
+        /// <param name="transitionId">The ID of the transition (you can use GetTransitions method to get the transition ID).</param>
+        /// <param name="resolution">The resolution to pass with the transition.</param>
+        public bool CreateTransition(string idOrKey, string transitionId, string resolution)
         {
-            DoAddAttachments(bucketSize: 10, issueKey, files);
-        }
-
-        /// <summary>
-        /// Add one or more attachments to an issue.
-        /// </summary>
-        /// <param name="bucketSize">How many files will be uploaded in parallel.</param>
-        /// <param name="issueKey">The issue key under which to upload the files.</param>
-        /// <param name="files">A collection of files to upload.</param>
-        public void AddAttachments(int bucketSize, string issueKey, params string[] files)
-        {
-            DoAddAttachments(bucketSize, issueKey, files);
-        }
-
-        private void DoAddAttachments(int bucketSize, string issueKey, params string[] files)
-        {
-            // get requests
-            var attachmentRequests = files.Select(i => GetAttachmentRequest(issueKey, path: i));
-
-            // setup
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(attachmentRequests, options, request =>
-            {
-                try
-                {
-                    var response = httpClient.SendAsync(request).GetAwaiter().GetResult();
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        logger?.Warn(
-                            $"Failed to upload attachment to [{issueKey}]; " +
-                            $"Reason [{response.StatusCode}]:[{response.ReasonPhrase}]");
-                    }
-                }
-                catch (Exception e) when (e != null)
-                {
-                    logger?.Error($"Failed to upload attachment to [{issueKey}]", e);
-                }
-            });
-        }
-
-        private HttpRequestMessage GetAttachmentRequest(string issueKey, string path)
-        {
-            // base address
-            var baseAddress = HttpClient.BaseAddress.AbsoluteUri.EndsWith("/")
-                ? HttpClient.BaseAddress.AbsoluteUri.Substring(0, HttpClient.BaseAddress.AbsoluteUri.LastIndexOf('/'))
-                : HttpClient.BaseAddress.AbsoluteUri;
-
-            // setup
-            var bytes = File.ReadAllBytes(path);
-            var fileName = Path.GetFileName(path);
-            var endpoint = new Uri(string.Format("{0}/{1}/attachments", $"{baseAddress}{issueFormat}", issueKey));
-
-            // setup: request
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, endpoint);
-
-            // setup: request data
-            var boundary = Guid.NewGuid();
-            var multipartContent = new MultipartFormDataContent($"----{boundary}");
-
-            var byteContent = new ByteArrayContent(bytes);
-            byteContent.Headers.Add("X-Atlassian-Token", "no-check");
-
-            multipartContent.Add(byteContent, "file", fileName);
-
-            // apply to request message
-            requestMessage.Content = multipartContent;
-
-            // results
-            return requestMessage;
+            return DoCreateTransition(idOrKey, transitionId, resolution, comment: CreateMessage);
         }
 
         /// <summary>
         /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
         /// </summary>
-        /// <param name="issueKey">The key of the issue.</param>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
         /// <param name="transitionId">The ID of the transition (you can use GetTransitions method to get the transition ID).</param>
-        /// <param name="resolution">The resolution to pass with the transaction.</param>
-        public bool Transition(string issueKey, string transitionId, string resolution)
-        {
-            // setup
-            var transitionBody = GetTransitionBody()
-                .Replace("[transition-id]", transitionId)
-                .Replace("[assignee]", Authentication.User)
-                .Replace("[resolution]", resolution)
-                .Replace("[comment]", string.Empty);
-
-            // build object
-            var transition = JObject.Parse(transitionBody);
-
-            // send
-            return DoTransition(issueKey, transition);
-        }
-
-        /// <summary>
-        /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
-        /// </summary>
-        /// <param name="issueKey">The key of the issue.</param>
-        /// <param name="transitionId">The ID of the transition (you can use GetTransitions method to get the transition ID).</param>
+        /// <param name="resolution">The resolution to pass with the transition.</param>
         /// <param name="comment">A comment to add when posting transition</param>
-        public bool Transition(string issueKey, string transitionId, string resolution, string comment)
+        public bool CreateTransition(string idOrKey, string transitionId, string resolution, string comment)
         {
-            // setup
-            var transitionBody = GetTransitionBody()
-                .Replace("[transition-id]", transitionId)
-                .Replace("[assignee]", Authentication.User)
-                .Replace("[resolution]", resolution)
-                .Replace("[comment]", comment);
-
-            // build object
-            var transition = JObject.Parse(transitionBody);
-
-            // send
-            return DoTransition(issueKey, transition);
+            return DoCreateTransition(idOrKey, transitionId, resolution, comment);
         }
 
-        /// <summary>
-        /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
-        /// </summary>
-        /// <param name="issueKey">The key of the issue.</param>
-        /// <param name="transition">Transition body.</param>
-        public bool Transition(string issueKey, JObject transition)
+        private bool DoCreateTransition(string idOrKey, string transitionId, string resolution, string comment)
         {
-            return DoTransition(issueKey, transition);
-        }
+            // content & request
+            var request = JiraUtilities.CreateTransitionRequest(Authentication, idOrKey, transitionId, resolution, comment);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
-        private bool DoTransition(string issueKey, JObject transition)
-        {
-            // setup
-            var endpoint = $"{issueFormat}/{issueKey}/transitions";
-            var content = new StringContent($"{transition}", Encoding.UTF8, MediaType);
-
-            // post
-            var response = HttpClient.PostAsync(endpoint, content).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
+            // logging
+            if (response.IsSuccessStatusCode)
             {
-                logger?.Error($"Was not able to create transition for [{issueKey}]. {response.ReasonPhrase}");
+                logger?.Debug($"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = [True]");
+            }
+            else
+            {
+                var exception = new HttpRequestException(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                var message = $"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = [False]";
+                logger?.Error(message, exception);
             }
 
-            // actual
+            // get
             return response.IsSuccessStatusCode;
         }
+        #endregion
 
-        private string GetTransitionBody()
-        {
-            var dto = new
-            {
-                Update = new
-                {
-                    Comment = new[]
-                    {
-                        new
-                        {
-                            Add = new
-                            {
-                                Body = "[comment]"
-                            }
-                        }
-                    }
-                },
-                Fields = new
-                {
-                    Assignee = new
-                    {
-                        Name = "[assignee]"
-                    },
-                    Resolution = new
-                    {
-                        Name = "[resolution]"
-                    }
-                },
-                Transition = new
-                {
-                    Id = "[transition-id]"
-                }
-            };
-            return JsonConvert.SerializeObject(dto, JsonSettings);
-        }
-
+        #region *** Post: Comments ***
         /// <summary>
         /// Add comment to issue
         /// </summary>
-        /// <param name="issueKey">Issue key on which to add comment.</param>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
         /// <param name="comment">Comment to apply.</param>
         /// <returns><see cref="true"/> if successful; <see cref="false"/> if not.</returns>
-        public bool AddComment(string issueKey, string comment)
+        public bool CreateComment(string idOrKey, string comment)
         {
-            // setup
-            var payload = new
-            {
-                Update = new
-                {
-                    Comment = new[]
-                    {
-                        new
-                        {
-                            Add = new
-                            {
-                                Body = comment
-                            }
-                        }
-                    }
-                }
-            };
-            var requestBody = JsonConvert.SerializeObject(payload, JsonSettings);
-            var content = new StringContent(content: requestBody, Encoding.UTF8, MediaType);
+            // get request body
+            var request = JiraUtilities.CreateCommentRequest(Authentication, idOrKey, comment);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
-            // send
-            var endpoint = $"{issueFormat}/{issueKey}";
-            var response = HttpClient.PutAsync(endpoint, content).GetAwaiter().GetResult();
-
-            // assert
             if (!response.IsSuccessStatusCode)
             {
-                logger?.Error($"StatusCode = {response.StatusCode}: Was not able to add comment to issue [{issueKey}].");
+                logger?.Warn(
+                    $"Create-Request = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
+                return false;
             }
-            return response.IsSuccessStatusCode;
-        }
-        #endregion
-
-        #region *** PUT          ***
-        /// <summary>
-        /// Updates an issue.
-        /// </summary>
-        /// <param name="requestBody">The request body by which to update the issue.</param>
-        /// <param name="issueKey">The issue to update (use issue key).</param>
-        /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
-        public bool UpdateIssue(string requestBody, string issueKey)
-        {
-            // setup
-            var endpoint = $"{issueFormat}/{issueKey}";
-            var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
-
-            // put
-            var response = HttpClient.PutAsync(endpoint, content).GetAwaiter().GetResult();
-
-            // log
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was not able to update issue [{issueKey}]. Reason [{response.ReasonPhrase}]");
-            }
-            return response.IsSuccessStatusCode;
-        }
-        #endregion
-
-        #region *** DELETE       ***
-        /// <summary>
-        /// Remove an attachment from an issue.
-        /// </summary>
-        /// <param name="issueKey">The issue key by which to remove attachments.</param>
-        public void DeleteAttachments(string issueKey)
-        {
-            DoDeleteAttachments(issueKey, bucketSize: 4);
-        }
-
-        /// <summary>
-        /// Remove an attachment from an issue.
-        /// </summary>
-        /// <param name="issueKey">The issue key by which to remove attachments.</param>
-        /// <param name="bucketSize">The number of parallel request to Jira. Each request will delete 1 attachment.</param>
-        public void DeleteAttachments(string issueKey, int bucketSize)
-        {
-            DoDeleteAttachments(issueKey, bucketSize);
-        }
-        #endregion
-
-        // UTILITIES
-        private JObject DoGetIssue(string issueKey, string queryString)
-        {
-            // setup
-            var endpoint = $"{issueFormat}/{issueKey}{queryString}";
 
             // get
-            var response = HttpClient.GetAsync(endpoint).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was not able to get issue {issueKey}{queryString}; Reason [{response.ReasonPhrase}]");
-                return default;
-            }
-
-            // parse
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            return JObject.Parse(responseBody);
+            return response.IsSuccessStatusCode;
         }
+        #endregion
 
-        private string DoGetIssueType(JObject issueToken)
-        {
-            return issueToken == default ? "-1" : $"{issueToken.SelectToken("fields.issuetype.name")}";
-        }
-
-        private IEnumerable<JObject> DoGetIssues(int bucketSize, params string[] issuesKeys)
+        #region *** Utilities      ***
+        // gets a collection of issues using intervals and bucket size for maximum performance
+        private IEnumerable<JObject> DoGetIssues(int bucketSize, IEnumerable<string> idsOrKeys)
         {
             // split in buckets
-            var buckets = issuesKeys.Split(10);
+            var buckets = idsOrKeys.Split(10);
+            logger?.Trace($"Set-Parameter [{nameof(buckets)}] = [{buckets.Count()}]");
 
             // build queries (groups of 10)
             var jqls = new List<string>();
             foreach (var bucket in buckets)
             {
-                jqls.Add($"{jqlFormat} key in ({string.Join(",", bucket)})");
+                jqls.Add($"key in ({string.Join(",", bucket)})");
             }
+            logger?.Trace($"Set-Parameter [{nameof(jqls)}] = [{jqls.Count}]");
 
             // setup
             var objectCollection = new ConcurrentBag<JObject>();
 
             // collect
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(jqls, options, jql =>
+            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            logger?.Trace($"Set-Parameter [{nameof(parallelOptions)}] = [{bucketSize}]");
+
+            Parallel.ForEach(jqls, parallelOptions, jql =>
             {
                 foreach (var item in GetIssuesByJql(jql))
                 {
@@ -728,27 +547,25 @@ namespace Rhino.Connectors.AtlassianClients
 
         private IEnumerable<JObject> GetIssuesByJql(string jql)
         {
-            // constants: logging
-            const string E = "Fetching issues [{0}] returned with status code [{1}] and message [{2}]";
-            const string M = "Issues [{0}] fetched and converted into json object";
-            const string W = "Issues [{0}] was not found";
-
             // get & verify response
-            var response = HttpClient.GetAsync(jql).GetAwaiter().GetResult();
+            var request = JiraUtilities.GetByJqlRequest(Authentication, jql);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
             if (!response.IsSuccessStatusCode)
             {
-                logger?.WarnFormat(E, jql, response.StatusCode, response.ReasonPhrase);
+                logger?.Warn(
+                    $"Get-Request = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
                 return default;
             }
 
             // parse into JObject
             var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            logger?.DebugFormat(M, jql);
 
             // validate
             if (!responseBody.IsJson())
             {
-                logger?.WarnFormat(W, jql);
+                logger?.Warn("Get-IssueAsJson = [False]");
                 return Array.Empty<JObject>();
             }
 
@@ -758,7 +575,7 @@ namespace Rhino.Connectors.AtlassianClients
             // validate
             if (!obj.ContainsKey("issues") || !obj["issues"].Any())
             {
-                logger?.WarnFormat(W, jql);
+                logger?.Warn("Get-IssueFromBody = [False]");
                 return Array.Empty<JObject>();
             }
 
@@ -766,69 +583,76 @@ namespace Rhino.Connectors.AtlassianClients
             return obj["issues"].Select(i => JObject.Parse($"{i}"));
         }
 
-        private void DoDeleteAttachments(string issueKey, int bucketSize)
+        // gets an issue
+        private JObject DoGetIssue(string idOrKey, string queryString)
         {
-            // get issue
-            var issue = DoGetIssue(issueKey, queryString: "?fields=attachment");
-            if (issue == default)
+            // get & verify response
+            var request = JiraUtilities.GetRequest(Authentication, idOrKey, queryString);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
             {
-                logger?.Warn($"Issue {issueKey} was not found.");
-                return;
+                logger?.Warn(
+                    $"Get-Request = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
+                return default;
             }
 
-            // check for attachments
-            var attachments = issue.SelectToken("fields.attachment");
-            if (attachments?.Any() != true)
-            {
-                logger?.Warn($"Issue {issueKey} have no attachments.");
-                return;
-            }
-
-            // build
-            var deleteRequests = new List<string>();
-            foreach (var attachment in attachments)
-            {
-                deleteRequests.Add($"{attachmentFormat}/{attachment["id"]}");
-            }
-
-            // delete
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(deleteRequests, options, deleteRequest
-                => HttpClient.DeleteAsync(deleteRequest).GetAwaiter().GetResult());
+            // results
+            return response.ToObject();
         }
 
-        private void SetHttpClients(JiraAuthentication authentication)
+        // creates or updates an issue by id or key
+        private JObject DoCraeteOrUpdate(string idOrKey, string issueBody)
         {
-            try
-            {
-                // setup: provider authentication and base address
-                var header = $"{authentication.User}:{authentication.Password}";
-                var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
+            // get request body
+            var request = JiraUtilities.CreateOrUpdateRequst(Authentication, idOrKey, issueBody);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
-                // public client
-                if (HttpClient.DefaultRequestHeaders.Authorization == default)
-                {
-                    HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
-                }
-                if (HttpClient.BaseAddress == default)
-                {
-                    HttpClient.BaseAddress = new Uri(authentication.Collection);
-                }
-
-                // private client
-                if (httpClient.DefaultRequestHeaders.Authorization == default)
-                {
-                    httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedHeader);
-                }
-                if (!httpClient.DefaultRequestHeaders.Contains("X-Atlassian-Token"))
-                {
-                    httpClient.DefaultRequestHeaders.AddIfNotExists("X-Atlassian-Token", "no-check");
-                }
-            }
-            catch (Exception e) when (e != null)
+            if (!response.IsSuccessStatusCode)
             {
-                logger?.Fatal("Something went wrong with JiraClient.", e);
+                logger?.Warn(
+                    $"Create-Request = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
+                return default;
             }
+
+            // parse body
+            var responseBody = response.ToObject();
+
+            // update test run key
+            var key = responseBody["key"];
+            logger?.Debug($"Create-Issue [{key}] = [True]");
+
+            // results
+            return responseBody;
         }
+
+        // extract issue type from issue JSON response
+        private string ExtractIssueType(JObject issue)
+        {
+            return issue == default ? "-1" : $"{issue.SelectToken("fields.issuetype.name")}";
+        }
+
+        // extract project meta data object
+        private JObject GetProjectMeta(JiraAuthentication authentication)
+        {
+            // get & verify response
+            var request = JiraUtilities.GetMetaRequest(authentication);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Warn(
+                    $"Get-Meta = [{request.RequestUri.AbsoluteUri}]; " +
+                    $"Get-Status = [{response.StatusCode}]; " +
+                    $"Get-Reason = [{response.ReasonPhrase}]");
+                return default;
+            }
+
+            // parse into JObject
+            return response.ToObject();
+        }
+        #endregion
     }
 }

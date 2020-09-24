@@ -91,7 +91,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
 
             // build issues map
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(ids, options, id => map[id] = jiraClient.GetIssueType(issueKey: id));
+            Parallel.ForEach(ids, options, id => map[id] = jiraClient.GetIssueType(idOrKey: id));
 
             // entities
             var byTests = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare)).Select(i => i.Key);
@@ -170,7 +170,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.AddComment(issueKey: issue["key"].ToString(), comment);
+            jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
             Logger?.InfoFormat(M, Configuration.ProviderConfiguration.Project, testCase?.TestSuite);
@@ -186,7 +186,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
-            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(issueType: testType, path: "id")}";
+            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
 
             // setup request body
@@ -225,7 +225,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             // shortcuts
             var onProject = Configuration.ProviderConfiguration.Project;
             var preconditionsType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.PreconditionsType]}";
-            var id = $"{jiraClient.GetIssueTypeFields(issueType: preconditionsType, path: "id")}";
+            var id = $"{jiraClient.GetIssueTypeFields(idOrKey: preconditionsType, path: "id")}";
 
             // get precondition markdown
             var markdown = dataSource.ToMarkdown().Replace("\\r\\n", "\r\n");
@@ -261,7 +261,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.AddComment(issueKey: issue["key"].ToString(), comment);
+            jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
             Logger?.InfoFormat(M, $"{issue["key"]}", Configuration.ProviderConfiguration.Project);
@@ -514,7 +514,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
                 {
                     continue;
                 }
-                testCase.TestSuite = $"{jiraClient.GetIssue(issueKey: testSets.First())["key"]}";
+                testCase.TestSuite = $"{jiraClient.GetIssue(idOrKey: testSets.First())["key"]}";
                 onTestCases.Add(testCase);
             }
 
@@ -548,7 +548,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
                     testCase.Context["testPlans"] = Array.Empty<string>();
                     continue;
                 }
-                testCase.Context["testPlans"] = jiraClient.GetIssues(bucketSize, testPlans.ToArray()).Select(i => $"{i["key"]}");
+                testCase.Context["testPlans"] = jiraClient.GetIssues(testPlans).Select(i => $"{i["key"]}");
                 onTestCases.Add(testCase);
             }
 

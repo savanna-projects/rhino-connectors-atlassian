@@ -15,6 +15,7 @@ using Rhino.Api.Contracts.Interfaces;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Concurrent;
@@ -48,8 +49,10 @@ namespace Rhino.Connectors.Xray.Extensions
         public static void SetRuntimeKeys(this RhinoTestCase testCase, string testExecutionKey)
         {
             // add test step id into test-case context
+            var authentication = testCase.GetAuthentication();
             var route = string.Format(RavenExecutionFormat, testExecutionKey, testCase.Key);
-            var response = JiraClient.HttpClient.GetAsync(route).GetAwaiter().GetResult();
+            var request = JiraUtilities.GenericGetRequest(authentication, route);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
             // exit conditions
             if (!response.IsSuccessStatusCode)
@@ -89,16 +92,17 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <param name="testCase">RhinoTestCase by which to update test results.</param>
         public static void PutResultComment(this RhinoTestCase testCase, string comment)
         {
-            // setup: routing
-            var routing = string.Format(RavenRunFormat, testCase.Context["runtimeid"]);
+            // setup
+            var authentication = testCase.GetAuthentication();
+            var route = string.Format(RavenRunFormat, testCase.Context["runtimeid"]);
+            var payload = new { Comment = comment };
 
             // setup: content
-            var requestBody = JsonConvert.SerializeObject(new { Comment = comment }, JiraClient.JsonSettings);
-            var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
+            var request = JiraUtilities.GenericPutRequest(authentication, route, payload);
 
             // update
-            JiraClient.HttpClient.PutAsync(routing, content).GetAwaiter().GetResult();
-            Thread.Sleep(1000);
+            JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            Thread.Sleep(500);
         }
 
         /// <summary>
@@ -244,17 +248,19 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <remarks>Must contain runtimeid field in the context.</remarks>
         public static int SetOutcome(this RhinoTestCase testCase)
         {
-            // get request content
-            var request = new
+            // setup
+            var authentication = testCase.GetAuthentication();
+            var route = string.Format(RavenRunFormat, $"{testCase.Context["runtimeid"]}");
+            var payload = new
             {
                 steps = GetUpdateRequestObject(testCase)
             };
-            var requestBody = JsonConvert.SerializeObject(request, JiraClient.JsonSettings);
-            var content = new StringContent(requestBody, Encoding.UTF8, JiraClient.MediaType);
 
-            // update fields
-            var route = string.Format(RavenRunFormat, $"{testCase.Context["runtimeid"]}");
-            var response = JiraClient.HttpClient.PutAsync(route, content).GetAwaiter().GetResult();
+            // get request
+            var request = JiraUtilities.GenericPutRequest(authentication, route, payload);
+
+            // put
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
             // results
             if (!response.IsSuccessStatusCode)
@@ -293,7 +299,7 @@ namespace Rhino.Connectors.Xray.Extensions
         }
         #endregion
 
-        #region *** Bug Payload      ***
+        #region *** Update: Bug      ***
         /// <summary>
         /// Updates a bug based on this RhinoTestCase.
         /// </summary>
@@ -302,7 +308,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static bool UpdateBug(this RhinoTestCase testCase, JiraClient jiraClient, string issueKey)
         {
             // setup
-            var bugType = DoGetCapability<string>(testCase, capability: AtlassianCapabilities.BugType, "Bug");
+            var bugType = DoGetCapability(testCase, capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
             var onBug = jiraClient.GetIssue(issueKey);
 
             // setup conditions
@@ -317,14 +323,14 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // update body
             var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
-            var isUpdate = jiraClient.UpdateIssue(requestBody, issueKey);
+            var isUpdate = jiraClient.UpdateIssue(issueKey, requestBody);
             if (!isUpdate)
             {
                 return isUpdate;
             }
 
             // delete all attachments
-            jiraClient.DeleteAttachments(issueKey: $"{onBug["key"]}");
+            jiraClient.DeleteAttachments(idOrKey: $"{onBug["key"]}");
 
             // upload new attachments
             var files = GetScreenshots(testCase).ToArray();
@@ -334,7 +340,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return isUpdate;
         }
 
-        private static string GetUpdateBugPayload(RhinoTestCase testCase, JObject onBug, JiraClient jiraClient)
+        private static object GetUpdateBugPayload(RhinoTestCase testCase, JObject onBug, JiraClient jiraClient)
         {
             // setup
             var comment =
@@ -346,7 +352,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var description = $"{JObject.Parse(template).SelectToken("fields.description")}";
 
             // setup
-            var payload = new
+            return new
             {
                 Update = new
                 {
@@ -366,9 +372,10 @@ namespace Rhino.Connectors.Xray.Extensions
                     Description = description
                 }
             };
-            return JsonConvert.SerializeObject(payload, JiraClient.JsonSettings);
         }
+        #endregion
 
+        #region *** Create: Bug      ***
         /// <summary>
         /// Creates a bug based on this RhinoTestCase.
         /// </summary>
@@ -402,7 +409,9 @@ namespace Rhino.Connectors.Xray.Extensions
             // results
             return response;
         }
+        #endregion
 
+        #region *** Close: Bug       ***
         /// <summary>
         /// Close a bug based on this RhinoTestCase.
         /// </summary>
@@ -441,8 +450,8 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             //send transition
-            return jiraClient.Transition(
-                issueKey: bugIssueKey,
+            return jiraClient.CreateTransition(
+                idOrKey: bugIssueKey,
                 transitionId: transition["id"],
                 resolution: resolution,
                 comment);
@@ -545,14 +554,16 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // get test run from JIRA
-            var routing = string.Format(RavenExecutionFormat, testCase.Context["testRunKey"], testCase.Key);
-            var httpResponseMessage = JiraClient.HttpClient.GetAsync(routing).GetAwaiter().GetResult();
+            var authentication = testCase.GetAuthentication();
+            var route = string.Format(RavenExecutionFormat, testCase.Context["testRunKey"], testCase.Key);
+            var request = JiraUtilities.GenericGetRequest(authentication, route);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
-            if (!httpResponseMessage.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
                 return 0;
             }
-            int.TryParse($"{httpResponseMessage.ToObject()["id"]}", out int idOut);
+            int.TryParse($"{response.ToObject()["id"]}", out int idOut);
             return idOut;
         }
 
@@ -567,11 +578,12 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // upload
+            var authentication = testCase.GetAuthentication();
             foreach (var (Id, Data) in GetEvidence(testCase))
             {
                 var route = string.Format(RavenAttachmentFormat, run, Id);
-                var content = new StringContent(JsonConvert.SerializeObject(Data), Encoding.UTF8, JiraClient.MediaType);
-                JiraClient.HttpClient.PostAsync(route, content).GetAwaiter().GetResult();
+                var request = JiraUtilities.GenericPostRequest(authentication, route, payload: Data);
+                JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
             }
         }
 
@@ -649,10 +661,10 @@ namespace Rhino.Connectors.Xray.Extensions
                 .AppendLine("]")
                 .AppendLine()
                 .AppendLine("[Driver Parameters]")
-                .AppendLine(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams], JiraClient.JsonSettings))
+                .AppendLine(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams], JiraUtilities.JsonSettings))
                 .AppendLine()
                 .AppendLine("[Local Data Source]")
-                .Append(JsonConvert.SerializeObject(testCase.DataSource, JiraClient.JsonSettings))
+                .Append(JsonConvert.SerializeObject(testCase.DataSource, JiraUtilities.JsonSettings))
                 .AppendLine("{noformat}");
 
             // return

@@ -50,6 +50,7 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         /// the ALM.
         /// </summary>
         /// <remarks>This field is for allowing better flexibility when you implement a connector.</remarks>
+        [DataMember]
         public IDictionary<string, object> Capabilities { get; set; } = new Dictionary<string, object>();
     }
 }

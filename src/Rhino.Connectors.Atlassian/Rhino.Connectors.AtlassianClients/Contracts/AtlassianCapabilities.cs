@@ -60,5 +60,17 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         /// </summary>
         [DataMember]
         public const string TestPlans = "testPlans";
+
+        /// <summary>
+        /// The Jira API version to use when executing requests against Jira API. If not specified, "latest" will be used.
+        /// </summary>
+        [DataMember]
+        public const string JiraApiVersion = "jiraApiVersion";
+
+        /// <summary>
+        /// The number of parallel requests which will send when using Jira API. If not specified, 4 will be used.
+        /// </summary>
+        [DataMember]
+        public const string BucketSize = "bucketSize";
     }
 }
