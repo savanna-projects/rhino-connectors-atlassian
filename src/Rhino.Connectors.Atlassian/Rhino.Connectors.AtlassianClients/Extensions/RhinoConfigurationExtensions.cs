@@ -63,7 +63,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             [AtlassianCapabilities.PlanType] = "Test Plan",
             [AtlassianCapabilities.PreconditionsType] = "Pre-condition",
             [AtlassianCapabilities.ExecutionType] = "Test Execution",
-            [AtlassianCapabilities.BugType] = "Bug"
+            [AtlassianCapabilities.BugType] = "Bug",
+            ["inconclusiveStatus"] = "ABORTED"
         };
         #endregion
 

@@ -398,6 +398,7 @@ namespace Rhino.Connectors.Xray.Framework
             testRun.Key = $"{responseBody["key"]}";
             testRun.Link = $"{responseBody["self"]}";
             testRun.Context["runtimeid"] = $"{responseBody["id"]}";
+            testRun.Context[ContextEntry.Configuration] = Configuration;
 
             // test steps handler
             foreach (var testCase in TestRun.TestCases)
@@ -432,12 +433,12 @@ namespace Rhino.Connectors.Xray.Framework
             // iterate: pass/fail
             foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key) && !i.Inconclusive))
             {
-                DoUpdateTestResults(testCase);
+                DoUpdateTestResults(testCase, inline: false);
             }
             // iterate: inconclusive
             foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
             {
-                DoUpdateTestResults(testCase);
+                DoUpdateTestResults(testCase, inline: true);
             }
 
             // test plan
@@ -487,7 +488,7 @@ namespace Rhino.Connectors.Xray.Framework
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
         public override void UpdateTestResult(RhinoTestCase testCase)
         {
-            DoUpdateTestResults(testCase);
+            DoUpdateTestResults(testCase, inline: false);
         }
         #endregion
 
@@ -622,7 +623,7 @@ namespace Rhino.Connectors.Xray.Framework
         #endregion
 
         // UTILITIES
-        private void DoUpdateTestResults(RhinoTestCase testCase)
+        private void DoUpdateTestResults(RhinoTestCase testCase, bool inline)
         {
             try
             {
@@ -635,7 +636,15 @@ namespace Rhino.Connectors.Xray.Framework
                 {
                     outcome = $"{testCase.Context["outcome"]}";
                 }
-                testCase.SetOutcome();
+
+                // update
+                if (inline)
+                {
+                    testCase.SetOutcomeBySteps();
+                    testCase.SetOutcomeByRun();
+                    return;
+                }
+                testCase.SetOutcomeBySteps();
 
                 // attachments
                 if (forUploadOutcomes.Contains(outcome.ToUpper()))

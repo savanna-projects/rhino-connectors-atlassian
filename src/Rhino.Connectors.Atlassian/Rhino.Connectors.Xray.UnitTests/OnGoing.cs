@@ -23,7 +23,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "XT-7"/*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RHIN-1"/*"XT-7"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -32,17 +32,21 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 ProviderConfiguration = new RhinoProviderConfiguration
                 {
-                    Collection = "https://pangobugs.atlassian.net",
-                    Password = "aLNwnhE8fupLguQ6fwYo8A00",
-                    User = "s_roei@msn.com",
-                    Project = "XT",
+                    Collection = "http://localhost:8080",
+                    Password = "admin",
+                    User = "admin",
+                    Project = "RHIN",
+                    //Collection = "https://pangobugs.atlassian.net",
+                    //Password = "aLNwnhE8fupLguQ6fwYo8A00",
+                    //User = "s_roei@msn.com",
+                    //Project = "XT",
                     BugManager = true,
                     Capabilities = new Dictionary<string, object>
                     {
                         ["bucketSize"] = 15,
                         ["dryRun"] = false,
-                        [AtlassianCapabilities.TestType] = "Xray Test",
-                        [AtlassianCapabilities.PreconditionsType] = "Precondition"
+                        //[AtlassianCapabilities.TestType] = "Xray Test",
+                        //[AtlassianCapabilities.PreconditionsType] = "Precondition"
                     }
                 },
                 DriverParameters = new[]
@@ -77,7 +81,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     MaxParallel = 1
                 }
             };
-            var connector = new XrayCloudConnector(configu);
+            var connector = new XrayConnector(configu);
             connector.Execute();
             //var testCases = connector.ProviderManager.GetTestCases("XT-7").First();
             //connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());

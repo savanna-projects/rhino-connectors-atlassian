@@ -38,6 +38,8 @@ namespace Rhino.Connectors.Xray.Extensions
         private const string RavenExecutionFormat = "/rest/raven/2.0/api/testrun/?testExecIssueKey={0}&testIssueKey={1}";
         private const string RavenRunFormat = "/rest/raven/2.0/api/testrun/{0}";
         private const string RavenAttachmentFormat = "/rest/raven/2.0/api/testrun/{0}/step/{1}/attachment";
+        private const string RavenInlineRunFormat = "/rest/raven/1.0/testexec/{0}/execute/{1}";
+        private const string RavenStatusFormat = "/rest/raven/2.0/api/settings/teststatuses";
 
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
@@ -246,7 +248,7 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
         /// <returns>-1 if failed to update, 0 for success.</returns>
         /// <remarks>Must contain runtimeid field in the context.</remarks>
-        public static int SetOutcome(this RhinoTestCase testCase)
+        public static int SetOutcomeBySteps(this RhinoTestCase testCase)
         {
             // setup
             var authentication = testCase.GetAuthentication();
@@ -282,9 +284,63 @@ namespace Rhino.Connectors.Xray.Extensions
             var steps = new List<object>();
             foreach (var testStep in testCase.Steps)
             {
-                steps.Add(testStep.GetUpdateRequest());
+                steps.Add(testStep.GetUpdateRequest(outcome: $"{testCase.Context["outcome"]}"));
             }
             return steps;
+        }
+
+        /// <summary>
+        /// Set XRay test execution results of test case by setting steps outcome.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
+        /// <returns>-1 if failed to update, 0 for success.</returns>
+        /// <remarks>Must contain runtimeid field in the context.</remarks>
+        public static int SetOutcomeByRun(this RhinoTestCase testCase)
+        {
+            // setup
+            var authentication = testCase.GetAuthentication();
+
+            // get
+            var request = JiraUtilities.GenericGetRequest(authentication, RavenStatusFormat);
+            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                return -1;
+            }
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            // extract status
+            var status = JArray
+                .Parse(responseBody)
+                .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals($"{testCase.Context["outcome"]}", Compare));
+
+            // exit conditions
+            if(status == default)
+            {
+                return -1;
+            }
+
+            // exit conditions
+            if (!int.TryParse($"{status["id"]}", out int id))
+            {
+                return -1;
+            }
+
+            // setup
+            var route = string.Format(RavenInlineRunFormat, testCase.TestRunKey, testCase.Key);
+
+            // get request
+            request = JiraUtilities.GenericPostRequest(authentication, route, id);
+
+            // put
+            response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+
+            // results
+            if (!response.IsSuccessStatusCode)
+            {
+                return -1;
+            }
+            return 0;
         }
         #endregion
 
