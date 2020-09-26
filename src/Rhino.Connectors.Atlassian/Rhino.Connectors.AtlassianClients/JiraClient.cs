@@ -225,7 +225,7 @@ namespace Rhino.Connectors.AtlassianClients
             }
             catch (Exception e) when (e != null)
             {
-                logger?.Error($"Add-Attachment [{request.RequestUri.AbsoluteUri}] = [False]", e);
+                logger?.Error($"Add-Attachment [{request.RequestUri.AbsoluteUri}] = false", e);
             }
         }
 
@@ -243,7 +243,7 @@ namespace Rhino.Connectors.AtlassianClients
             var issue = DoGetIssue(idOrKey, queryString: "?fields=attachment");
             if (issue == default)
             {
-                logger?.Warn("Get-Issue = [False]");
+                logger?.Warn("Get-Issue = false");
                 return;
             }
 
@@ -428,15 +428,15 @@ namespace Rhino.Connectors.AtlassianClients
             var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
 
             // logging
+            var message = $"Create-IssueLink -Type [{linkType}] -Inward [{inward}] - Outward [{outward}]";
             if (response.IsSuccessStatusCode)
             {
-                logger?.Debug($"Create-IssueLink [{linkType}] [{inward}] [{outward}] = [True]");
+                logger?.Debug($"{message} = true");
             }
             else
             {
                 var exception = new HttpRequestException(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-                var message = $"Create-IssueLink [{linkType}] [{inward}] [{outward}] = [False]";
-                logger?.Error(message, exception);
+                logger?.Error($"{message} = false", exception);
             }
         }
 
@@ -472,12 +472,12 @@ namespace Rhino.Connectors.AtlassianClients
             // logging
             if (response.IsSuccessStatusCode)
             {
-                logger?.Debug($"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = [True]");
+                logger?.Debug($"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = true");
             }
             else
             {
                 var exception = new HttpRequestException(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-                var message = $"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = [False]";
+                var message = $"Create-Transition [{idOrKey}] [{transitionId}] [{resolution}] = false";
                 logger?.Error(message, exception);
             }
 
@@ -566,7 +566,7 @@ namespace Rhino.Connectors.AtlassianClients
             // validate
             if (!responseBody.IsJson())
             {
-                logger?.Warn("Get-IssueAsJson = [False]");
+                logger?.Warn("Get-IssueAsJson = false");
                 return Array.Empty<JObject>();
             }
 
@@ -576,7 +576,7 @@ namespace Rhino.Connectors.AtlassianClients
             // validate
             if (!obj.ContainsKey("issues") || !obj["issues"].Any())
             {
-                logger?.Warn("Get-IssueFromBody = [False]");
+                logger?.Warn("Get-IssueFromBody = false");
                 return Array.Empty<JObject>();
             }
 
@@ -626,7 +626,7 @@ namespace Rhino.Connectors.AtlassianClients
 
             // update test run key
             var key = responseBody["key"];
-            logger?.Debug($"Create-Issue [{key}] = [True]");
+            logger?.Debug($"Create-Issue [{key}] = true");
 
             // results
             return responseBody;

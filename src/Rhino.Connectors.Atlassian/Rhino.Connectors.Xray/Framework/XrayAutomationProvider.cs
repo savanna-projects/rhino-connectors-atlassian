@@ -41,8 +41,8 @@ namespace Rhino.Connectors.Xray.Framework
 
         // state: global parameters
         private readonly ILogger logger;
-        private readonly JiraClient jiraClient;
         private readonly IDictionary<string, object> capabilities;
+        private readonly JiraClient jiraClient;
         private readonly int bucketSize;
 
         #region *** Public Constants  ***
@@ -96,11 +96,11 @@ namespace Rhino.Connectors.Xray.Framework
         }
         #endregion        
 
-        #region *** GET: Test Cases   ***
+        #region *** Get: Test Cases   ***
         /// <summary>
         /// Returns a list of test cases for a project.
         /// </summary>
-        /// <param name="ids">A list of test ids to get test cases by.</param>
+        /// <param name="ids">A list of issue id or key to get test cases by.</param>
         /// <returns>A collection of Rhino.Api.Contracts.AutomationProvider.RhinoTestCase</returns>
         public override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
         {
@@ -116,6 +116,8 @@ namespace Rhino.Connectors.Xray.Framework
                 };
                 Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
             }
+
+            // get
             return testCases;
         }
 
@@ -139,9 +141,7 @@ namespace Rhino.Connectors.Xray.Framework
             // exit conditions
             if (method == default)
             {
-                var message =
-                    $"Tests were not loaded. Was not able to find execution method for [{issueKey}] issue type.";
-                logger?.Error(message);
+                logger?.Error($"Get-Tests -By [{issueType}] = false");
                 return Array.Empty<RhinoTestCase>();
             }
 
@@ -153,9 +153,6 @@ namespace Rhino.Connectors.Xray.Framework
         [Description(AtlassianCapabilities.PlanType)]
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
-            // constants: logging
-            const string M = "Total of [{0}] tests found under [{1}] test plan";
-
             // parse into JObject
             var jsonObject = jiraClient.GetIssue(issueKey);
             if (jsonObject == default)
@@ -166,7 +163,7 @@ namespace Rhino.Connectors.Xray.Framework
             // find & validate test cases
             var customField = jiraClient.GetCustomField(TestPlanSchema);
             var onTestCases = jsonObject.SelectToken($"..{customField}");
-            Logger?.DebugFormat(M, onTestCases.Count(), issueKey);
+            Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.PlanType}] = {onTestCases.Count()}");
 
             // iterate & load tests
             var testCases = new List<RhinoTestCase>();
@@ -212,9 +209,6 @@ namespace Rhino.Connectors.Xray.Framework
         [Description(AtlassianCapabilities.ExecutionType)]
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
-            // constants: logging
-            const string M = "Total of [{0}] tests found under [{1}] test execution";
-
             // parse into JObject
             var jsonObject = jiraClient.GetIssue(issueKey);
             if (jsonObject == default)
@@ -225,7 +219,7 @@ namespace Rhino.Connectors.Xray.Framework
             // find & validate test cases
             var customField = jiraClient.GetCustomField(TestExecutionSchema);
             var onTestCases = jsonObject.SelectToken($"..{customField}");
-            Logger?.DebugFormat(M, onTestCases.Count(), issueKey);
+            Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.ExecutionType}] = {onTestCases.Count()}");
 
             // parse into connector test case
             var testCases = new List<RhinoTestCase>();
@@ -251,9 +245,6 @@ namespace Rhino.Connectors.Xray.Framework
         // COMMON METHODS
         private IEnumerable<RhinoTestCase> DoGetBySet(string issueKey)
         {
-            // constants: logging
-            const string M = "Total of [{0}] tests found under [{1}] test set";
-
             // parse into JObject
             var jsonObject = jiraClient.GetIssue(issueKey);
             if (jsonObject == default)
@@ -263,12 +254,12 @@ namespace Rhino.Connectors.Xray.Framework
 
             // find & validate test cases
             var customField = jiraClient.GetCustomField(TestSetTestsSchema);
-            var cases = jsonObject.SelectToken($"..{customField}");
-            Logger?.DebugFormat(M, cases.Count(), issueKey);
+            var onTestCases = jsonObject.SelectToken($"..{customField}");
+            Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.SetType}] = {onTestCases.Count()}");
 
             // parse into connector test case
             var testCases = new List<RhinoTestCase>();
-            foreach (var onTestCase in cases.Children())
+            foreach (var onTestCase in onTestCases.Children())
             {
                 testCases.Add(DoGetByTest($"{onTestCase}"));
             }
@@ -327,7 +318,7 @@ namespace Rhino.Connectors.Xray.Framework
         }
         #endregion
 
-        #region *** CREATE: Test Case ***
+        #region *** Create: Test Case ***
         /// <summary>
         /// Creates a new test case under the specified automation provider.
         /// </summary>
@@ -335,9 +326,6 @@ namespace Rhino.Connectors.Xray.Framework
         /// <returns>The ID of the newly created entity.</returns>
         public override string CreateTestCase(RhinoTestCase testCase)
         {
-            // constants: logging
-            const string M = "Test created under project [{0}] and assigned to [{1}] test set.";
-
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
             var testType = $"{Configuration.Capabilities[AtlassianCapabilities.TestType]}";
@@ -358,14 +346,14 @@ namespace Rhino.Connectors.Xray.Framework
             jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
-            Logger?.InfoFormat(M, onProject, testCase?.TestSuite);
+            Logger?.InfoFormat($"Create-Test -Project [{onProject}] -Set [{testCase?.TestSuite}] = true");
 
             // results
             return $"{issue}";
         }
         #endregion
 
-        #region *** CREATE: Test Run  ***
+        #region *** Create: Test Run  ***
         /// <summary>
         /// Creates an automation provider test run entity. Use this method to implement the automation
         /// provider test run creation and to modify the loaded Rhino.Api.Contracts.AutomationProvider.RhinoTestRun.
@@ -434,12 +422,12 @@ namespace Rhino.Connectors.Xray.Framework
             // iterate: pass/fail
             foreach (var testCase in testRun.TestCases.Where(i => testResults.Contains(i.Key) && !i.Inconclusive))
             {
-                DoUpdateTestResults(testCase, inline: false);
+                DoUpdateTestResult(testCase, inline: false);
             }
             // iterate: inconclusive
             foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
             {
-                DoUpdateTestResults(testCase, inline: true);
+                DoUpdateTestResult(testCase, inline: true);
             }
 
             // test plan
@@ -482,14 +470,14 @@ namespace Rhino.Connectors.Xray.Framework
         }
         #endregion
 
-        #region *** PUT: Test Results ***
+        #region *** Put: Test Results ***
         /// <summary>
         /// Updates a single test results iteration under automation provider.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
         public override void UpdateTestResult(RhinoTestCase testCase)
         {
-            DoUpdateTestResults(testCase, inline: false);
+            DoUpdateTestResult(testCase, inline: false);
         }
         #endregion
 
@@ -625,7 +613,7 @@ namespace Rhino.Connectors.Xray.Framework
         #endregion
 
         // UTILITIES
-        private void DoUpdateTestResults(RhinoTestCase testCase, bool inline)
+        private void DoUpdateTestResult(RhinoTestCase testCase, bool inline)
         {
             try
             {
@@ -663,10 +651,11 @@ namespace Rhino.Connectors.Xray.Framework
             }
             catch (Exception e) when (e != null)
             {
-                logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
+                logger?.Error($"Update-TestResult -Test [{testCase.Key}] -Inline [{inline}] = false", e);
             }
         }
 
+        // TODO: move to JiraUtilities and pass string Uri as argument
         private string GetBaseAddress()
         {
             // setup

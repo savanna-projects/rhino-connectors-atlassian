@@ -2,6 +2,7 @@
  * CHANGE LOG - keep only last 5 threads
  * 
  * RESSOURCES
+ * https://docs.getxray.app/display/XRAY/REST+API
  * https://github.com/Xray-App/xray-postman-collections
  */
 using Gravity.Abstraction.Logging;
@@ -125,29 +126,5 @@ namespace Rhino.Connectors.Xray
             return testCase;
         }
         #endregion
-
-        //// TODO: remove on next Rhino.Api update
-        //public override IEnumerable<RhinoTestCase> OnConnectEnd(IEnumerable<RhinoTestCase> testCases)
-        //{
-        //    // setup
-        //    var _testCases = new List<RhinoTestCase>();
-
-        //    // apply
-        //    foreach (var onTestCase in testCases)
-        //    {
-        //        var testCase = onTestCase;
-        //        var testSteps = new List<RhinoTestStep>();
-        //        foreach (var onTestStep in testCase.Steps)
-        //        {
-        //            var testStep = onTestStep;
-        //            testStep.Context[ContextEntry.Configuration] = testCase.Context[ContextEntry.Configuration];
-        //            testSteps.Add(testStep);
-        //        }
-        //        _testCases.Add(testCase);
-        //    }
-
-        //    // get
-        //    return _testCases;
-        //}
     }
 }
