@@ -11,6 +11,8 @@ using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.Xray.Extensions;
 using Rhino.Connectors.Xray.Framework;
 
 using System;
@@ -66,6 +68,10 @@ namespace Rhino.Connectors.Xray
         public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
             : base(configuration, types, logger)
         {
+            // setup connector type (double check)
+            configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
+            configuration.ConnectorConfiguration.Connector = Connector.JiraXRay;
+
             // setup provider manager
             ProviderManager = new XrayAutomationProvider(configuration, types, logger);
 
@@ -106,7 +112,7 @@ namespace Rhino.Connectors.Xray
             var outcome = testCase.Actual ? "PASS" : "FAIL";
             if (testCase.Inconclusive)
             {
-                outcome = "ABORTED";
+                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
             }
 
             // put
@@ -119,5 +125,29 @@ namespace Rhino.Connectors.Xray
             return testCase;
         }
         #endregion
+
+        //// TODO: remove on next Rhino.Api update
+        //public override IEnumerable<RhinoTestCase> OnConnectEnd(IEnumerable<RhinoTestCase> testCases)
+        //{
+        //    // setup
+        //    var _testCases = new List<RhinoTestCase>();
+
+        //    // apply
+        //    foreach (var onTestCase in testCases)
+        //    {
+        //        var testCase = onTestCase;
+        //        var testSteps = new List<RhinoTestStep>();
+        //        foreach (var onTestStep in testCase.Steps)
+        //        {
+        //            var testStep = onTestStep;
+        //            testStep.Context[ContextEntry.Configuration] = testCase.Context[ContextEntry.Configuration];
+        //            testSteps.Add(testStep);
+        //        }
+        //        _testCases.Add(testCase);
+        //    }
+
+        //    // get
+        //    return _testCases;
+        //}
     }
 }

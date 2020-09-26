@@ -42,6 +42,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             ContractResolver = new CamelCasePropertyNamesContractResolver()
         };
 
+        // TODO: add support for multiple files on over one request
         /// <summary>
         /// Gets a request for uploading an attachment into Jira issue.
         /// </summary>
@@ -49,35 +50,36 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="idOrKey">Jira issue id or issue key.</param>
         /// <param name="path">Full path of the file which will be uploaded into the issue.</param>
         /// <returns>Post request ready for posting.</returns>
-        public static HttpRequestMessage AddAttachmentRequest(JiraAuthentication authentication, string idOrKey, string path)
+        public static HttpRequestMessage AddAttachmentRequest(JiraAuthentication authentication, string idOrKey, string path, string contentType)
         {
-            // address
+            // setup
             var baseAddress = GetBaseAddress(authentication);
             var apiVersion = authentication.GetCapability(AtlassianCapabilities.JiraApiVersion, "latest");
-            var route = string.Format(IssueFormat, apiVersion);
+            var urlPath = $"{baseAddress}/rest/api/{apiVersion}/issue/{idOrKey}/attachments";
 
-            // setup
-            var bytes = File.ReadAllBytes(path);
-            var fileName = Path.GetFileName(path);
-            var endpoint = new Uri(string.Format("{0}/{1}/attachments", baseAddress + route, idOrKey));
-
-            // setup: request
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            // build request
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
+            requestMessage.Headers.ExpectContinue = false;
             requestMessage.Headers.Authorization = authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
 
-            // setup: request data
-            var boundary = Guid.NewGuid();
-            var multipartContent = new MultipartFormDataContent($"----{boundary}");
+            // build multi part content
+            var multiPartContent = new MultipartFormDataContent($"----{Guid.NewGuid()}");
 
-            var byteContent = new ByteArrayContent(bytes);
-            byteContent.Headers.Add("X-Atlassian-Token", "no-check");
+            // build file content
+            var fileInfo = new FileInfo(path);
+            var fileContents = File.ReadAllBytes(fileInfo.FullName);
+            var byteArrayContent = new ByteArrayContent(fileContents);
+            byteArrayContent.Headers.Add("Content-Type", contentType);
+            byteArrayContent.Headers.Add("X-Atlassian-Token", "no-check");
 
-            multipartContent.Add(byteContent, "file", fileName);
+            // apply
+            multiPartContent.Add(byteArrayContent, "file", fileInfo.Name);
 
-            // apply to request message
-            requestMessage.Content = multipartContent;
+            // set request content
+            requestMessage.Content = multiPartContent;
 
-            // results
+            // get
             return requestMessage;
         }
 
@@ -95,7 +97,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var route = $"/rest/api/{apiVersion}/attachment";
 
             // setup
-            var endpoint = $"{baseAddress}/{route}/attachment/{attachment}";
+            var endpoint = $"{baseAddress}{route}/{attachment}";
 
             // setup: request
             var requestMessage = new HttpRequestMessage(HttpMethod.Delete, endpoint);

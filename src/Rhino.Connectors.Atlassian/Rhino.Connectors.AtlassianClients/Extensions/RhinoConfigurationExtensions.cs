@@ -21,7 +21,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static int GetBuketSize(this RhinoConfiguration configuration)
         {
             // setup
-            var capabilities = configuration.ProviderConfiguration.Capabilities;
+            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
+            var capabilities = configuration.Capabilities.ContainsKey(options)
+                ? configuration.Capabilities[options] as IDictionary<string, object>
+                : new Dictionary<string, object>();
 
             // get bucket size value
             if (capabilities?.ContainsKey(ProviderCapability.BucketSize) == false)
@@ -42,8 +45,11 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static void PutIssueTypes(this RhinoConfiguration configuration)
         {
             // setup
-            var capabilities = configuration.ProviderConfiguration.Capabilities;
             var defaultMap = DefaultTypesMap();
+            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
+            var capabilities = configuration.Capabilities.ContainsKey(options)
+                ? configuration.Capabilities[options] as IDictionary<string, object>
+                : new Dictionary<string, object>();
 
             // factor
             foreach (var key in defaultMap.Keys)
@@ -63,8 +69,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             [AtlassianCapabilities.PlanType] = "Test Plan",
             [AtlassianCapabilities.PreconditionsType] = "Pre-condition",
             [AtlassianCapabilities.ExecutionType] = "Test Execution",
-            [AtlassianCapabilities.BugType] = "Bug",
-            ["inconclusiveStatus"] = "ABORTED"
+            [AtlassianCapabilities.BugType] = "Bug"
         };
         #endregion
 
@@ -75,8 +80,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns><see cref="true"/> for id dryRun; <see cref="false"/> if not.</returns>
         public static bool IsDryRun(this RhinoConfiguration configuration)
         {
-            // setup
-            var capabilities = configuration.ProviderConfiguration.Capabilities;
+            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
+            var capabilities = configuration.Capabilities.ContainsKey(options)
+                ? configuration.Capabilities[options] as IDictionary<string, object>
+                : new Dictionary<string, object>();
 
             // setup conditions
             var isKey = capabilities.ContainsKey(AtlassianCapabilities.DryRun);

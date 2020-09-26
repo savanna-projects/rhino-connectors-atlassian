@@ -2,13 +2,18 @@ using Gravity.Services.DataContracts;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Connectors.AtlassianClients.Contracts;
-using Rhino.Connectors.Xray.Cloud;
 
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.UnitTests
 {
@@ -30,7 +35,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     UserName = "automation@rhino.api",
                     Password = "Aa123456!"
                 },
-                ProviderConfiguration = new RhinoProviderConfiguration
+                ConnectorConfiguration = new RhinoConnectorConfiguration
                 {
                     Collection = "http://localhost:8080",
                     Password = "admin",
@@ -40,14 +45,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     //Password = "aLNwnhE8fupLguQ6fwYo8A00",
                     //User = "s_roei@msn.com",
                     //Project = "XT",
-                    BugManager = true,
-                    Capabilities = new Dictionary<string, object>
-                    {
-                        ["bucketSize"] = 15,
-                        ["dryRun"] = false,
-                        //[AtlassianCapabilities.TestType] = "Xray Test",
-                        //[AtlassianCapabilities.PreconditionsType] = "Precondition"
-                    }
+                    BugManager = true
                 },
                 DriverParameters = new[]
                 {
@@ -79,6 +77,16 @@ namespace Rhino.Connectors.Xray.UnitTests
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
                     MaxParallel = 1
+                },
+                Capabilities = new Dictionary<string, object>
+                {
+                    [$"{Connector.JiraXRay}:options"] = new Dictionary<string, object>
+                    {
+                        ["bucketSize"] = 15,
+                        ["dryRun"] = false,
+                        //[AtlassianCapabilities.TestType] = "Xray Test",
+                        //[AtlassianCapabilities.PreconditionsType] = "Precondition"
+                    }
                 }
             };
             var connector = new XrayConnector(configu);
@@ -101,19 +109,19 @@ namespace Rhino.Connectors.Xray.UnitTests
                     UserName = "automation@rhino.api",
                     Password = "Aa123456!"
                 },
-                ProviderConfiguration = new RhinoProviderConfiguration
+                ConnectorConfiguration = new RhinoConnectorConfiguration
                 {
                     Collection = "http://localhost:8080",
                     Password = "admin",
                     User = "admin",
                     Project = "XDP",
                     BugManager = true,
-                    Capabilities = new Dictionary<string, object>
-                    {
-                        ["bucketSize"] = 15,
-                        ["testPlans"] = new[] { "XDP-39", "XDP-128" }
-                        //["dryRun"] = true
-                    }
+                },
+                Capabilities = new Dictionary<string, object>
+                {
+                    ["bucketSize"] = 15,
+                    ["testPlans"] = new[] { "XDP-39", "XDP-128" }
+                    //["dryRun"] = true
                 },
                 DriverParameters = new[]
                 {
@@ -144,6 +152,54 @@ namespace Rhino.Connectors.Xray.UnitTests
             testCase.Scenario = "Created by CreateTestCase";
 
             connector.ProviderManager.CreateTestCase(testCase);
+        }
+
+        [TestMethod]
+        public void T()
+        {
+
+            FileInfo fi = new FileInfo(@"D:\garbage\rhino-issue-1.txt");
+            byte[] fileContents = File.ReadAllBytes(fi.FullName);
+            var urlPath = "http://localhost:8080/rest/api/2/issue/" + "RHIN-21" + "/attachments";
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
+            requestMessage.Headers.ExpectContinue = false;
+            requestMessage.Headers.Authorization = GetAuthenticationHeader("admin", "admin");
+            requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
+
+            var multiPartContent = new MultipartFormDataContent("----MyGreatBoundary");
+            var byteArrayContent = new ByteArrayContent(fileContents);
+            byteArrayContent.Headers.Add("Content-Type", "image/png");
+            byteArrayContent.Headers.Add("X-Atlassian-Token", "no-check");
+            multiPartContent.Add(byteArrayContent, "file", fi.Name);
+            requestMessage.Content = multiPartContent;
+
+            HttpClient httpClient = new HttpClient();
+            try
+            {
+                Task<HttpResponseMessage> httpRequest = httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseContentRead, CancellationToken.None);
+                HttpResponseMessage httpResponse = httpRequest.Result;
+                HttpStatusCode statusCode = httpResponse.StatusCode;
+                HttpContent responseContent = httpResponse.Content;
+
+                if (responseContent != null)
+                {
+                    Task<String> stringContentsTask = responseContent.ReadAsStringAsync();
+                    String stringContents = stringContentsTask.Result;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+        private static AuthenticationHeaderValue GetAuthenticationHeader(string user, string password)
+        {
+            // setup: provider authentication and base address
+            var header = $"{user}:{password}";
+            var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
+
+            // header
+            return new AuthenticationHeaderValue("Basic", encodedHeader);
         }
     }
 }

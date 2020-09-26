@@ -19,6 +19,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -200,7 +201,7 @@ namespace Rhino.Connectors.AtlassianClients
             var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 10);
 
             // get requests
-            var requests = files.Select(i => JiraUtilities.AddAttachmentRequest(Authentication, idOrKey, path: i));
+            var requests = files.Select(i => JiraUtilities.AddAttachmentRequest(Authentication, idOrKey, path: i, contentType: "image/png"));
 
             // setup
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
@@ -330,7 +331,7 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             // issue type
-            var issueTypeToken = ProjectMeta["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
+            var issueTypeToken = ProjectMeta["projects"][0]["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
 
             // exit conditions
             if (issueTypeToken == default)
@@ -619,7 +620,9 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             // parse body
-            var responseBody = response.ToObject();
+            var responseBody = response.StatusCode == HttpStatusCode.NoContent
+                ? JObject.Parse(@"{""key"":""" + idOrKey + @"""}")
+                : response.ToObject();
 
             // update test run key
             var key = responseBody["key"];

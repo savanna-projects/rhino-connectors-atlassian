@@ -27,6 +27,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 
 using RhinoUtilities = Rhino.Api.Extensions.Utilities;
 
@@ -117,6 +118,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return DoGetFailComment(testCase);
         }
 
+        // TODO: remove on next Rhino.Api update
         /// <summary>
         /// Gets a value from the capabilities dictionary under the ProviderConfiguration of this RhinoTestCase.
         /// </summary>
@@ -460,7 +462,7 @@ namespace Rhino.Connectors.Xray.Extensions
             jiraClient.AddAttachments($"{response["key"]}", files);
 
             // add to context
-            testCase.Context["bug"] = response;
+            testCase.Context["bugOpenedResponse"] = response;
 
             // results
             return response;
@@ -754,6 +756,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return (WebAutomation)testCase.Context[ContextEntry.WebAutomation];
         }
 
+        // TODO: remove on next Rhino.Api update
         // gets a capability value from test case configuration or default value if not possible
         private static T DoGetCapability<T>(IHasContext onContext, string capability, T defaultValue = default)
         {
@@ -770,13 +773,17 @@ namespace Rhino.Connectors.Xray.Extensions
                 }
 
                 // setup
-                var configuration = ((RhinoConfiguration)onContext.Context[ContextEntry.Configuration]).ProviderConfiguration;
+                var configuration = ((RhinoConfiguration)onContext.Context[ContextEntry.Configuration]);
                 var isNotNull = configuration?.Capabilities != default;
-                isKey = isNotNull && configuration.Capabilities.ContainsKey(capability);
-                isValue = isKey && !string.IsNullOrEmpty($"{configuration.Capabilities[capability]}");
+                var capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
+                    ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
+                    : new Dictionary<string, object>();
+
+                isKey = isNotNull && capabilities.ContainsKey(capability);
+                isValue = isKey && !string.IsNullOrEmpty($"{capabilities[capability]}");
 
                 // results
-                return isValue ? (T)configuration.Capabilities[capability] : defaultValue;
+                return isValue ? (T)capabilities[capability] : defaultValue;
             }
             catch (Exception e) when (e != null)
             {

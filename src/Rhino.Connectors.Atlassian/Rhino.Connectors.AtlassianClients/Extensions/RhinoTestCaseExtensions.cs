@@ -36,12 +36,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             // get
             return new JiraAuthentication
             {
-                AsOsUser = configuration.ProviderConfiguration.AsOsUser,
-                Capabilities = configuration.ProviderConfiguration.Capabilities,
-                Collection = configuration.ProviderConfiguration.Collection,
-                Password = configuration.ProviderConfiguration.Password,
-                User = configuration.ProviderConfiguration.User,
-                Project = configuration.ProviderConfiguration.Project
+                AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
+                Capabilities = configuration.Capabilities,
+                Collection = configuration.ConnectorConfiguration.Collection,
+                Password = configuration.ConnectorConfiguration.Password,
+                User = configuration.ConnectorConfiguration.User,
+                Project = configuration.ConnectorConfiguration.Project
             };
         }
     }

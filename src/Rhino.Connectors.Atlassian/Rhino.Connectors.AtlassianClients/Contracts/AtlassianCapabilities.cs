@@ -72,5 +72,12 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         /// </summary>
         [DataMember]
         public const string BucketSize = "bucketSize";
+
+        /// <summary>
+        /// The status which will be assigned to a test case when the test result is inconclusive.
+        /// </summary>
+        /// <remarks>Inconclusive can happen when test have no assertions or violating pass/fail thresholds.</remarks>
+        [DataMember]
+        public const string InconclusiveStatus = "inconclusiveStatus";
     }
 }

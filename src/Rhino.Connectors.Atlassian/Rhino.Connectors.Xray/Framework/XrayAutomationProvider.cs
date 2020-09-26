@@ -90,7 +90,9 @@ namespace Rhino.Connectors.Xray.Framework
             // capabilities
             bucketSize = configuration.GetBuketSize();
             configuration.PutIssueTypes();
-            capabilities = configuration.ProviderConfiguration.Capabilities;
+            capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
+                ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
+                : new Dictionary<string, object>();
         }
         #endregion        
 
@@ -114,8 +116,7 @@ namespace Rhino.Connectors.Xray.Framework
                 };
                 Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
             }
-            // TODO: remove .DistinctBy(i => i.Key) on the next RhinoApi Update
-            return testCases.DistinctBy(i => i.Key);
+            return testCases;
         }
 
         private IEnumerable<RhinoTestCase> GetTests(string issueKey)
@@ -123,7 +124,7 @@ namespace Rhino.Connectors.Xray.Framework
             // get issue type
             var issueType = jiraClient.GetIssueType(issueKey);
             var capability = string.Empty;
-            var typeEntry = Configuration.ProviderConfiguration.Capabilities.Where(i => $"{i.Value}".Equals(issueType, Compare));
+            var typeEntry = capabilities.Where(i => $"{i.Value}".Equals(issueType, Compare));
             if (typeEntry.Any())
             {
                 capability = $"{typeEntry.ElementAt(0).Key}";
@@ -189,8 +190,8 @@ namespace Rhino.Connectors.Xray.Framework
             var type = jiraClient.GetIssueType(issueKey);
 
             // setup conditions & exit conditions
-            var isTest = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}", Compare);
-            var isTestSet = type.Equals($"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.SetType]}", Compare);
+            var isTest = type.Equals($"{Configuration.Capabilities[AtlassianCapabilities.TestType]}", Compare);
+            var isTestSet = type.Equals($"{Configuration.Capabilities[AtlassianCapabilities.SetType]}", Compare);
             if (!isTest && !isTestSet)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -338,8 +339,8 @@ namespace Rhino.Connectors.Xray.Framework
             const string M = "Test created under project [{0}] and assigned to [{1}] test set.";
 
             // shortcuts
-            var onProject = Configuration.ProviderConfiguration.Project;
-            var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
+            var onProject = Configuration.ConnectorConfiguration.Project;
+            var testType = $"{Configuration.Capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
@@ -386,12 +387,12 @@ namespace Rhino.Connectors.Xray.Framework
 
             // load JSON body
             var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
-                .Replace("[project-key]", Configuration.ProviderConfiguration.Project)
+                .Replace("[project-key]", Configuration.ConnectorConfiguration.Project)
                 .Replace("[run-title]", TestRun.Title)
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
-                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.ExecutionType]}")
-                .Replace("[assignee]", Configuration.ProviderConfiguration.User);
+                .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
+                .Replace("[assignee]", Configuration.ConnectorConfiguration.User);
             var responseBody = jiraClient.CreateIssue(requestBody);
 
             // setup
@@ -467,7 +468,7 @@ namespace Rhino.Connectors.Xray.Framework
             {
                 var palyload = new
                 {
-                    Assignee = Configuration.ProviderConfiguration.User,
+                    Assignee = Configuration.ConnectorConfiguration.User,
                     Keys = new[] { testRun.Key }
                 };
                 var route = string.Format(endpointFormat, plan);
@@ -508,7 +509,7 @@ namespace Rhino.Connectors.Xray.Framework
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider bug.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string CreateBug(RhinoTestCase testCase)
+        public override string OnCreateBug(RhinoTestCase testCase)
         {
             // exit conditions
             if (testCase.Actual)
@@ -524,7 +525,7 @@ namespace Rhino.Connectors.Xray.Framework
         /// Updates an existing bug (partial updates are supported, i.e. you can submit and update specific fields only).
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
-        public override void UpdateBug(RhinoTestCase testCase)
+        public override string OnUpdateBug(RhinoTestCase testCase)
         {
             // get existing bugs
             var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
@@ -533,12 +534,7 @@ namespace Rhino.Connectors.Xray.Framework
             // exit conditions
             if (bugs.All(i => string.IsNullOrEmpty(i)))
             {
-                var isAny = DoGetBugs(testCase).Any();
-                if (!isAny && (!testCase.Actual && !testCase.Inconclusive))
-                {
-                    DoCreateBug(testCase);
-                }
-                return;
+                return "-1";
             }
 
             // possible duplicates
@@ -550,13 +546,16 @@ namespace Rhino.Connectors.Xray.Framework
 
             // update
             testCase.UpdateBug(jiraClient, issueKey: bugs.First());
+
+            // get
+            return $"{GetBaseAddress()}/browse/{bugs.First()}";
         }
 
         /// <summary>
         /// Close all existing bugs.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
-        public override void CloseBugs(RhinoTestCase testCase)
+        public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
             // get existing bugs
             var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
@@ -569,12 +568,13 @@ namespace Rhino.Connectors.Xray.Framework
             }
 
             // close bugs
-            DoCloseBugs(testCase, resolution: "Done", bugs);
+            return DoCloseBugs(testCase, resolution: "Done", bugs);
         }
 
-        private void DoCloseBugs(RhinoTestCase testCase, string resolution, IEnumerable<string> bugs)
+        private IEnumerable<string> DoCloseBugs(RhinoTestCase testCase, string resolution, IEnumerable<string> bugs)
         {
             // close bugs
+            var closedBugs = new List<string>();
             foreach (var bug in bugs)
             {
                 var isClosed = testCase.CloseBug(bugIssueKey: bug, resolution: resolution, jiraClient);
@@ -582,10 +582,12 @@ namespace Rhino.Connectors.Xray.Framework
                 // logs
                 if (isClosed)
                 {
+                    closedBugs.Add($"{GetBaseAddress()}/browse/{bug}");
                     continue;
                 }
                 logger?.Error($"Was not able to close bug [{bug}] for test [{testCase.Key}].");
             }
+            return closedBugs;
         }
 
         private IEnumerable<string> DoGetBugs(RhinoTestCase testCase)
@@ -618,7 +620,7 @@ namespace Rhino.Connectors.Xray.Framework
             var response = testCase.CreateBug(jiraClient);
 
             // results
-            return response == default ? "-1" : $"{response["key"]}";
+            return response == default ? "-1" : $"{GetBaseAddress()}/browse/{response["key"]}";
         }
         #endregion
 
@@ -663,6 +665,17 @@ namespace Rhino.Connectors.Xray.Framework
             {
                 logger?.Error($"Failed to update test results for [{testCase.Key}]", e);
             }
+        }
+
+        private string GetBaseAddress()
+        {
+            // setup
+            var collection = Configuration.ConnectorConfiguration.Collection;
+
+            // get
+            return collection.EndsWith("/")
+                ? collection.Substring(0, collection.LastIndexOf('/'))
+                : collection;
         }
     }
 }

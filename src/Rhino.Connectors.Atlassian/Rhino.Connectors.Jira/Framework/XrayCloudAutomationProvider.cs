@@ -74,7 +74,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             // capabilities
             bucketSize = configuration.GetBuketSize();
             configuration.PutIssueTypes();
-            capabilities = configuration.ProviderConfiguration.Capabilities;
+            capabilities = configuration.Capabilities;
         }
         #endregion
 
@@ -173,7 +173,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
-            Logger?.InfoFormat(M, Configuration.ProviderConfiguration.Project, testCase?.TestSuite);
+            Logger?.InfoFormat(M, Configuration.ConnectorConfiguration.Project, testCase?.TestSuite);
 
             // results
             return $"{issue}";
@@ -182,8 +182,8 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         private JObject CreateJiraTestCaseIssue(RhinoTestCase testCase)
         {
             // shortcuts
-            var onProject = Configuration.ProviderConfiguration.Project;
-            var testType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.TestType]}";
+            var onProject = Configuration.ConnectorConfiguration.Project;
+            var testType = $"{Configuration.Capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
@@ -223,8 +223,8 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             const string M = "Preconditions [{0}] created under project [{1}].";
 
             // shortcuts
-            var onProject = Configuration.ProviderConfiguration.Project;
-            var preconditionsType = $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.PreconditionsType]}";
+            var onProject = Configuration.ConnectorConfiguration.Project;
+            var preconditionsType = $"{Configuration.Capabilities[AtlassianCapabilities.PreconditionsType]}";
             var id = $"{jiraClient.GetIssueTypeFields(idOrKey: preconditionsType, path: "id")}";
 
             // get precondition markdown
@@ -264,7 +264,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
-            Logger?.InfoFormat(M, $"{issue["key"]}", Configuration.ProviderConfiguration.Project);
+            Logger?.InfoFormat(M, $"{issue["key"]}", Configuration.ConnectorConfiguration.Project);
             return issue;
         }
         #endregion
@@ -302,10 +302,10 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         {
             // create execution issue
             var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
-                .Replace("[project-key]", Configuration.ProviderConfiguration.Project)
+                .Replace("[project-key]", Configuration.ConnectorConfiguration.Project)
                 .Replace("[run-title]", TestRun.Title)
-                .Replace("[type-name]", $"{Configuration.ProviderConfiguration.Capabilities[AtlassianCapabilities.ExecutionType]}")
-                .Replace("[assignee]", Configuration.ProviderConfiguration.User);
+                .Replace("[type-name]", $"{Configuration.Capabilities[AtlassianCapabilities.ExecutionType]}")
+                .Replace("[assignee]", Configuration.ConnectorConfiguration.User);
             var responseBody = jiraClient.CreateIssue(requestBody);
 
             // setup
