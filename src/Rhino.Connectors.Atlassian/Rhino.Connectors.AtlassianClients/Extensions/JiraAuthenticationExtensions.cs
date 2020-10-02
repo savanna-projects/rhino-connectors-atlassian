@@ -3,16 +3,20 @@
  * 
  * RESOURCES
  */
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
+using System.Linq;
 using System.Net.Http.Headers;
 using System.Text;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
-    public static class JiraClientExtensions
+    public static class JiraAuthenticationExtensions
     {
         /// <summary>
         /// Gets a JiraAuthentication object.
@@ -27,7 +31,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 Collection = configuration.ConnectorConfiguration.Collection,
                 Password = configuration.ConnectorConfiguration.Password,
                 User = configuration.ConnectorConfiguration.User,
-                Project = configuration.ConnectorConfiguration.Project
+                Project = configuration.ConnectorConfiguration.Project,
+                Capabilities = configuration.Capabilities
             };
         }
 
@@ -44,11 +49,15 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             try
             {
                 // setup
-                var isCapabilities = authentication?.Capabilities != default;
-                var isCapability = isCapabilities && authentication.Capabilities.ContainsKey(capability);
+                var capabilities = authentication?.Capabilities != default
+                    ? JObject.Parse(JsonConvert.SerializeObject(authentication?.Capabilities))
+                    : JObject.Parse("{}");
 
                 // get
-                return !isCapability ? defaultValue : (T)authentication.Capabilities[capability];
+                var value = capabilities.SelectTokens($"..{capability}").FirstOrDefault();
+
+                // get
+                return value == default ? defaultValue : value.ToObject<T>();
             }
             catch (Exception e) when (e != null)
             {

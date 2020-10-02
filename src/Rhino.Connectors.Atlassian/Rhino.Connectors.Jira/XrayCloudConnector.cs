@@ -12,19 +12,17 @@ using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
-using Rhino.Connectors.Xray.Cloud.Framework;
 
 using System;
 using System.Collections.Generic;
 
 namespace Rhino.Connectors.Xray.Cloud
 {
-    // TODO: change value to constant when available on the next Rhino.Api update
     /// <summary>
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
     [Connector(
-        value: "connector_xray_cloud",
+        value: Connector.JiraXryCloud,
         Name = "Connector - Atlassian XRay, On-Cloud",
         Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
     public class XrayCloudConnector : RhinoConnector

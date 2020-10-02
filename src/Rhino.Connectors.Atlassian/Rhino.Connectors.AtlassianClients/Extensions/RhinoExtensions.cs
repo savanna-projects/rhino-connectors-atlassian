@@ -3,16 +3,109 @@
  * 
  * RESOURCES
  */
+using Newtonsoft.Json.Linq;
+
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
-    public static class RhinoConfigurationExtensions
+    public static class RhinoExtensions
     {
+        #region *** Authentication  ***
+        /// <summary>
+        /// Gets a JiraAuthentication based on the configuration in RhinoTestCase.Context.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to get JiraAuthentication from.</param>
+        /// <returns>JiraAuthentication object or empty JiraAuthentication if not found.</returns>
+        public static JiraAuthentication GetAuthentication(this RhinoTestCase testCase)
+        {
+            return DoGetAuthentication(testCase.Context);
+        }
+
+        /// <summary>
+        /// Gets a JiraAuthentication based on the configuration in RhinoTestRun.Context.
+        /// </summary>
+        /// <param name="testRun">RhinoTestRun to get JiraAuthentication from.</param>
+        /// <returns>JiraAuthentication object or empty JiraAuthentication if not found.</returns>
+        public static JiraAuthentication GetAuthentication(this RhinoTestRun testRun)
+        {
+            return DoGetAuthentication(testRun.Context);
+        }
+
+        private static JiraAuthentication DoGetAuthentication(IDictionary<string, object> context)
+        {
+            // exit conditions
+            if (!context.ContainsKey(ContextEntry.Configuration))
+            {
+                return new JiraAuthentication();
+            }
+
+            // get
+            var configuration = context[ContextEntry.Configuration] as RhinoConfiguration;
+
+            // exit conditions
+            if (configuration == default)
+            {
+                return new JiraAuthentication();
+            }
+
+            // get
+            return new JiraAuthentication
+            {
+                AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
+                Capabilities = configuration.Capabilities,
+                Collection = configuration.ConnectorConfiguration.Collection,
+                Password = configuration.ConnectorConfiguration.Password,
+                User = configuration.ConnectorConfiguration.User,
+                Project = configuration.ConnectorConfiguration.Project
+            };
+        }
+        #endregion
+
+        /// <summary>
+        /// Gets a comment text for failed test case which includes meta data information.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to get comment for.</param>
+        /// <returns>Jira markdown fail comment.</returns>
+        public static string GetFailComment(this RhinoTestCase testCase)
+        {
+            // setup
+            var failedSteps = testCase.Steps.Where(i => !i.Actual).Select(i => ((JToken)i.Context["testStep"])["index"]);
+
+            // exit conditions
+            if (!failedSteps.Any())
+            {
+                return string.Empty;
+            }
+
+            // setup
+            var environment = testCase.MarkdownEnvironment();
+            var platform = testCase.MarkdownPlatform();
+            var dataSource = testCase.MarkdownDataSource();
+
+            // build
+            var header =
+                "----\r\n" +
+                $"*{DateTime.UtcNow} UTC* \r\n" +
+                $"*Failed On Iteration:* {testCase.Iteration}\r\n" +
+                $"*On Steps:* {string.Join(", ", failedSteps)}\r\n" +
+                $"*On Application:* {environment}\r\n";
+
+            var body = (platform + dataSource)
+                .Replace("\\r\\n", "\n")
+                .Replace(@"\""", "\"")
+                .Replace("----\r\n", string.Empty);
+
+            // return
+            return header + body;
+        }
+
         /// <summary>
         /// Gets a bucket size from RhinoConfiguration capabilities or default value if not exists.
         /// </summary>

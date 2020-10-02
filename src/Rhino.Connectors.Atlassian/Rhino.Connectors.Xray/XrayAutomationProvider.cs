@@ -7,6 +7,7 @@ using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
@@ -15,7 +16,9 @@ using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
+using Rhino.Connectors.AtlassianClients.Framework;
 using Rhino.Connectors.Xray.Extensions;
+using Rhino.Connectors.Xray.Framework;
 
 using System;
 using System.Collections.Concurrent;
@@ -23,13 +26,12 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Linq;
-using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
 
-namespace Rhino.Connectors.Xray.Framework
+namespace Rhino.Connectors.Xray
 {
     /// <summary>
     /// XRay connector for using XRay tests as Rhino Specs.
@@ -43,7 +45,7 @@ namespace Rhino.Connectors.Xray.Framework
         private readonly ILogger logger;
         private readonly IDictionary<string, object> capabilities;
         private readonly JiraClient jiraClient;
-        private readonly int bucketSize;
+        private readonly JiraCommandsExecutor ravenClient;
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
@@ -85,10 +87,13 @@ namespace Rhino.Connectors.Xray.Framework
         {
             // setup
             this.logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
-            jiraClient = new JiraClient(configuration.GetJiraAuthentication());
+
+            var authentication = configuration.GetJiraAuthentication();
+            jiraClient = new JiraClient(authentication);
+            ravenClient = new JiraCommandsExecutor(authentication);
 
             // capabilities
-            bucketSize = configuration.GetBuketSize();
+            BucketSize = configuration.GetBuketSize();
             configuration.PutIssueTypes();
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
@@ -108,11 +113,11 @@ namespace Rhino.Connectors.Xray.Framework
             var testCases = new ConcurrentBag<RhinoTestCase>();
 
             // iterate - one by one on debug, parallel on production
-            foreach (var issueKeys in ids.Split(bucketSize))
+            foreach (var issueKeys in ids.Split(BucketSize))
             {
                 var options = new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = bucketSize
+                    MaxDegreeOfParallelism = BucketSize
                 };
                 Parallel.ForEach(issueKeys, options, key => testCases.AddRange(GetTests(key)));
             }
@@ -153,8 +158,8 @@ namespace Rhino.Connectors.Xray.Framework
         [Description(AtlassianCapabilities.PlanType)]
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
-            // parse into JObject
-            var jsonObject = jiraClient.GetIssue(issueKey);
+            // parse into JToken
+            var jsonObject = jiraClient.Get(issueKey);
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -177,8 +182,8 @@ namespace Rhino.Connectors.Xray.Framework
         private IEnumerable<RhinoTestCase> GetOne(string issueKey)
         {
             // get issue & exit conditions
-            var jObject = jiraClient.GetIssue(issueKey);
-            if (jObject == default)
+            var JToken = jiraClient.Get(issueKey);
+            if (JToken == default)
             {
                 return Array.Empty<RhinoTestCase>();
             }
@@ -209,8 +214,8 @@ namespace Rhino.Connectors.Xray.Framework
         [Description(AtlassianCapabilities.ExecutionType)]
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
-            // parse into JObject
-            var jsonObject = jiraClient.GetIssue(issueKey);
+            // parse into JToken
+            var jsonObject = jiraClient.Get(issueKey);
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -245,8 +250,8 @@ namespace Rhino.Connectors.Xray.Framework
         // COMMON METHODS
         private IEnumerable<RhinoTestCase> DoGetBySet(string issueKey)
         {
-            // parse into JObject
-            var jsonObject = jiraClient.GetIssue(issueKey);
+            // parse into JToken
+            var jsonObject = jiraClient.Get(issueKey);
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -258,18 +263,18 @@ namespace Rhino.Connectors.Xray.Framework
             Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.SetType}] = {onTestCases.Count()}");
 
             // parse into connector test case
-            var testCases = new List<RhinoTestCase>();
-            foreach (var onTestCase in onTestCases.Children())
-            {
-                testCases.Add(DoGetByTest($"{onTestCase}"));
-            }
+            var testCases = new ConcurrentBag<RhinoTestCase>();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
+            Parallel.ForEach(onTestCases.Children(), options, onTestCase => testCases.Add(DoGetByTest($"{onTestCase}")));
+
+            // get
             return testCases;
         }
 
         private RhinoTestCase DoGetByTest(string issueKey)
         {
-            // parse into JObject
-            var jsonObject = jiraClient.GetIssue(issueKey);
+            // parse into JToken
+            var jsonObject = jiraClient.Get(issueKey);
 
             // parse into connector test case
             var test = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
@@ -283,10 +288,10 @@ namespace Rhino.Connectors.Xray.Framework
 
             // load test set (if available - will take the )
             var customField = jiraClient.GetCustomField(TestCaseSchema);
-            var testSet = jsonObject.SelectToken($"..{customField}");
-            if (testSet.Any())
+            var testSets = jsonObject.SelectToken($"..{customField}");
+            if (testSets.Any())
             {
-                test.TestSuite = $"{testSet.First}";
+                test.TestSuites = testSets.Select(i => $"{i}");
             }
 
             // load test-plans if any
@@ -309,7 +314,7 @@ namespace Rhino.Connectors.Xray.Framework
 
             // load preconditions
             var mergedDataSource = preconditions
-                .Select(i => new DataTable().FromMarkDown($"{jiraClient.GetIssue($"{i}").SelectToken("fields.description")}".Trim(), default))
+                .Select(i => new DataTable().FromMarkDown($"{jiraClient.Get($"{i}").SelectToken("fields.description")}".Trim(), default))
                 .Merge();
             test.DataSource = mergedDataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
 
@@ -328,7 +333,8 @@ namespace Rhino.Connectors.Xray.Framework
         {
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
-            var testType = $"{Configuration.Capabilities[AtlassianCapabilities.TestType]}";
+            testCase.Context[ContextEntry.Configuration] = Configuration;
+            var testType = $"{testCase.GetConnectorCapability(AtlassianCapabilities.TestType, "Test")}";
 
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
@@ -339,14 +345,14 @@ namespace Rhino.Connectors.Xray.Framework
 
             // setup request body
             var requestBody = testCase.ToJiraXrayIssue();
-            var issue = jiraClient.CreateIssue(requestBody);
+            var issue = jiraClient.Create(requestBody);
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.CreateComment(idOrKey: issue["key"].ToString(), comment);
+            jiraClient.CreateComment(idOrKey: $"{issue.SelectToken("key")}", comment);
 
             // success
-            Logger?.InfoFormat($"Create-Test -Project [{onProject}] -Set [{testCase?.TestSuite}] = true");
+            Logger?.InfoFormat($"Create-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = true");
 
             // results
             return $"{issue}";
@@ -381,7 +387,7 @@ namespace Rhino.Connectors.Xray.Framework
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ConnectorConfiguration.User);
-            var responseBody = jiraClient.CreateIssue(requestBody);
+            var responseBody = jiraClient.Create(requestBody);
 
             // setup
             testRun.Key = $"{responseBody["key"]}";
@@ -397,7 +403,6 @@ namespace Rhino.Connectors.Xray.Framework
             return testRun;
         }
 
-        // TODO: implement persistent retry (until all done or until timeout)        
         /// <summary>
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
@@ -424,6 +429,19 @@ namespace Rhino.Connectors.Xray.Framework
             {
                 DoUpdateTestResult(testCase, inline: false);
             }
+            // iterate: align all runs
+            var dataTests = testRun.TestCases.Where(i => i.Iteration > 0).Select(i => i.Key).Distinct();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = 1 };
+            Parallel.ForEach(dataTests, options, testCase =>
+            {
+                var outcome = testRun.TestCases.Any(i => i.Key.Equals(testCase) && !i.Actual) ? "FAIL" : "PASS";
+                if (outcome == "FAIL")
+                {
+                    testRun.TestCases.FirstOrDefault(i => !i.Actual && i.Key.Equals(testCase))?.SetOutcomeByRun(outcome);
+                    return;
+                }
+                testRun.TestCases.FirstOrDefault(i => i.Actual && i.Key.Equals(testCase))?.SetOutcomeByRun(outcome);
+            });
             // iterate: inconclusive
             foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
             {
@@ -437,7 +455,6 @@ namespace Rhino.Connectors.Xray.Framework
             testRun.Close(jiraClient, resolution: "Done");
         }
 
-        // TODO: implement raven v2.0 for assign test execution to test plan when available
         private void AttachToTestPlan(RhinoTestRun testRun)
         {
             // attach to plan (if any)
@@ -449,24 +466,12 @@ namespace Rhino.Connectors.Xray.Framework
                 return;
             }
 
-            // build request
-            var requests = new List<HttpRequestMessage>();
-            const string endpointFormat = "/rest/raven/1.0/testplan/{0}/testexec";
-            foreach (var plan in plans)
-            {
-                var palyload = new
-                {
-                    Assignee = Configuration.ConnectorConfiguration.User,
-                    Keys = new[] { testRun.Key }
-                };
-                var route = string.Format(endpointFormat, plan);
-                requests.Add(JiraUtilities.GenericPostRequest(testRun.GetAuthentication(), route, palyload));
-            }
+            // build commands
+            var commands = plans.Select(i => RavenCommandsRepository.AssociateExecutions(i, new[] { testRun.Key }));
 
             // send
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(requests, options, request
-                => JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult());
+            var options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
+            Parallel.ForEach(commands, options, command => ravenClient.SendCommand(command));
         }
         #endregion
 
@@ -489,7 +494,24 @@ namespace Rhino.Connectors.Xray.Framework
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
         public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
         {
-            return DoGetBugs(testCase);
+            return DoGetBugs(testCase).Select(i => $"{i}");
+        }
+
+        /// <summary>
+        /// Asserts if the RhinoTestCase has already an open bug.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to assert against match bugs.</param>
+        /// <returns>An open bug.</returns>
+        public override string GetOpenBug(RhinoTestCase testCase)
+        {
+            // setup
+            var bugs = DoGetBugs(testCase);
+
+            // get
+            var openBug = bugs.Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
+
+            // assert
+            return openBug.Any() ? $"{openBug.First()}" : string.Empty;
         }
 
         /// <summary>
@@ -528,15 +550,28 @@ namespace Rhino.Connectors.Xray.Framework
             // possible duplicates
             if (bugs.Count() > 1)
             {
-                var onBugs = bugs.OrderBy(i => i).Skip(1);
+                var issues = jiraClient.Get(idsOrKeys: bugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: true));
+
+                var onBugs = issues
+                    .OrderBy(i => $"{i["key"]}")
+                    .Skip(1)
+                    .Select(i => $"{i.SelectToken("key")}")
+                    .Where(i => !string.IsNullOrEmpty(i));
+
                 DoCloseBugs(testCase, resolution: "Duplicate", bugs: onBugs);
             }
 
             // update
-            testCase.UpdateBug(jiraClient, issueKey: bugs.First());
+            bugs = jiraClient
+                .Get(idsOrKeys: bugs)
+                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false))
+                .Select(i => $"{i.SelectToken("key")}")
+                .Where(i => !string.IsNullOrEmpty(i));
+
+            testCase.UpdateBug(idOrKey: bugs.FirstOrDefault(), jiraClient);
 
             // get
-            return $"{GetBaseAddress()}/browse/{bugs.First()}";
+            return $"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{bugs.FirstOrDefault()}";
         }
 
         /// <summary>
@@ -552,11 +587,40 @@ namespace Rhino.Connectors.Xray.Framework
             // get conditions (double check for bugs)
             if (!bugs.Any())
             {
-                bugs = DoGetBugs(testCase);
+                bugs = DoGetBugs(testCase).Select(i => $"{i}");
             }
 
             // close bugs
             return DoCloseBugs(testCase, resolution: "Done", bugs);
+        }
+
+        /// <summary>
+        /// Close all existing bugs.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
+        public override string OnCloseBug(RhinoTestCase testCase)
+        {
+            // get existing bugs
+            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+            var contextBugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
+            var bugs = jiraClient.Get(idsOrKeys: contextBugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
+
+            // get conditions (double check for bugs)
+            if (!bugs.Any())
+            {
+                return string.Empty;
+            }
+
+            // close bugs: first
+            var onBug = $"{bugs.FirstOrDefault()?.SelectToken("key")}";
+            testCase.CloseBug(bugIssueKey: onBug, "Done", jiraClient);
+
+            // close bugs: duplicate (if any)
+            foreach (var bug in bugs.Skip(1))
+            {
+                testCase.CloseBug($"{bug.SelectToken("key")}", "Duplicate", jiraClient);
+            }
+            return onBug;
         }
 
         private IEnumerable<string> DoCloseBugs(RhinoTestCase testCase, string resolution, IEnumerable<string> bugs)
@@ -570,15 +634,15 @@ namespace Rhino.Connectors.Xray.Framework
                 // logs
                 if (isClosed)
                 {
-                    closedBugs.Add($"{GetBaseAddress()}/browse/{bug}");
+                    closedBugs.Add($"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{bug}");
                     continue;
                 }
-                logger?.Error($"Was not able to close bug [{bug}] for test [{testCase.Key}].");
+                logger?.Error($"Close-Bug -Bug [{bug}] -Test [{testCase.Key}] = false");
             }
             return closedBugs;
         }
 
-        private IEnumerable<string> DoGetBugs(RhinoTestCase testCase)
+        private IEnumerable<JToken> DoGetBugs(RhinoTestCase testCase)
         {
             // shortcuts
             var bugType = $"{capabilities[AtlassianCapabilities.BugType]}";
@@ -586,7 +650,7 @@ namespace Rhino.Connectors.Xray.Framework
             const string statusPath = "fields.status.name";
 
             // get test issue
-            var test = jiraClient.GetIssue(testCase.Key);
+            var test = jiraClient.Get(testCase.Key);
 
             // get bugs
             var bugsKeys = test
@@ -599,7 +663,7 @@ namespace Rhino.Connectors.Xray.Framework
             testCase.Context["bugs"] = bugsKeys;
 
             // get issues
-            return jiraClient.GetIssues(bugsKeys).Select(i => $"{i}");
+            return jiraClient.Get(bugsKeys);
         }
 
         private string DoCreateBug(RhinoTestCase testCase)
@@ -608,7 +672,9 @@ namespace Rhino.Connectors.Xray.Framework
             var response = testCase.CreateBug(jiraClient);
 
             // results
-            return response == default ? "-1" : $"{GetBaseAddress()}/browse/{response["key"]}";
+            return response == default
+                ? "-1"
+                : $"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{response["key"]}";
         }
         #endregion
 
@@ -646,25 +712,13 @@ namespace Rhino.Connectors.Xray.Framework
                 if (outcome.Equals("FAIL", Compare) || testCase.Steps.Any(i => i.Exception != default))
                 {
                     var comment = testCase.GetFailComment();
-                    testCase.PutResultComment(comment);
+                    testCase.UpdateResultComment(comment);
                 }
             }
             catch (Exception e) when (e != null)
             {
                 logger?.Error($"Update-TestResult -Test [{testCase.Key}] -Inline [{inline}] = false", e);
             }
-        }
-
-        // TODO: move to JiraUtilities and pass string Uri as argument
-        private string GetBaseAddress()
-        {
-            // setup
-            var collection = Configuration.ConnectorConfiguration.Collection;
-
-            // get
-            return collection.EndsWith("/")
-                ? collection.Substring(0, collection.LastIndexOf('/'))
-                : collection;
         }
     }
 }

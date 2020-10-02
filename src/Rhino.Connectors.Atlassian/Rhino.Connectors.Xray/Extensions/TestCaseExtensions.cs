@@ -4,18 +4,17 @@
  * RESOURCES
  */
 using Gravity.Extensions;
-using Gravity.Services.DataContracts;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
-using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Contracts.Interfaces;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
+using Rhino.Connectors.AtlassianClients.Framework;
+using Rhino.Connectors.Xray.Framework;
 
 using System;
 using System.Collections.Concurrent;
@@ -23,11 +22,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 
 using RhinoUtilities = Rhino.Api.Extensions.Utilities;
 
@@ -36,12 +31,6 @@ namespace Rhino.Connectors.Xray.Extensions
     internal static class TestCaseExtensions
     {
         // members: constants
-        private const string RavenExecutionFormat = "/rest/raven/2.0/api/testrun/?testExecIssueKey={0}&testIssueKey={1}";
-        private const string RavenRunFormat = "/rest/raven/2.0/api/testrun/{0}";
-        private const string RavenAttachmentFormat = "/rest/raven/2.0/api/testrun/{0}/step/{1}/attachment";
-        private const string RavenInlineRunFormat = "/rest/raven/1.0/testexec/{0}/execute/{1}";
-        private const string RavenStatusFormat = "/rest/raven/2.0/api/settings/teststatuses";
-
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
         /// <summary>
@@ -51,20 +40,21 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <param name="testExecutionKey">Jira test execution key by which to find runtime ids.</param>
         public static void SetRuntimeKeys(this RhinoTestCase testCase, string testExecutionKey)
         {
-            // add test step id into test-case context
-            var authentication = testCase.GetAuthentication();
-            var route = string.Format(RavenExecutionFormat, testExecutionKey, testCase.Key);
-            var request = JiraUtilities.GenericGetRequest(authentication, route);
-            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            // setup
+            var ravenClient = new JiraCommandsExecutor(testCase.GetAuthentication());
+            var command = RavenCommandsRepository.GetTestRunExecutionDetails(testExecutionKey, testCase.Key);
+
+            // send
+            var response = ravenClient.SendCommand(command).AsJToken();
 
             // exit conditions
-            if (!response.IsSuccessStatusCode)
+            if ($"{response["id"]}".Equals("-1"))
             {
                 return;
             }
 
             // setup
-            var jsonToken = response.ToObject()["steps"];
+            var jsonToken = response["steps"];
             var stepsToken = JArray.Parse($"{jsonToken}");
             var stepsCount = testCase.Steps.Count();
 
@@ -72,64 +62,29 @@ namespace Rhino.Connectors.Xray.Extensions
             for (int i = 0; i < stepsCount; i++)
             {
                 testCase.Steps.ElementAt(i).Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
+                testCase.Steps.ElementAt(i).Context["testStep"] = JToken.Parse($"{stepsToken[i]}");
             }
 
             // apply test run key
+            int.TryParse($"{response["id"]}", out int idOut);
+            testCase.Context["runtimeid"] = idOut;
             testCase.Context["testRunKey"] = testExecutionKey;
-            testCase.Context["runtimeid"] = DoGetExecutionRuntime(testCase);
-        }
-
-        /// <summary>
-        /// Gets the runtime id of the test execution this test belongs to.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase for which to get runtime id.</param>
-        /// <returns>XRay runtime id of the test execution this RhinoTestCase belongs to.</returns>
-        public static int GetExecutionRuntime(this RhinoTestCase testCase)
-        {
-            return DoGetExecutionRuntime(testCase);
         }
 
         /// <summary>
         /// Updates test results comment.
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to update test results.</param>
-        public static void PutResultComment(this RhinoTestCase testCase, string comment)
+        public static void UpdateResultComment(this RhinoTestCase testCase, string comment)
         {
             // setup
-            var authentication = testCase.GetAuthentication();
-            var route = string.Format(RavenRunFormat, testCase.Context["runtimeid"]);
-            var payload = new { Comment = comment };
+            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
+            var command = RavenCommandsRepository.UpdateTestRun(
+                testRun: $"{testCase.Context["runtimeid"]}",
+                data: new { Comment = comment });
 
-            // setup: content
-            var request = JiraUtilities.GenericPutRequest(authentication, route, payload);
-
-            // update
-            JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-            Thread.Sleep(500);
-        }
-
-        /// <summary>
-        /// Gets a text structure explaining why this test failed. Can be used for comments.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase by from which to build text structure.</param>
-        /// <returns>text structure explaining why this test failed.</returns>
-        public static string GetFailComment(this RhinoTestCase testCase)
-        {
-            return DoGetFailComment(testCase);
-        }
-
-        // TODO: remove on next Rhino.Api update
-        /// <summary>
-        /// Gets a value from the capabilities dictionary under the ProviderConfiguration of this RhinoTestCase.
-        /// </summary>
-        /// <typeparam name="T">The capability type to return.</typeparam>
-        /// <param name="onContext">Context dictionary from which to get the capability.</param>
-        /// <param name="capability">The capability to get.</param>
-        /// <param name="defaultValue">The default value to get if the capability was not found.</param>
-        /// <returns>Capability value.</returns>
-        public static T GetCapability<T>(this IHasContext onContext, string capability, T defaultValue = default)
-        {
-            return DoGetCapability(onContext, capability, defaultValue);
+            // send
+            executor.SendCommand(command);
         }
 
         #region *** To Issue Request ***
@@ -169,13 +124,13 @@ namespace Rhino.Connectors.Xray.Extensions
             };
 
             // test suite
-            if (!string.IsNullOrEmpty(testCase.TestSuite))
+            if (testCase.TestSuites.Any())
             {
-                payload[$"{testCase.Context["test-sets-custom-field"]}"] = new[] { testCase.TestSuite };
+                payload[$"{testCase.Context["test-sets-custom-field"]}"] = testCase.TestSuites;
             }
 
             // test plan
-            var testPlans = DoGetCapability(onContext: testCase, capability: AtlassianCapabilities.TestPlans, defaultValue: Array.Empty<string>());
+            var testPlans = testCase.GetConnectorCapability(capability: AtlassianCapabilities.TestPlans, defaultValue: Array.Empty<string>());
             var isTestPlan = testPlans.Length != 0 && testCase.Context.ContainsKey("test-plan-custom-field");
             if (isTestPlan)
             {
@@ -198,9 +153,8 @@ namespace Rhino.Connectors.Xray.Extensions
         private static void Validate(IDictionary<string, object> context, string key)
         {
             // constants
-            const string L = "https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/";
-            const string M =
-                "TestCase.Context dictionary must have a key [{0}] with a valid value. Please check [{1}] for available values.";
+            const string Link = "https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/";
+            const string Format = "Find-Key -Key [{0}] -Context [{1}] -Method [{2}] = false";
 
             // exit conditions
             if (context.ContainsKey(key))
@@ -209,8 +163,8 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // exception
-            var message = string.Format(M, key, L);
-            throw new InvalidOperationException(message) { HelpLink = L };
+            var message = string.Format(Format, key, nameof(context), nameof(Validate));
+            throw new InvalidOperationException(message) { HelpLink = Link };
         }
 
         private static IEnumerable<IDictionary<string, object>> GetSteps(RhinoTestCase testCase)
@@ -250,32 +204,9 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
         /// <returns>-1 if failed to update, 0 for success.</returns>
         /// <remarks>Must contain runtimeid field in the context.</remarks>
-        public static int SetOutcomeBySteps(this RhinoTestCase testCase)
+        public static void SetOutcomeBySteps(this RhinoTestCase testCase)
         {
-            // setup
-            var authentication = testCase.GetAuthentication();
-            var route = string.Format(RavenRunFormat, $"{testCase.Context["runtimeid"]}");
-            var payload = new
-            {
-                steps = GetUpdateRequestObject(testCase)
-            };
-
-            // get request
-            var request = JiraUtilities.GenericPutRequest(authentication, route, payload);
-
-            // put
-            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-
-            // results
-            if (!response.IsSuccessStatusCode)
-            {
-                return -1;
-            }
-            return 0;
-        }
-
-        private static List<object> GetUpdateRequestObject(RhinoTestCase testCase)
-        {
+            // get steps
             // add exceptions images - if exists or relevant
             if (testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
             {
@@ -288,61 +219,63 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 steps.Add(testStep.GetUpdateRequest(outcome: $"{testCase.Context["outcome"]}"));
             }
-            return steps;
+
+            // setup
+            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
+            var command = RavenCommandsRepository.UpdateTestRun(
+                testRun: $"{testCase.Context["runtimeid"]}",
+                data: new { Steps = steps });
+
+            // send
+            executor.SendCommand(command);
         }
 
         /// <summary>
         /// Set XRay test execution results of test case by setting steps outcome.
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
-        /// <returns>-1 if failed to update, 0 for success.</returns>
-        /// <remarks>Must contain runtimeid field in the context.</remarks>
-        public static int SetOutcomeByRun(this RhinoTestCase testCase)
+        /// <remarks>Must contain runtimeid field in under RhinoTestCase.Context.</remarks>
+        public static void SetOutcomeByRun(this RhinoTestCase testCase)
+        {
+            DoSetOutcomeByRun(testCase, $"{testCase.Context["outcome"]}");
+        }
+
+        /// <summary>
+        /// Set XRay test execution results of test case by setting steps outcome.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to update XRay results.</param>
+        /// <param name="outcome">Test run outcome to set.</param>
+        /// <remarks>Must contain runtimeid field in under RhinoTestCase.Context.</remarks>
+        public static void SetOutcomeByRun(this RhinoTestCase testCase, string outcome)
+        {
+            DoSetOutcomeByRun(testCase, outcome);
+        }
+
+        private static void DoSetOutcomeByRun(RhinoTestCase testCase, string outcome)
         {
             // setup
-            var authentication = testCase.GetAuthentication();
+            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
 
-            // get
-            var request = JiraUtilities.GenericGetRequest(authentication, RavenStatusFormat);
-            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
-            {
-                return -1;
-            }
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            // send
+            var response = RavenCommandsRepository.GetTestStauses().Send(executor).AsJToken();
 
             // extract status
-            var status = JArray
-                .Parse(responseBody)
-                .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals($"{testCase.Context["outcome"]}", Compare));
+            var status = response.FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(outcome, Compare));
 
             // exit conditions
-            if(status == default)
+            if (status == default)
             {
-                return -1;
+                return;
             }
 
             // exit conditions
-            if (!int.TryParse($"{status["id"]}", out int id))
+            if (!int.TryParse($"{status["id"]}", out int outcomeOut))
             {
-                return -1;
+                return;
             }
 
-            // setup
-            var route = string.Format(RavenInlineRunFormat, testCase.TestRunKey, testCase.Key);
-
-            // get request
-            request = JiraUtilities.GenericPostRequest(authentication, route, id);
-
-            // put
-            response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-
-            // results
-            if (!response.IsSuccessStatusCode)
-            {
-                return -1;
-            }
-            return 0;
+            // send
+            RavenCommandsRepository.SetTestExecuteResult(testCase.TestRunKey, testCase.Key, outcomeOut).Send(executor);
         }
         #endregion
 
@@ -353,7 +286,68 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <param name="testCase">RhinoTestCase by and into which to upload evidences.</param>
         public static void UploadEvidences(this RhinoTestCase testCase)
         {
-            DoUploadtEvidences(testCase);
+            // setup
+            var runOut = 0;
+            if (testCase.Context.ContainsKey("runtimeid"))
+            {
+                int.TryParse($"{testCase.Context["runtimeid"]}", out runOut);
+            }
+
+            // build
+            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
+
+            // send
+            foreach (var (Id, Data) in GetEvidence(testCase))
+            {
+                RavenCommandsRepository.CreateAttachment($"{runOut}", $"{Id}", Data).Send(executor);
+            }
+        }
+
+        private static IEnumerable<(long Id, IDictionary<string, object> Data)> GetEvidence(RhinoTestCase testCase)
+        {
+            // get screenshots
+            var screenshots = testCase.GetScreenshots();
+            var automation = testCase.GetWebAutomation();
+
+            // exit conditions
+            if (!screenshots.Any() || automation == default)
+            {
+                return Array.Empty<(long, IDictionary<string, object>)>();
+            }
+
+            // get for step
+            var evidences = new ConcurrentBag<(long, IDictionary<string, object>)>();
+            foreach (var screenshot in screenshots)
+            {
+                // setup
+                var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
+                if (!isReference)
+                {
+                    continue;
+                }
+
+                // get attachment requests for test case
+                var reference = testCase.GetActionReference(referenceOut).Reference;
+                var evidence = GetEvidenceBody(screenshot);
+                var runtimeid = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
+                    ? (long)testCase.Steps.ElementAt(reference).Context["runtimeid"]
+                    : -1;
+                evidences.Add((runtimeid, evidence));
+            }
+
+            // results
+            return evidences;
+        }
+
+        private static IDictionary<string, object> GetEvidenceBody(string screenshot)
+        {
+            // standalone
+            return new Dictionary<string, object>
+            {
+                ["filename"] = Path.GetFileName(screenshot),
+                ["contentType"] = "image/png",
+                ["data"] = Convert.ToBase64String(File.ReadAllBytes(screenshot))
+            };
         }
         #endregion
 
@@ -363,11 +357,11 @@ namespace Rhino.Connectors.Xray.Extensions
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to update a bug.</param>
         /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
-        public static bool UpdateBug(this RhinoTestCase testCase, JiraClient jiraClient, string issueKey)
+        public static bool UpdateBug(this RhinoTestCase testCase, string idOrKey, JiraClient jiraClient)
         {
             // setup
-            var bugType = DoGetCapability(testCase, capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
-            var onBug = jiraClient.GetIssue(issueKey);
+            var bugType = testCase.GetConnectorCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
+            var onBug = jiraClient.Get(idOrKey);
 
             // setup conditions
             var isDefault = onBug == default;
@@ -381,7 +375,7 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // update body
             var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
-            var isUpdate = jiraClient.UpdateIssue(issueKey, requestBody);
+            var isUpdate = jiraClient.UpdateIssue(idOrKey, requestBody);
             if (!isUpdate)
             {
                 return isUpdate;
@@ -391,14 +385,14 @@ namespace Rhino.Connectors.Xray.Extensions
             jiraClient.DeleteAttachments(idOrKey: $"{onBug["key"]}");
 
             // upload new attachments
-            var files = GetScreenshots(testCase).ToArray();
-            jiraClient.AddAttachments($"{onBug["key"]}", files);
+            var files = testCase.GetScreenshots();
+            jiraClient.AddAttachments($"{onBug["key"]}", files.ToArray());
 
             // results
             return isUpdate;
         }
 
-        private static object GetUpdateBugPayload(RhinoTestCase testCase, JObject onBug, JiraClient jiraClient)
+        private static object GetUpdateBugPayload(RhinoTestCase testCase, JToken onBug, JiraClient jiraClient)
         {
             // setup
             var comment =
@@ -407,7 +401,7 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // verify if bug is already open
             var template = testCase.BugMarkdown(jiraClient);
-            var description = $"{JObject.Parse(template).SelectToken("fields.description")}";
+            var description = $"{JToken.Parse(template).SelectToken("fields.description")}";
 
             // setup
             return new
@@ -439,13 +433,13 @@ namespace Rhino.Connectors.Xray.Extensions
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to create a bug.</param>
         /// <returns>Bug creation results from Jira.</returns>
-        public static JObject CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
+        public static JToken CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
         {
             // setup
             var issueBody = testCase.BugMarkdown(jiraClient);
 
             // post
-            var response = jiraClient.CreateIssue(issueBody);
+            var response = jiraClient.Create(issueBody);
             if (response == default)
             {
                 return default;
@@ -458,8 +452,8 @@ namespace Rhino.Connectors.Xray.Extensions
             jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
 
             // add attachments
-            var files = GetScreenshots(testCase).ToArray();
-            jiraClient.AddAttachments($"{response["key"]}", files);
+            var files = testCase.GetScreenshots();
+            jiraClient.AddAttachments($"{response["key"]}", files.ToArray());
 
             // add to context
             testCase.Context["bugOpenedResponse"] = response;
@@ -487,7 +481,7 @@ namespace Rhino.Connectors.Xray.Extensions
             // exit conditions
             if (!exists)
             {
-                return true;
+                return false;
             }
 
             // setup
@@ -522,8 +516,9 @@ namespace Rhino.Connectors.Xray.Extensions
         /// </summary>
         /// <param name="testCase">RhinoTestCase to match to.</param>
         /// <param name="bug">Bug JSON token to match by.</param>
+        /// <param name="assertDataSource"><see cref="true"/> to match also RhinoTestCase.DataSource</param>
         /// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
-        public static bool IsBugMatch(this RhinoTestCase testCase, JObject bug)
+        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource)
         {
             // setup
             var onBug = $"{bug}";
@@ -538,287 +533,134 @@ namespace Rhino.Connectors.Xray.Extensions
             var isDataSource = AssertDataSource(testCase, onBug);
             var isDriver = $"{driverParams["driver"]}".Equals(driver, Compare);
             var isIteration = testCase.Iteration == iteration;
+            var isOptions = AssertOptions(testCase, onBug);
 
             // assert
-            return isCapabilities && isDataSource && isDriver && isIteration;
+            return assertDataSource
+                ? isDataSource && isCapabilities && isDriver && isIteration && isOptions
+                : isCapabilities && isDriver && isIteration && isOptions;
         }
 
         private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
+        {
+            try
+            {
+                // setup
+                var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+
+                // extract test capabilities
+                var tstCapabilities = driverParams.ContainsKey("capabilities")
+                    ? ((IDictionary<string, object>)driverParams["capabilities"]).ToJiraMarkdown()
+                    : string.Empty;
+
+                // normalize to markdown
+                var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
+                tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
+
+                // extract bug capabilities
+                var bugCapabilities = Regex.Match(
+                    input: onBug,
+                    pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
+
+                // normalize to markdown
+                var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
+                bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
+
+                // exit conditions
+                var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
+                var isTstCapabilities = !string.IsNullOrEmpty(tstCapabilities);
+                if (isBugCapabilities ^ isTstCapabilities)
+                {
+                    return false;
+                }
+                else if (!isBugCapabilities && !isTstCapabilities)
+                {
+                    return true;
+                }
+
+                // convert to data table and than to dictionary collection
+                var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+                var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+
+                // assert
+                return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
+            }
+            catch (Exception e) when (e != null)
+            {
+                return false;
+            }
+        }
+
+        private static bool AssertDataSource(RhinoTestCase testCase, string onBug)
+        {
+            try
+            {
+                // extract test capabilities
+                var compareableTstData = testCase.DataSource?.Any() == true
+                    ? testCase.DataSource.ToJson().ToUpper().Sort()
+                    : string.Empty;
+
+                // extract bug capabilities
+                var bugData = Regex.Match(input: onBug, pattern: @"(?<=Local Data Source\W+\\r\\n\|\|).*(?=\|)").Value;
+
+                // normalize to markdown
+                var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
+                bugData = string.Join(Environment.NewLine, onBugData);
+
+                // exit conditions
+                var isBugCapabilities = !string.IsNullOrEmpty(compareableTstData);
+                var isTstCapabilities = !string.IsNullOrEmpty(bugData);
+                if (isBugCapabilities ^ isTstCapabilities)
+                {
+                    return false;
+                }
+                else if (!isBugCapabilities && !isTstCapabilities)
+                {
+                    return true;
+                }
+
+                // convert to data table and than to dictionary collection
+                var compareableBugCapabilites = new DataTable()
+                    .FromMarkDown(bugData)
+                    .ToDictionary()
+                    .ToJson()
+                    .ToUpper()
+                    .Sort();
+
+                // assert
+                return compareableBugCapabilites.Equals(compareableTstData, Compare);
+            }
+            catch (Exception e) when (e != null)
+            {
+                return false;
+            }
+        }
+
+        private static bool AssertOptions(RhinoTestCase testCase, string onBug)
         {
             // setup
             var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
             // extract test capabilities
-            var tstCapabilities = driverParams.ContainsKey("capabilities")
-                ? ((IDictionary<string, object>)driverParams["capabilities"]).ToXrayMarkdown()
-                : string.Empty;
-
-            // normalize to markdown
-            var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
-            tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
-
-            // extract bug capabilities
-            var bugCapabilities = Regex.Match(
-                input: onBug,
-                pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
-
-            // normalize to markdown
-            var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
-            bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
-
-            // convert to data table and than to dictionary collection
-            var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
-            var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
-
-            // assert
-            return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
-        }
-
-        private static bool AssertDataSource(RhinoTestCase testCase, string onBug)
-        {
-            // extract test capabilities
-            var compareableTstData = testCase.DataSource?.Any() == true
-                ? testCase.DataSource.ToJson().ToUpper().Sort()
+            var tstOptions = driverParams.ContainsKey("options")
+                ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
                 : string.Empty;
 
             // extract bug capabilities
-            var bugData = Regex.Match(input: onBug, pattern: @"(?<=Local Data Source\W+\\r\\n\|\|).*(?=\|)").Value;
+            var onBugOptions = Regex.Match(input: onBug, pattern: @"(?<=Options\W+\\r\\n\{code:json}).*?(?=\{code})").Value;
+            onBugOptions = onBugOptions.Replace("\\r", string.Empty).Replace("\\n", string.Empty).Replace(@"\", string.Empty);
+            var bugOptions = string.IsNullOrEmpty(onBugOptions) ? string.Empty : onBugOptions;
 
-            // normalize to markdown
-            var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
-            bugData = string.Join(Environment.NewLine, onBugData);
-
-            // convert to data table and than to dictionary collection
-            var compareableBugCapabilites = new DataTable()
-                .FromMarkDown(bugData)
-                .ToDictionary()
-                .ToJson()
-                .ToUpper()
-                .Sort();
+            // deserialize
+            if (!string.IsNullOrEmpty(bugOptions))
+            {
+                var bugOptionsObjt = JsonConvert.DeserializeObject<object>(bugOptions);
+                bugOptions = JsonConvert.SerializeObject(bugOptionsObjt, Formatting.None).ToUpper().Sort();
+            }
 
             // assert
-            return compareableBugCapabilites.Equals(compareableTstData, Compare);
+            return tstOptions.Equals(bugOptions, Compare);
         }
         #endregion
-
-        // UTILITIES
-        // execution runtime id
-        private static int DoGetExecutionRuntime(RhinoTestCase testCase)
-        {
-            // exit conditions
-            if (testCase == default)
-            {
-                return default;
-            }
-
-            // get test run from JIRA
-            var authentication = testCase.GetAuthentication();
-            var route = string.Format(RavenExecutionFormat, testCase.Context["testRunKey"], testCase.Key);
-            var request = JiraUtilities.GenericGetRequest(authentication, route);
-            var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return 0;
-            }
-            int.TryParse($"{response.ToObject()["id"]}", out int idOut);
-            return idOut;
-        }
-
-        // upload evidences
-        private static void DoUploadtEvidences(this RhinoTestCase testCase)
-        {
-            // setup
-            var run = 0;
-            if (testCase.Context.ContainsKey("runtimeid"))
-            {
-                int.TryParse($"{testCase.Context["runtimeid"]}", out run);
-            }
-
-            // upload
-            var authentication = testCase.GetAuthentication();
-            foreach (var (Id, Data) in GetEvidence(testCase))
-            {
-                var route = string.Format(RavenAttachmentFormat, run, Id);
-                var request = JiraUtilities.GenericPostRequest(authentication, route, payload: Data);
-                JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-            }
-        }
-
-        private static IEnumerable<(long Id, IDictionary<string, object> Data)> GetEvidence(RhinoTestCase testCase)
-        {
-            // get screenshots
-            var screenshots = GetScreenshots(testCase);
-            var automation = GetWebAutomation(testCase);
-
-            // exit conditions
-            if (!screenshots.Any() || automation == default)
-            {
-                return Array.Empty<(long, IDictionary<string, object>)>();
-            }
-
-            // get for step
-            var evidences = new ConcurrentBag<(long, IDictionary<string, object>)>();
-            foreach (var screenshot in screenshots)
-            {
-                // setup
-                var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
-                if (!isReference)
-                {
-                    continue;
-                }
-
-                // get attachment requests for test case
-                var reference = GetActionReference(testCase, referenceOut).Reference;
-                var evidence = GetEvidenceBody(screenshot);
-                var runtimeid = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
-                    ? (long)testCase.Steps.ElementAt(reference).Context["runtimeid"]
-                    : -1;
-                evidences.Add((runtimeid, evidence));
-            }
-
-            // results
-            return evidences;
-        }
-
-        private static IDictionary<string, object> GetEvidenceBody(string screenshot)
-        {
-            // standalone
-            return new Dictionary<string, object>
-            {
-                ["filename"] = Path.GetFileName(screenshot),
-                ["contentType"] = "image/png",
-                ["data"] = Convert.ToBase64String(File.ReadAllBytes(screenshot))
-            };
-        }
-
-        // get comments for failed tests
-        private static string DoGetFailComment(RhinoTestCase testCase)
-        {
-            // setup
-            var failedSteps = testCase.Steps.Where(i => !i.Actual).Select(i => ((JToken)i.Context["testStep"])["index"]);
-
-            // exit conditions
-            if (!failedSteps.Any())
-            {
-                return string.Empty;
-            }
-
-            // build
-            var comment = new StringBuilder();
-            comment
-                .Append("{noformat}")
-                .Append(DateTime.Now)
-                .Append(": Test [")
-                .Append(testCase.Key)
-                .Append("] Failed on iteration [")
-                .Append(testCase.Iteration)
-                .Append("] ")
-                .Append("Steps [")
-                .Append(string.Join(",", failedSteps))
-                .AppendLine("]")
-                .AppendLine()
-                .AppendLine("[Driver Parameters]")
-                .AppendLine(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams], JiraUtilities.JsonSettings))
-                .AppendLine()
-                .AppendLine("[Local Data Source]")
-                .Append(JsonConvert.SerializeObject(testCase.DataSource, JiraUtilities.JsonSettings))
-                .AppendLine("{noformat}");
-
-            // return
-            return comment.ToString();
-        }
-
-        private static IEnumerable<string> GetScreenshots(RhinoTestCase testCase)
-        {
-            // exit conditions
-            if (!testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
-            {
-                return Array.Empty<string>();
-            }
-
-            // get
-            return ((OrbitResponse)testCase.Context[ContextEntry.OrbitResponse])
-                .OrbitRequest
-                .Screenshots
-                .Select(i => i.Location);
-        }
-
-        private static WebAutomation GetWebAutomation(RhinoTestCase testCase)
-        {
-            // exit conditions
-            if (!testCase.Context.ContainsKey(ContextEntry.WebAutomation))
-            {
-                return default;
-            }
-
-            // get
-            return (WebAutomation)testCase.Context[ContextEntry.WebAutomation];
-        }
-
-        // TODO: remove on next Rhino.Api update
-        // gets a capability value from test case configuration or default value if not possible
-        private static T DoGetCapability<T>(IHasContext onContext, string capability, T defaultValue = default)
-        {
-            try
-            {
-                // setup
-                var isKey = onContext.Context.ContainsKey(ContextEntry.Configuration);
-                var isValue = isKey && onContext.Context[ContextEntry.Configuration] != default;
-
-                // exit conditions
-                if (!isValue)
-                {
-                    return defaultValue;
-                }
-
-                // setup
-                var configuration = ((RhinoConfiguration)onContext.Context[ContextEntry.Configuration]);
-                var isNotNull = configuration?.Capabilities != default;
-                var capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
-                    ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
-                    : new Dictionary<string, object>();
-
-                isKey = isNotNull && capabilities.ContainsKey(capability);
-                isValue = isKey && !string.IsNullOrEmpty($"{capabilities[capability]}");
-
-                // results
-                return isValue ? (T)capabilities[capability] : defaultValue;
-            }
-            catch (Exception e) when (e != null)
-            {
-                return defaultValue;
-            }
-        }
-
-        // gets the first action reference which is not "Assert" in a given action rules collection
-        // and starting reference
-        private static (string Command, int Reference) GetActionReference(RhinoTestCase testCase, int reference)
-        {
-            // flatten
-            var actions = new List<(string Command, int Reference)>();
-            for (int i = 0; i < testCase.Steps.Count(); i++)
-            {
-                // setup
-                var onStep = testCase.Steps.ElementAt(i);
-                var assertions = onStep.Expected
-                    .SplitByLines()
-                    .Select(i => i.Trim())
-                    .Where(i => !string.IsNullOrEmpty(i))
-                    .Select(_ => (ActionType.Assert, i));
-
-                actions.Add((onStep.Command, i));
-                actions.AddRange(assertions);
-            }
-
-            // exit conditions
-            if (actions[reference].Command != ActionType.Assert)
-            {
-                return actions[reference];
-            }
-
-            // recurse
-            return GetActionReference(testCase, reference - 1);
-        }
     }
 }

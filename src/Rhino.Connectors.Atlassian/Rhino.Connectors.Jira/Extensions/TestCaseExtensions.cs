@@ -6,6 +6,8 @@
 using Newtonsoft.Json;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.Xray.Cloud.Framework;
 
 using System;
 using System.Collections.Generic;
@@ -56,38 +58,28 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
         /// <summary>
         /// Converts RhinoTestCase to create test steps requests collection.
         /// </summary>
-        /// <param name="testCase">Test case to convert.</param>
-        /// <returns>Create test issue request.</returns>
-        public static IEnumerable<(string Endpoint, StringContent Content)> ToXrayStepsRequests(this RhinoTestCase testCase)
+        /// <param name="testCase">Test case to create by.</param>
+        /// <returns>A collection of create step request.</returns>
+        public static IEnumerable<HttpCommand> ToXrayStepsCommands(this RhinoTestCase testCase)
         {
             // exit conditions
             Validate(testCase, "jira-issue-id");
 
             // setup
-            var endpoint = $"/api/internal/test/{testCase.Context["jira-issue-id"]}/step";
-            var results = new List<(string Endpoint, StringContent Content)>();
+            var id = $"{testCase.Context["jira-issue-id"]}";
+            var key = testCase.Key;
+            var requests = new List<HttpCommand>();
             var steps = testCase.Steps.ToArray();
 
+            // build
             for (int i = 0; i < steps.Length; i++)
             {
-                // setup body
-                var requestObjt = new Dictionary<string, object>
-                {
-                    ["action"] = steps[i].Action,
-                    ["result"] = steps[i].Expected,
-                    ["index"] = i
-                };
-                var requestBody = JsonConvert.SerializeObject(requestObjt);
-
-                // setup content
-                var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-
-                // apply
-                results.Add((endpoint, content));
+                var requset = XpandCommandsRepository.CreateTestStep((id, key), steps[i].Action, steps[i].Expected, i);
+                requests.Add(requset);
             }
 
-            // results
-            return results;
+            // get
+            return requests;
         }
         #endregion
 

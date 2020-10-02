@@ -2,7 +2,11 @@ using Gravity.Services.DataContracts;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using Rhino.Api;
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.Xray.Cloud;
 
 using System;
 using System.Collections.Generic;
@@ -152,6 +156,169 @@ namespace Rhino.Connectors.Xray.UnitTests
             testCase.Scenario = "Created by CreateTestCase";
 
             connector.ProviderManager.CreateTestCase(testCase);
+        }
+
+        [TestMethod]
+        public void DemoConfiguration2()
+        {
+            var configu = new RhinoConfiguration
+            {
+                Name = "For Integration Testing",
+                TestsRepository = new[]
+                {
+                    "RHIN-1"/*"XT-7"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                },
+                Authentication = new Authentication
+                {
+                    UserName = "automation@rhino.api",
+                    Password = "Aa123456!"
+                },
+                ConnectorConfiguration = new RhinoConnectorConfiguration
+                {
+                    Collection = "http://localhost:8080",
+                    Password = "admin",
+                    User = "admin",
+                    Project = "RHIN",
+                    //Collection = "https://pangobugs.atlassian.net",
+                    //Password = "aLNwnhE8fupLguQ6fwYo8A00",
+                    //User = "s_roei@msn.com",
+                    //Project = "XT",
+                    BugManager = true
+                },
+                DriverParameters = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["driver"] = "ChromeDriver",
+                        ["driverBinaries"] = @"D:\automation-env\web-drivers",
+                        ["capabilities"] = new Dictionary<string, object>
+                        {
+                            ["build"] = "Test Build",
+                            ["project"] = "Bug Manager"
+                        },
+                        ["options"] = new Dictionary<string, object>
+                        {
+                            ["arguments"] = new[]
+                            {
+                                "--ignore-certificate-errors",
+                                "--disable-popup-blocking",
+                                "--incognito"
+                            }
+                        }
+                    }
+                },
+                ScreenshotsConfiguration = new RhinoScreenshotsConfiguration
+                {
+                    KeepOriginal = true,
+                    ReturnScreenshots = true
+                },
+                EngineConfiguration = new RhinoEngineConfiguration
+                {
+                    MaxParallel = 2
+                },
+                Capabilities = new Dictionary<string, object>
+                {
+                    [$"{Connector.JiraXRay}:options"] = new Dictionary<string, object>
+                    {
+                        ["dryRun"] = false,
+                        ["bucketSize"] = 15,
+                        //[AtlassianCapabilities.TestType] = "Xray Test",
+                        //[AtlassianCapabilities.PreconditionsType] = "Precondition"
+                    }
+                }
+            };
+            //var a = new RhinoTestCase() { Scenario = "Test Test Test" };
+            var connector = new XrayConnector(configu);
+            //connector.ProviderManager.CreateTestCase(a);
+            connector.Execute();
+            //var testCases = connector.ProviderManager.GetTestCases("XT-7").First();
+            //connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());
+        }
+
+        [TestMethod]
+        public void DemoConfiguration3()
+        {
+            var configu = new RhinoConfiguration
+            {
+                Name = "For Integration Testing",
+                TestsRepository = new[]
+                {
+                    "RA-2"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                },
+                Authentication = new Authentication
+                {
+                    UserName = "automation@rhino.api",
+                    Password = "Aa123456!"
+                },
+                ConnectorConfiguration = new RhinoConnectorConfiguration
+                {
+                    //Collection = "http://localhost:8080",
+                    //Password = "admin",
+                    //User = "admin",
+                    //Project = "RHIN",
+
+                    //Collection = "https://pangobugs.atlassian.net",
+                    //Password = "aLNwnhE8fupLguQ6fwYo8A00",
+                    //User = "s_roei@msn.com",
+                    //Project = "XT",
+                    //BugManager = true,
+                    //Connector = Connector.JiraXryCloud,
+
+                    Collection = "https://rhinoapi.atlassian.net",
+                    Password = "0hshf1gBkfZqsoABp9oO173D",
+                    User = "rhino.api@gmail.com",
+                    Project = "RA",
+                    BugManager = true,
+                    Connector = Connector.JiraXryCloud
+                },
+                DriverParameters = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["driver"] = "ChromeDriver",
+                        ["driverBinaries"] = @"D:\automation-env\web-drivers",
+                        ["capabilities"] = new Dictionary<string, object>
+                        {
+                            ["build"] = "Test Build",
+                            ["project"] = "Bug Manager"
+                        },
+                        ["options"] = new Dictionary<string, object>
+                        {
+                            ["arguments"] = new[]
+                            {
+                                "--ignore-certificate-errors",
+                                "--disable-popup-blocking",
+                                "--incognito"
+                            }
+                        }
+                    }
+                },
+                ScreenshotsConfiguration = new RhinoScreenshotsConfiguration
+                {
+                    KeepOriginal = true,
+                    ReturnScreenshots = true
+                },
+                EngineConfiguration = new RhinoEngineConfiguration
+                {
+                    MaxParallel = 2
+                },
+                Capabilities = new Dictionary<string, object>
+                {
+                    [$"{Connector.JiraXryCloud}:options"] = new Dictionary<string, object>
+                    {
+                        ["dryRun"] = false,
+                        ["bucketSize"] = 15,
+                        //[AtlassianCapabilities.TestType] = "Xray Test",
+                        //[AtlassianCapabilities.PreconditionsType] = "Precondition"
+                    }
+                }
+            };
+            //var a = new RhinoTestCase() { Scenario = "Test Test Test" };
+            var connector = new XrayCloudConnector(configu);
+            //connector.ProviderManager.CreateTestCase(a);
+            connector.Execute();
+            //var testCases = connector.ProviderManager.GetTestCases("XT-7").First();
+            //connector.ProviderManager.CreateTestCase(connector.ProviderManager.TestRun.TestCases.First());
         }
 
         [TestMethod]

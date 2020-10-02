@@ -18,7 +18,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static object GetUpdateRequest(this RhinoTestStep testStep, string outcome)
         {
             // setup
-            var inconclusiveStatus = testStep.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
+            var inconclusiveStatus = testStep.GetConnectorCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
 
             // set outcome
             var onOutcome = testStep.Actual ? "PASS" : "FAIL";

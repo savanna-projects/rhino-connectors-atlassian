@@ -1,28 +1,24 @@
 ﻿/*
  * CHANGE LOG - keep only last 5 threads
  * 
- * TODO: Factor HTTP Client
- * https://stackoverflow.com/questions/51478525/httpclient-this-instance-has-already-started-one-or-more-requests-properties-ca
+ * RESOURCES
  */
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
+using Rhino.Connectors.AtlassianClients.Framework;
 using Rhino.Connectors.Xray.Cloud.Extensions;
+using Rhino.Connectors.Xray.Cloud.Framework;
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -30,39 +26,13 @@ namespace Rhino.Connectors.Xray.Cloud
 {
     internal class XpandClient
     {
-        // constants
-        private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
-        private const string StepsFormat = "/api/internal/test/{0}/steps?startAt=0&maxResults=100";
-        private const string SetsFromTestsFormat = "/api/internal/issuelinks/testset/{0}/tests?direction=inward";
-        private const string PlansFromTestsFormat = "/api/internal/issuelinks/testPlan/{0}/tests?direction=inward";
-        private const string PreconditionsFormat = "/api/internal/issuelinks/test/{0}/preConditions";
-        private const string TestsBySetFormat = "/api/internal/issuelinks/testset/{0}/tests";
-        private const string TestsByPlanFormat = "/api/internal/testplan/{0}/tests";
-        private const string PreconditionToTestCaseFormat = "/api/internal/issuelinks/test/{0}/preConditions";
-        private const string TestsToExecutionFormat = "/api/internal/issuelinks/testexec/{0}/tests";
-        private const string TestExecutionDetailsFormat = "/view/page/execute-test?testIssueKey={0}&testExecIssueKey={1}&jwt={2}";
-        private const string TestRunStepStatusFormat = "/api/internal/testRun/{0}/step/{1}/status";
-        private const string TestRunStatusFormat = "/api/internal/testrun/{0}/status";
-
         // members
         private readonly ILogger logger;
         private readonly JiraClient jiraClient;
+        private readonly JiraCommandsExecutor executor;
+        private readonly int bucketSize;
 
-        /// <summary>
-        /// Gets the JSON serialization settings used by this JiraClient.
-        /// </summary>
-        public static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.Indented,
-            ContractResolver = new CamelCasePropertyNamesContractResolver()
-        };
-
-        /// <summary>
-        /// Gets the HTTP requests media type used by this JiraClient.
-        /// </summary>
-        public const string MediaType = "application/json";
-
-        #region *** Constructors      ***
+        #region *** Constructors       ***
         /// <summary>
         /// Creates a new instance of JiraClient.
         /// </summary>
@@ -80,504 +50,368 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             this.logger = logger?.CreateChildLogger(loggerName: nameof(XpandClient));
-            jiraClient = new JiraClient(authentication, logger);
+            jiraClient = new JiraClient(authentication, this.logger);
             Authentication = jiraClient.Authentication;
+            executor = new JiraCommandsExecutor(authentication, this.logger);
+            bucketSize = authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
         }
         #endregion
 
-        #region *** Properties        ***
+        #region *** Properties         ***
         /// <summary>
         /// Jira authentication information.
         /// </summary>
         public JiraAuthentication Authentication { get; }
         #endregion
 
-        #region *** Get Tests         ***
-        public JObject GetTestCase(string issueKey)
+        #region *** Get: Tests         ***
+        /// <summary>
+        /// Gets a test cases issue.
+        /// </summary>
+        /// <param name="idOrKey">The ID or key of the issue.</param>
+        /// <returns>A test case.</returns>
+        public JToken GetTestCase(string idOrKey)
         {
-            return DoGetTestCases(bucketSize: 1, issueKey).FirstOrDefault();
+            return DoGetTestCases(new[] { idOrKey }).FirstOrDefault();
         }
 
-        public IEnumerable<JObject> GetTestsBySets(int bucketSize, params string[] issueKeys)
+        /// <summary>
+        /// Gets a collection of test cases issues.
+        /// </summary>
+        /// <param name="idsOrKeys">A collection of ID or key of the issue.</param>
+        /// <returns>A collection of test cases.</returns>
+        public IEnumerable<JToken> GetTestCases(IEnumerable<string> idsOrKeys)
         {
-            return DoGetByPlanOrSet(bucketSize, TestsBySetFormat, issueKeys);
+            return DoGetTestCases(idsOrKeys);
         }
 
-        public IEnumerable<JObject> GetTestsByPlans(int bucketSize, params string[] issueKeys)
+        /// <summary>
+        /// Gets a collection of test cases issues from test set.
+        /// </summary>
+        /// <param name="idsOrKeys">A collection of ID or key of the issue.</param>
+        /// <returns>A collection of test cases.</returns>
+        public IEnumerable<JToken> GetTestsBySets(IEnumerable<string> idsOrKeys)
         {
-            return DoGetByPlanOrSet(bucketSize, TestsByPlanFormat, issueKeys);
+            return DoGetByPlanOrSet(byPlans: false, idsOrKeys);
         }
 
-        public IEnumerable<JObject> GetTestCases(int bucketSize, params string[] issueKeys)
+        /// <summary>
+        /// Gets a collection of test cases issues from test plans.
+        /// </summary>
+        /// <param name="idsOrKeys">A collection of ID or key of the issue.</param>
+        /// <returns>A collection of test cases.</returns>
+        public IEnumerable<JToken> GetTestsByPlans(IEnumerable<string> idsOrKeys)
         {
-            return DoGetTestCases(bucketSize, issueKeys);
+            return DoGetByPlanOrSet(byPlans: true, idsOrKeys);
         }
 
-        public IEnumerable<JObject> DoGetByPlanOrSet(int bucketSize, string endpointFormar, params string[] issueKeys)
+        // COMMON METHODS
+        private IEnumerable<JToken> DoGetByPlanOrSet(bool byPlans, IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testSets = jiraClient.GetIssues(issueKeys);
+            var testSets = JiraCommandsRepository
+                .Search(jql: $"key in ({string.Join(",", idsOrKeys)})")
+                .Send(executor)
+                .AsJToken()
+                .SelectToken("issues");
 
             // exit conditions
-            if (!testSets.Any())
+            if (testSets == default || !testSets.Any())
             {
-                logger?.Warn("Was not able to get test cases from set/plan. Sets/Plans were not found or error occurred.");
-                return Array.Empty<JObject>();
+                logger?.Warn($"Get-ByPlanOrSet -Keys [{string.Join(",", idsOrKeys)}] = false");
+                return Array.Empty<JToken>();
             }
 
-            // get requests list
-            var data = testSets.Select(i => (Key: $"{i["key"]}", Endpoint: string.Format(endpointFormar, $"{i["id"]}")));
+            // get commands list
+            var commands = byPlans
+                ? testSets.Select(i => XpandCommandsRepository.GetTestsByPlan(($"{i["id"]}", $"{i["key"]}")))
+                : testSets.Select(i => XpandCommandsRepository.GetTestsBySet(($"{i["id"]}", $"{i["key"]}")));
 
-            // get all tests
-            var tests = new ConcurrentBag<string>();
+            // setup
+            var testCases = new ConcurrentBag<string>();
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(data, options, d =>
-            {
-                var client = GetClientWithToken(d.Key);
-                var response = client.GetAsync(d.Endpoint).GetAwaiter().GetResult();
-                if (!response.IsSuccessStatusCode)
-                {
-                    return;
-                }
-                var testsArray = JArray.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-                var onTests = testsArray.Select(i => $"{i["id"]}");
-                tests.AddRange(onTests);
-                client.Dispose();
-            });
 
-            // get issue keys
-            var testCases = jiraClient.GetIssues(tests).Select(i => $"{i["key"]}");
+            // extract
+            Parallel.ForEach(commands, options, command =>
+            {
+                var ids = command.Send(executor).AsJToken().Select(i => $"{i.SelectToken("id")}");
+                testCases.AddRange(ids);
+            });
 
             // get test cases
-            return DoGetTestCases(bucketSize, testCases.ToArray());
+            return DoGetTestCases(testCases);
         }
 
-        private IEnumerable<JObject> DoGetTestCases(int bucketSize, params string[] issueKeys)
+        private IEnumerable<JToken> DoGetTestCases(IEnumerable<string> idsOrKeys)
         {
+            // get from jira
+            var testCases = jiraClient.Get(idsOrKeys);
+
             // exit conditions
-            if (issueKeys.Length == 0)
+            if (!testCases.Any())
             {
-                return Array.Empty<JObject>();
+                logger?.Warn($"Get-TestCases -Keys [{string.Join(",", idsOrKeys)}] = false");
+                return Array.Empty<JToken>();
             }
 
             // setup
-            var issues = jiraClient.GetIssues(issueKeys);
-            var testCases = new ConcurrentBag<JObject>();
             var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            var onTestCases = new ConcurrentBag<JToken>();
 
-            if (!issues.Any())
-            {
-                logger?.Warn("No issues of test type found.");
-                return Array.Empty<JObject>();
-            }
-
-            // queue
-            var queue = new ConcurrentQueue<JObject>();
-            foreach (var issue in issues)
-            {
-                queue.Enqueue(issue);
-            }
-
-            // client
-            var client = GetClientWithToken($"{issues.First()["key"]}");
+            // iterate
+            Parallel.ForEach(testCases, options, testCase => onTestCases.Add(DoGetTestCase(testCase)));
 
             // get
-            var attempts = 0;
-            while (queue.Count > 0 && attempts < queue.Count * 5)
-            {
-                Parallel.ForEach(queue, options, _ =>
-                {
-                    queue.TryDequeue(out JObject issueOut);
-                    var route = string.Format(StepsFormat, $"{issueOut["id"]}");
-                    var response = client.GetAsync(route).GetAwaiter().GetResult();
-                    var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return onTestCases;
+        }
 
-                    // validate
-                    if (!response.IsSuccessStatusCode && responseBody.Contains("Authentication request has expired"))
-                    {
-                        queue.Enqueue(issueOut);
-                        attempts++;
-                        return;
-                    }
-                    else if (!response.IsSuccessStatusCode)
-                    {
-                        attempts++;
-                        return;
-                    }
+        private JToken DoGetTestCase(JToken testCase)
+        {
+            // get
+            var response = XpandCommandsRepository
+                .GetSteps(($"{testCase.SelectToken("id")}", $"{testCase.SelectToken("key")}"))
+                .Send(executor)
+                .AsJToken();
 
-                    // parse
-                    var onIssue = JObject.Parse($"{issueOut}");
-                    onIssue.Add("steps", JObject.Parse(responseBody).SelectToken("steps"));
+            // setup
+            var onTestCase = testCase.AsJObject();
+            onTestCase.Add("steps", response.SelectToken("steps"));
 
-                    // results
-                    testCases.Add(onIssue);
-                });
-
-                // reset token and client
-                if (queue.Count > 0)
-                {
-                    client?.Dispose();
-                    client = GetClientWithToken($"{issues.First()["id"]}");
-                }
-            }
-
-            // cleanup
-            client?.Dispose();
-
-            // results
-            return testCases;
+            // get
+            return onTestCase;
         }
         #endregion
 
-        #region *** Get Sets          ***
+        #region *** Get: Sets          ***
         /// <summary>
-        /// Get test sets list based on test case response.
+        /// Gets all test sets under which the provided test case is listed.
         /// </summary>
-        /// <param name="testCase">Test case response body.</param>
-        /// <returns>Test sets list (issue ids).</returns>
-        public IEnumerable<string> GetSetsByTest(JObject testCase)
+        /// <param name="id">The test issue id.</param>
+        /// <param name="key">The test issue key.</param>
+        /// <returns>A collection of test set id.</returns>
+        public IEnumerable<string> GetSetsByTest(string id, string key)
         {
-            // setup
-            var id = $"{testCase["id"]}";
-            var key = $"{testCase["key"]}";
+            // get
+            var testSets = XpandCommandsRepository.GetSetsByTest((id, key)).Send(executor).AsJToken();
 
-            // get client > send request
-            var client = GetClientWithToken(key);
-            var endpoint = string.Format(SetsFromTestsFormat, id);
-            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
-
-            // validate
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was unable to get test sets for [{key}].");
-                return Array.Empty<string>();
-            }
-
-            // extract
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var responseObjt = JArray.Parse(responseBody);
-            if (!responseObjt.Any())
-            {
-                logger?.Debug($"No tests set for test [{key}].");
-                return Array.Empty<string>();
-            }
-            client.Dispose();
-            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+            // parse
+            return testSets.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
         }
         #endregion
 
-        #region *** Get Plans         ***
+        #region *** Get: Plans         ***
         /// <summary>
-        /// Get test plans list based on test case response.
+        /// Gets all test plans under which the provided test case is listed.
         /// </summary>
-        /// <param name="testCase">Test case response body.</param>
-        /// <returns>Test plans list (issue ids).</returns>
-        public IEnumerable<string> GetPlansByTest(JObject testCase)
+        /// <param name="id">The test issue id.</param>
+        /// <param name="key">The test issue key.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public IEnumerable<string> GetPlansByTest(string id, string key)
         {
-            // setup
-            var id = $"{testCase["id"]}";
-            var key = $"{testCase["key"]}";
+            // get
+            var testPlans = XpandCommandsRepository.GetPlansByTest((id, key)).Send(executor).AsJToken();
 
-            // get client > send request
-            var client = GetClientWithToken(key);
-            var endpoint = string.Format(PlansFromTestsFormat, id);
-            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
-
-            // validate
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was unable to get plans for [{key}].");
-                return Array.Empty<string>();
-            }
-
-            // extract
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var responseObjt = JArray.Parse(responseBody);
-            if (!responseObjt.Any())
-            {
-                logger?.Debug($"No test plans for test [{key}].");
-                return Array.Empty<string>();
-            }
-            client.Dispose();
-            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+            // parse
+            return testPlans.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
         }
         #endregion
 
-        #region *** Get Preconditions ***
+        #region *** Get: Preconditions ***
         /// <summary>
-        /// Get preconditions list based on test case response.
+        /// Gets all test plans under which the provided test case is listed.
         /// </summary>
-        /// <param name="testCase">Test case response body.</param>
-        /// <returns>Preconditions list (issue ids).</returns>
-        public IEnumerable<string> GetPreconditionsByTest(JObject testCase)
+        /// <param name="id">The test issue id.</param>
+        /// <param name="key">The test issue key.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public IEnumerable<string> GetPreconditionsByTest(string id, string key)
         {
-            // setup
-            var id = $"{testCase["id"]}";
-            var key = $"{testCase["key"]}";
+            // get
+            var preconditions = XpandCommandsRepository.GetPreconditionsByTest((id, key)).Send(executor).AsJToken();
 
-            // get client > send request
-            var client = GetClientWithToken(key);
-            var endpoint = string.Format(PreconditionsFormat, id);
-            var response = client.GetAsync(endpoint).GetAwaiter().GetResult();
-
-            // validate
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was unable to preconditions for [{key}].");
-                return Array.Empty<string>();
-            }
-
-            // extract
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var responseObjt = JArray.Parse(responseBody);
-            if (!responseObjt.Any())
-            {
-                logger?.Debug($"No preconditions for test [{key}].");
-                return Array.Empty<string>();
-            }
-            client.Dispose();
-            return responseObjt.Select(i => $"{i.SelectToken("id")}");
+            // parse
+            return preconditions.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
         }
         #endregion
 
-        public void AddPrecondition(string precondition, string test)
+        #region *** Get: Execution     ***
+        /// <summary>
+        /// Gets execution details of test run.
+        /// </summary>
+        /// <param name="execution">The ID or key of the test execution issue.</param>
+        /// <param name="test">The ID or key of the test issue.</param>
+        /// <returns>Test execution details.</returns>
+        public JToken GetExecutionDetails(string execution, string test)
         {
             // setup
-            var onTest = jiraClient.GetIssue(test);
-            var onPrecondition = jiraClient.GetIssue(precondition);
+            execution = execution.ToUpper();
+            test = test.ToUpper();
 
-            // apply
-            var isTest = onTest != default && onTest.ContainsKey("id");
-            var isPrecondition = onPrecondition != default && onPrecondition.ContainsKey("id");
-
-            // exit conditions
-            if (!isTest || !isPrecondition)
-            {
-                logger?.Fatal($"Was not able to add precondition [{precondition}] to test [{test}]");
-                return;
-            }
-
-            // setup request
-            var endpoint = string.Format(PreconditionToTestCaseFormat, $"{onTest["id"]}");
-            var requestBody = JsonConvert.SerializeObject(new[] { precondition });
-            var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
-
-            // setup client > send request
-            var client = GetClientWithToken(issueKey: test);
-            var response = client.PostAsync(endpoint, content).GetAwaiter().GetResult();
-
-            // log
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Fatal($"Was not able to add precondition [{precondition}] to test [{test}]; Error code: {response.StatusCode}");
-            }
-        }
-
-        public void AddTestsToExecution(int bucketSize, string execution, params string[] tests)
-        {
-            // setup
-            var onExecution = jiraClient.GetIssue(execution);
-            var id = $"{onExecution.SelectToken("id")}";
-            var key = $"{onExecution.SelectToken("key")}";
-            var onTests = jiraClient
-                .GetIssues(tests)
-                .Select(i => $"{i.SelectToken("id")}")
-                .Where(i => i != default)
-                .Distinct()
-                .Split(200);
-
-            // exit conditions
-            if (string.IsNullOrEmpty(id))
-            {
-                logger?.Error($"Was not able to find execution [{execution}]");
-                return;
-            }
-
-            // build requests
-            var requests = new List<(string Endpoint, HttpContent Content)>();
-            var endpoint = string.Format(TestsToExecutionFormat, id);
-            foreach (var bulk in onTests)
-            {
-                var requestBody = JsonConvert.SerializeObject(bulk);
-                var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
-                requests.Add((endpoint, content));
-            }
-
-            // apply
-            var client = GetClientWithToken(key);
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
-            Parallel.ForEach(requests, options, request =>
-            {
-                var response = client.PostAsync(request.Endpoint, request.Content).GetAwaiter().GetResult();
-                if (!response.IsSuccessStatusCode)
-                {
-                    logger?.Error($"Was not able to attach test case to [{key}] execution");
-                }
-            });
-            client.Dispose();
-        }
-
-        public JObject GetExecutionDetails(string execution, string test)
-        {
-            // setup
-            var issues = jiraClient.GetIssues(new[] { execution, test });
-
-            // exit conditions
-            if (!issues.Any())
-            {
-                logger?.Error($"Was not able to find issues [{execution}, {test}].");
-                return default;
-            }
+            // get
+            var issues = jiraClient.Get(new[] { execution, test });
 
             // setup
-            var onExecution = issues
-                .FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(execution) || $"{i.SelectToken("id")}".Equals(execution));
-            var onTest = issues
-                .FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(test) || $"{i.SelectToken("id")}".Equals(test));
+            var onExecution = issues.FirstOrDefault(i => $"{i.SelectToken("id")}" == execution || $"{i.SelectToken("key")}" == execution);
+            var onTest = issues.FirstOrDefault(i => $"{i.SelectToken("id")}" == test || $"{i.SelectToken("key")}" == test);
+
+            // setup conditions
+            var isExecution = onExecution != default;
+            var isTest = onTest != default;
 
             // exit conditions
-            if(onExecution == default)
+            if (!isTest || !isExecution)
             {
-                logger?.Error($"Was not able to find execution [{execution}].");
-                return default;
-            }
-            if(onTest == default)
-            {
-                logger?.Error($"Was not able to find test [{test}].");
-                return default;
+                logger?.Fatal($"Get-ExecutionDetails -Execution [{execution}] -Test [{test}] = false");
+                return JToken.Parse("{}");
             }
 
             // setup            
             var executionKey = $"{onExecution["key"]}";
             var testKey = $"{onTest["key"]}";
-            var client = GetClientWithToken(executionKey);
-            var token = client.DefaultRequestHeaders.GetValues("X-acpt").FirstOrDefault();
-            var requestUri = string.Format(TestExecutionDetailsFormat, testKey, executionKey, token);
-
-            // send
-            var response = client.GetAsync(requestUri).GetAwaiter().GetResult();
-
-            // exit  conditions
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Error code: [{response.StatusCode}]; Was not able to get execution details [{test}].");
-                return default;
-            }
+            var route = GetExecutionDetailsRoute(executionKey, testKey);
 
             // parse 
-            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            var json = Regex.Match(input: responseBody, pattern: "(?<=id=\"test-run\" value=\")[^\"]*").Value.Replace("&quot;", "\"");
-
-            // cleanup
-            client.Dispose();
+            var response = XpandCommandsRepository.GetExecutionDetails(route).Send(executor);
+            var json = Regex.Match(input: $"{response}", pattern: "(?<=id=\"test-run\" value=\")[^\"]*").Value.Replace("&quot;", "\"");
 
             // results
-            return string.IsNullOrEmpty(json) ? default : JObject.Parse(json);
+            return string.IsNullOrEmpty(json) ? JToken.Parse("{}") : json.AsJToken();
         }
 
-        public void PutStepsRunStatus(string executionKey, string run, params (string Step, string Status)[] steps)
+        private string GetExecutionDetailsRoute(string executionKey, string testKey)
+        {
+            // send
+            var response = XpandCommandsRepository
+                .GetExecutionDetailsMeta(executionKey, testKey)
+                .Send(executor)
+                .AsJToken()
+                .SelectToken("url");
+
+            // get
+            return $"{response}".Replace("https://xray.cloud.xpand-it.com", string.Empty);
+        }
+        #endregion
+
+        #region *** Put: Test          ***
+        /// <summary>
+        /// Associate precondition issue to a test case.
+        /// </summary>
+        /// <param name="precondition">The ID or key of the precondition issue.</param>
+        /// <param name="test">The ID or key of the test issue.</param>
+        public void AddPrecondition(string precondition, string test)
         {
             // setup
-            var requests = new List<(string RequestUri, HttpContent Content)>();
-            foreach (var (Step, Status) in steps)
+            precondition = precondition.ToUpper();
+            test = test.ToUpper();
+
+            // get
+            var issues = jiraClient.Get(new[] { precondition, test });
+
+            // setup
+            var onPrecondition = issues.FirstOrDefault(i => $"{i.SelectToken("id")}" == precondition || $"{i.SelectToken("key")}" == precondition);
+            var onTest = issues.FirstOrDefault(i => $"{i.SelectToken("id")}" == test || $"{i.SelectToken("key")}" == test);
+
+            // setup conditions
+            var isPrecondition = onPrecondition != default;
+            var isTest = onTest != default;
+
+            // exit conditions
+            if (!isTest || !isPrecondition)
             {
-                var requestUri = string.Format(TestRunStepStatusFormat, run, Step);
-                var content = new StringContent(@"{""status"":""" + Status.ToUpper() + @"""}", Encoding.UTF8, MediaType);
-                requests.Add((requestUri, content));
+                logger?.Fatal($"Add-Precondition -Precondition [{precondition}] -Test [{test}] = false");
+                return;
             }
 
-            // send requests
-            var client = GetClientWithToken(executionKey);
-            var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
-            Parallel.ForEach(requests, options, request =>
-            {
-                var response = client.PostAsync(request.RequestUri, request.Content).GetAwaiter().GetResult();
-                if (!response.IsSuccessStatusCode)
-                {
-                    logger?.Error($"Was unable to update test results for [{request.RequestUri}]");
-                }
-            });
-            client.Dispose();
-        }
+            // setup
+            var id = $"{onTest.SelectToken("id")}";
+            var key = $"{onTest.SelectToken("key")}";
+            var preconditions = onPrecondition.SelectTokens("id").Cast<string>();
 
-        public void PutTestRunStatus(string executionKey, string run, string status)
+            // set
+            XpandCommandsRepository.AddPrecondition((id, key), preconditions).Send(executor);
+        }
+        #endregion
+
+        #region *** Put: Execution     ***
+        /// <summary>
+        /// Adds tests to a test execution run issue with default status.
+        /// </summary>
+        /// <param name="idOrKeyExecution">The ID or key of the test execution issue.</param>
+        /// <param name="idsOrKeysTest">A collection of test issue ID or key.</param>
+        public void AddTestsToExecution(string idOrKeyExecution, IEnumerable<string> idsOrKeysTest)
         {
             // setup
-            var project = $"{jiraClient.GetIssue(executionKey).SelectToken("fields.project.id")}";
-            var requestUri = string.Format(TestRunStatusFormat, run);
-            var requestObjt = new Dictionary<string, object>
-            {
-                ["projectId"] = project,
-                ["status"] = status.ToUpper()
-            };
-            var requestBody = JsonConvert.SerializeObject(requestObjt);
-            var content = new StringContent(requestBody, Encoding.UTF8, MediaType);
+            var batches = idsOrKeysTest.Split(49);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
 
-            // send requests
-            var client = GetClientWithToken(executionKey);
-            var response = client.PostAsync(requestUri, content).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Was unable to update test results for [{requestUri}]");
-            }
-            client.Dispose();
+            // put
+            Parallel.ForEach(batches, options, batch => AddTests(idOrKeyExecution, idsOrKeysTest: batch));
         }
 
-        // UTILITIES
-        private string GetToken(string issueKey)
+        // add tests bucket to test execution
+        private void AddTests(string idOrKeyExecution, IEnumerable<string> idsOrKeysTest)
         {
-            // constants
-            var errorMessage =
-                "Was not able to get authentication token for use [" + jiraClient.Authentication.User + "].";
+            // setup: execution
+            var onExecution = jiraClient.Get(idOrKeyExecution).AsJObject();
+            var id = $"{onExecution.SelectToken("id")}";
+            var key = $"{onExecution.SelectToken("key")}";
 
-            try
+            // exit conditions
+            if (string.IsNullOrEmpty(id))
             {
-                // get request
-                var payload = Assembly
-                    .GetExecutingAssembly()
-                    .ReadEmbeddedResource("get_token.txt")
-                    .Replace("[project-key]", jiraClient.Authentication.Project)
-                    .Replace("[issue-key]", issueKey);
-                var request = JiraUtilities.GenericPostRequest(Authentication, "/rest/gira/1/", payload);
-
-                // get response
-                var response = JiraUtilities.HttpClient.SendAsync(request).GetAwaiter().GetResult();
-                if (!response.IsSuccessStatusCode)
-                {
-                    logger?.Fatal(errorMessage);
-                    return string.Empty;
-                }
-
-                // parse out authentication token
-                var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                var responseObjt = JObject.Parse(responseBody);
-                var options = responseObjt.SelectTokens("..options").First().ToString();
-
-                // get token
-                return JObject.Parse(options).SelectToken("contextJwt").ToString();
+                logger?.Error($"Was not able to find execution [{idOrKeyExecution}]");
+                return;
             }
-            catch (Exception e) when (e != null)
-            {
-                logger?.Fatal(errorMessage, e);
-                return string.Empty;
-            }
+
+            // setup: tests to add
+            var testCases = jiraClient.Search(jql: $"key in ({string.Join(",", idsOrKeysTest)})")
+                .Select(i => $"{i.SelectToken("id")}")
+                .Where(i => i != default)
+                .Distinct();
+
+            // send
+            XpandCommandsRepository.AddTestToExecution((id, key), idsTest: testCases).Send(executor);
         }
 
-        public HttpClient GetClientWithToken(string issueKey)
+        /// <summary>
+        /// Updates a test run result.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test execution issue.</param>
+        /// <param name="idProject">The ID of the project.</param>
+        /// <param name="run">The execution details ID.</param>
+        /// <param name="status">The status to update.</param>
+        public void UpdateTestRunStatus(
+            (string id, string key) idAndKey,
+            string idProject,
+            string run,
+            string status)
         {
-            // get token
-            var token = GetToken(issueKey);
-
-            // new client for each api cycle (since header will change)
-            var client = new HttpClient
-            {
-                BaseAddress = new Uri("https://xray.cloud.xpand-it.com")
-            };
-            client.DefaultRequestHeaders.Authorization = Authentication.GetAuthenticationHeader();
-            client.DefaultRequestHeaders.Add("X-acpt", token);
-
-            // results
-            return client;
+            XpandCommandsRepository.UpdateTestRunStatus(idAndKey, idProject, run, status).Send(executor);
         }
+
+        /// <summary>
+        /// Updates test step result.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test execution issue.</param>
+        /// <param name="run">The execution details ID.</param>
+        /// <param name="step">The step ID and status to update.</param>
+        public void UpdateStepStatus((string id, string key) idAndKey, string run, (string id, string key) step)
+        {
+            XpandCommandsRepository.UpdateStepStatus(idAndKey, run, step).Send(executor);
+        }
+        #endregion
+
+        #region *** Post: Test Steps   ***
+        /// <summary>
+        /// Adds a test step to an existing test issue.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test issue.</param>
+        /// <param name="action">The step action.</param>
+        /// <param name="result">The step expected result.</param>
+        /// <param name="index">The step order in the test case steps collection.</param>
+        public void CreateTestStep((string id, string key) idAndKey, string action, string result, int index)
+        {
+            XpandCommandsRepository.CreateTestStep(idAndKey, action, result, index).Send(executor);
+        }
+        #endregion
     }
 }

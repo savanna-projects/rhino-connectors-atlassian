@@ -14,14 +14,14 @@ using System.Collections.Generic;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
-    internal static class JObjectExtensions
+    internal static class JTokenExtensions
     {
         /// <summary>
         /// Converts test management test case interface into a RhinoTestCase.
         /// </summary>
         /// <param name="testCase">Test case token (from Jira response) to convert.</param>
         /// <returns>RhinoTestCase object.</returns>
-        public static RhinoTestCase ToRhinoTestCase(this JObject testCase)
+        public static RhinoTestCase ToRhinoTestCase(this JToken testCase)
         {
             // initialize test case instance & fetch issues            
             var onTestCase = new RhinoTestCase();
@@ -66,7 +66,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return onTestCase;
         }
 
-        private static string GetPriority(JObject testCase)
+        private static string GetPriority(JToken testCase)
         {
             // setup conditions
             var priorityField = testCase.SelectToken("fields.priority");
