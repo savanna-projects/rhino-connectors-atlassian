@@ -25,7 +25,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.AtlassianC
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.UnitTests", "Rhino.Connectors.Xray.UnitTests\Rhino.Connectors.Xray.UnitTests.csproj", "{1E06A425-61B7-4968-B33B-1ED03C5A3F42}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray.Cloud", "Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj", "{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.Cloud", "Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj", "{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.TestsGenerator", "Rhino.Connectors.TestsGenerator\Rhino.Connectors.TestsGenerator.csproj", "{8EF967A8-C684-456E-85B4-FDD55C54FEEE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -49,6 +51,10 @@ Global
 		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -7,6 +7,7 @@ using Gravity.Extensions;
 
 using Rhino.Connectors.AtlassianClients.Contracts;
 
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Reflection;
 
@@ -139,7 +140,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         /// <param name="idOrKey">The ID or key of the issue.</param>
         /// <param name="comment">Comment to create.</param>
         /// <returns>HttpCommand ready for execution.</returns>
-        public static HttpCommand UpdateComment(string idOrKey, string comment)
+        public static HttpCommand AddComment(string idOrKey, string comment)
         {
             // setup
             var data = new
@@ -239,33 +240,26 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         public static HttpCommand CreateTransition(string idOrKey, string transition, string resolution, string comment)
         {
             // setup
-            var data = new
+            var data = new Dictionary<string, object>
             {
-                Update = new
+                ["update"] = new
                 {
                     Comment = new[]
                     {
-                        new
-                        {
-                            Add = new
-                            {
-                                Body = comment
-                            }
-                        }
+                        new { Add = new { Body = comment } }
                     }
                 },
-                Fields = new
-                {
-                    Resolution = new
-                    {
-                        Name = resolution
-                    }
-                },
-                Transition = new
-                {
-                    Id = transition
-                }
+                ["transition"] = new { Id = transition }
             };
+
+            // setup: resolution
+            if (!string.IsNullOrEmpty(resolution))
+            {
+                data["fields"] = new
+                {
+                    Resolution = new { Name = resolution }
+                };
+            }
 
             // get
             return new HttpCommand

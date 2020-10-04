@@ -264,7 +264,7 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             // issue type
-            var issueTypeToken = ProjectMeta["projects"][0]["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
+            var issueTypeToken = ProjectMeta["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
 
             // exit conditions
             if (issueTypeToken == default)
@@ -290,31 +290,7 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns>A collection of transitions.</returns>
         public IEnumerable<IDictionary<string, string>> GetTransitions(string idOrKey)
         {
-            // get & verify response
-            var response = JiraCommandsRepository.GetTransitions(idOrKey).Send(executor).AsJToken();
-            var transitions = response.SelectToken("transitions");
-
-            // exit conditions
-            if (transitions == default || !(transitions is JArray))
-            {
-                return Array.Empty<IDictionary<string, string>>();
-            }
-
-            // build
-            var onTransitions = new List<IDictionary<string, string>>();
-            foreach (var transition in transitions)
-            {
-                var onTransition = new Dictionary<string, string>
-                {
-                    ["id"] = $"{transition["id"]}",
-                    ["name"] = $"{transition["name"]}",
-                    ["to"] = transition.SelectToken("to.name") == null ? "N/A" : $"{transition.SelectToken("to.name")}"
-                };
-                onTransitions.Add(onTransition);
-            }
-
-            // results
-            return onTransitions;
+            return DoGetTransitions(idOrKey);
         }
         #endregion
 
@@ -351,37 +327,53 @@ namespace Rhino.Connectors.AtlassianClients
         /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
         /// </summary>
         /// <param name="idOrKey">Jira issue id or issue key.</param>
-        /// <param name="transitionId">The ID of the transition (you can use GetTransitions method to get the transition ID).</param>
+        /// <param name="transition">The name of the transition (you can use GetTransitions method to get the transition names).</param>
         /// <param name="resolution">The resolution to pass with the transition.</param>
         /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
-        public bool CreateTransition(string idOrKey, string transitionId, string resolution)
+        public bool CreateTransition(string idOrKey, string transition, string resolution)
         {
-            return DoCreateTransition(idOrKey, transitionId, resolution, comment: CreateMessage);
+            return DoCreateTransition(idOrKey, transition, resolution, comment: CreateMessage);
         }
 
         /// <summary>
         /// Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.
         /// </summary>
         /// <param name="idOrKey">Jira issue id or issue key.</param>
-        /// <param name="transitionId">The ID of the transition (you can use GetTransitions method to get the transition ID).</param>
+        /// <param name="transition">The name of the transition (you can use GetTransitions method to get the transition names).</param>
         /// <param name="resolution">The resolution to pass with the transition.</param>
         /// <param name="comment">A comment to add when posting transition</param>
         /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
-        public bool CreateTransition(string idOrKey, string transitionId, string resolution, string comment)
+        public bool CreateTransition(string idOrKey, string transition, string resolution, string comment)
         {
-            return DoCreateTransition(idOrKey, transitionId, resolution, comment);
+            return DoCreateTransition(idOrKey, transition, resolution, comment);
         }
 
         private bool DoCreateTransition(string idOrKey, string transition, string resolution, string comment)
         {
-            // post
-            var respose = JiraCommandsRepository
-                .CreateTransition(idOrKey, transition, resolution, comment)
+            // setup
+            var transitions = DoGetTransitions(idOrKey);
+
+            // exit conditions
+            if (!transitions.Any())
+            {
+                return false;
+            }
+
+            // get transition
+            var onTransition = transitions.FirstOrDefault(i => i["to"].Equals(transition, Compare));
+            if (transition == default)
+            {
+                return false;
+            }
+
+            //send transition
+            var response = JiraCommandsRepository
+                .CreateTransition(idOrKey, onTransition["id"], resolution, comment)
                 .Send(executor)
                 .AsJToken();
 
-            // assert
-            return $"{respose.SelectToken("code")}" == "204";
+            // get
+            return $"{response.SelectToken("code")}" == "204";
         }
         #endregion
 
@@ -392,10 +384,10 @@ namespace Rhino.Connectors.AtlassianClients
         /// <param name="idOrKey">Jira issue id or issue key.</param>
         /// <param name="comment">Comment to apply.</param>
         /// <returns><see cref="true"/> if successful; <see cref="false"/> if not.</returns>
-        public bool CreateComment(string idOrKey, string comment)
+        public bool AddComment(string idOrKey, string comment)
         {
             // post
-            var respose = JiraCommandsRepository.UpdateComment(idOrKey, comment).Send(executor).AsJToken();
+            var respose = JiraCommandsRepository.AddComment(idOrKey, comment).Send(executor).AsJToken();
 
             // assert
             return $"{respose.SelectToken("code")}" == "204";
@@ -494,6 +486,36 @@ namespace Rhino.Connectors.AtlassianClients
                 .AsJToken()
                 .SelectToken("projects")
                 .FirstOrDefault();
+        }
+
+        // extract transitions for issue
+        private IEnumerable< IDictionary<string, string>> DoGetTransitions(string idOrKey)
+        {
+            // get & verify response
+            var response = JiraCommandsRepository.GetTransitions(idOrKey).Send(executor).AsJToken();
+            var transitions = response.SelectToken("transitions");
+
+            // exit conditions
+            if (transitions == default || !(transitions is JArray))
+            {
+                return Array.Empty<IDictionary<string, string>>();
+            }
+
+            // build
+            var onTransitions = new List<IDictionary<string, string>>();
+            foreach (var transition in transitions)
+            {
+                var onTransition = new Dictionary<string, string>
+                {
+                    ["id"] = $"{transition["id"]}",
+                    ["name"] = $"{transition["name"]}",
+                    ["to"] = transition.SelectToken("to.name") == null ? "N/A" : $"{transition.SelectToken("to.name")}"
+                };
+                onTransitions.Add(onTransition);
+            }
+
+            // results
+            return onTransitions;
         }
         #endregion
     }

@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
@@ -130,7 +131,7 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // test plan
-            var testPlans = testCase.GetConnectorCapability(capability: AtlassianCapabilities.TestPlans, defaultValue: Array.Empty<string>());
+            var testPlans = testCase.GetCapability(capability: AtlassianCapabilities.TestPlans, defaultValue: Array.Empty<string>());
             var isTestPlan = testPlans.Length != 0 && testCase.Context.ContainsKey("test-plan-custom-field");
             if (isTestPlan)
             {
@@ -360,7 +361,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static bool UpdateBug(this RhinoTestCase testCase, string idOrKey, JiraClient jiraClient)
         {
             // setup
-            var bugType = testCase.GetConnectorCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
+            var bugType = testCase.GetCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
             var onBug = jiraClient.Get(idOrKey);
 
             // setup conditions
@@ -481,32 +482,14 @@ namespace Rhino.Connectors.Xray.Extensions
             // exit conditions
             if (!exists)
             {
-                return false;
+                return true;
             }
 
             // setup
-            var transitions = jiraClient.GetTransitions(bugIssueKey);
             var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
 
-            // exit conditions
-            if (!transitions.Any())
-            {
-                return false;
-            }
-
-            // get transition
-            var transition = transitions.FirstOrDefault(i => i["to"].Equals("Closed", Compare));
-            if (transition == default)
-            {
-                return false;
-            }
-
-            //send transition
-            return jiraClient.CreateTransition(
-                idOrKey: bugIssueKey,
-                transitionId: transition["id"],
-                resolution: resolution,
-                comment);
+            // send transition
+            return jiraClient.CreateTransition(idOrKey: bugIssueKey, "Closed", resolution, comment);
         }
         #endregion
 

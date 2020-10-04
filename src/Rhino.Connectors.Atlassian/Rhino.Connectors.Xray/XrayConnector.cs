@@ -11,6 +11,7 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.Xray.Extensions;
@@ -112,7 +113,7 @@ namespace Rhino.Connectors.Xray
             var outcome = testCase.Actual ? "PASS" : "FAIL";
             if (testCase.Inconclusive)
             {
-                outcome = testCase.GetConnectorCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
+                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
             }
 
             // put

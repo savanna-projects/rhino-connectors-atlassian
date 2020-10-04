@@ -212,7 +212,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var testPlans = XpandCommandsRepository.GetPlansByTest((id, key)).Send(executor).AsJToken();
 
             // parse
-            return testPlans.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
+            return testPlans.Select(i => $"{i.SelectToken("id")}").Where(i => i != default).ToList();
         }
         #endregion
 
@@ -288,6 +288,16 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // get
             return $"{response}".Replace("https://xray.cloud.xpand-it.com", string.Empty);
+        }
+
+        /// <summary>
+        /// Gets a collection of test runs under a test execution issue.
+        /// </summary>
+        /// <param name="idAndKey">The execution issue ID and key.</param>
+        /// <returns>A collection of test runs (id and status).</returns>
+        public JToken GetRunsByExecution((string id, string key) idAndKey)
+        {
+            return XpandCommandsRepository.GetRunsByExecution(idAndKey).Send(executor);
         }
         #endregion
 
@@ -397,6 +407,28 @@ namespace Rhino.Connectors.Xray.Cloud
         public void UpdateStepStatus((string id, string key) idAndKey, string run, (string id, string key) step)
         {
             XpandCommandsRepository.UpdateStepStatus(idAndKey, run, step).Send(executor);
+        }
+
+        /// <summary>
+        /// Adds a test execution to an existing test plan.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test plan issue.</param>
+        /// <param name="idExecution">The ID of the test execution issue.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public JToken AddExecutionToPlan((string id, string key) idAndKey, string idExecution)
+        {
+            return XpandCommandsRepository.AddExecutionToPlan(idAndKey, idExecution).Send(executor).AsJToken();
+        }
+
+        /// <summary>
+        /// Adds a collection of test issue to an existing test set.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test set issue.</param>
+        /// <param name="idsTests">A collection of test issue is to add.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public JToken AddTestsToSet((string id, string key) idAndKey, IEnumerable<string> idsTests)
+        {
+            return XpandCommandsRepository.AddTestsToSet(idAndKey, idsTests).Send(executor).AsJToken();
         }
         #endregion
 

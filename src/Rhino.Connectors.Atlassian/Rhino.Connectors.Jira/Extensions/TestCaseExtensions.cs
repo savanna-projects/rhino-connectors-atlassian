@@ -12,8 +12,6 @@ using Rhino.Connectors.Xray.Cloud.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
 
 namespace Rhino.Connectors.Xray.Cloud.Extensions
 {
@@ -25,7 +23,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
         /// </summary>
         /// <param name="testCase">Test case to convert.</param>
         /// <returns>Create test issue request.</returns>
-        public static string ToJiraCreateExecutionRequest(this RhinoTestCase testCase)
+        public static string ToJiraCreateRequest(this RhinoTestCase testCase)
         {
             // exit conditions
             Validate(testCase, "issuetype-id", "project-key");

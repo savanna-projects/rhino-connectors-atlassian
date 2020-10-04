@@ -11,7 +11,9 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Generic;
@@ -106,7 +108,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var outcome = testCase.Actual ? "PASSED" : "FAILED";
             if (testCase.Inconclusive)
             {
-                outcome = "TODO";
+                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "TODO");
             }
 
             // put

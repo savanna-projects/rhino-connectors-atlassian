@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
     <PackageId>Rhino.Connectors.Xray</PackageId>
@@ -25,9 +24,4 @@
   <ItemGroup>
     <ProjectReference Include="..\Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj" />
   </ItemGroup>
-
-  <!--ItemGroup>
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj" />
-  </ItemGroup-->
-
 </Project>

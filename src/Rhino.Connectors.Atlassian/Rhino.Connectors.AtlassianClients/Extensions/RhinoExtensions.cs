@@ -135,7 +135,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// Apply issue types into RhinoConfiguration capabilities or default types if needed.
         /// </summary>
         /// <param name="configuration">RhinoConfiguration to apply issue types to</param>
-        public static void PutIssueTypes(this RhinoConfiguration configuration)
+        public static void PutDefaultCapabilities(this RhinoConfiguration configuration)
         {
             // setup
             var defaultMap = DefaultTypesMap();
@@ -153,6 +153,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
                 capabilities[key] = defaultMap[key];
             }
+            configuration.Capabilities[options] = capabilities;
         }
 
         private static IDictionary<string, string> DefaultTypesMap() => new Dictionary<string, string>

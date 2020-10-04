@@ -18,7 +18,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns>JObject instance.</returns>
         public static JObject AsJObject(this JToken token)
         {
-            return JObject.Parse($"{token}");
+            return token == default ? JObject.Parse("{}") : JObject.Parse($"{token}");
         }
 
         /// <summary>

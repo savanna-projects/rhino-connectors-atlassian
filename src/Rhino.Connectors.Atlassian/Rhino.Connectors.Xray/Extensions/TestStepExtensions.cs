@@ -4,6 +4,7 @@
  * RESOURCES
  */
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
 namespace Rhino.Connectors.Xray.Extensions
@@ -18,7 +19,7 @@ namespace Rhino.Connectors.Xray.Extensions
         public static object GetUpdateRequest(this RhinoTestStep testStep, string outcome)
         {
             // setup
-            var inconclusiveStatus = testStep.GetConnectorCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
+            var inconclusiveStatus = testStep.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
 
             // set outcome
             var onOutcome = testStep.Actual ? "PASS" : "FAIL";

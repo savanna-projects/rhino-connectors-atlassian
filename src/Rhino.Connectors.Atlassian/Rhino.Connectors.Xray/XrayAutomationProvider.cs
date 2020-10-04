@@ -12,6 +12,7 @@ using Newtonsoft.Json.Linq;
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
@@ -94,7 +95,7 @@ namespace Rhino.Connectors.Xray
 
             // capabilities
             BucketSize = configuration.GetBuketSize();
-            configuration.PutIssueTypes();
+            configuration.PutDefaultCapabilities();
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
@@ -334,7 +335,7 @@ namespace Rhino.Connectors.Xray
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
             testCase.Context[ContextEntry.Configuration] = Configuration;
-            var testType = $"{testCase.GetConnectorCapability(AtlassianCapabilities.TestType, "Test")}";
+            var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
 
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
@@ -349,7 +350,7 @@ namespace Rhino.Connectors.Xray
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.CreateComment(idOrKey: $"{issue.SelectToken("key")}", comment);
+            jiraClient.AddComment(idOrKey: $"{issue.SelectToken("key")}", comment);
 
             // success
             Logger?.InfoFormat($"Create-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = true");
@@ -452,7 +453,7 @@ namespace Rhino.Connectors.Xray
             AttachToTestPlan(testRun);
 
             // close
-            testRun.Close(jiraClient, resolution: "Done");
+            jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Closed", resolution: "Done");
         }
 
         private void AttachToTestPlan(RhinoTestRun testRun)

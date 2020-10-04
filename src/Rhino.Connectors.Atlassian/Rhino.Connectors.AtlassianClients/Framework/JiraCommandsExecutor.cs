@@ -230,8 +230,17 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // extract
             var response = JiraCommandsRepository.GetToken(authentication.Project, command.Headers[Xacpt]).Send(this).AsJToken();
-            var options = response.SelectTokens("..options").First().ToString();
-            var token = JToken.Parse(options).SelectToken("contextJwt").ToString();
+            var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
+            var token = $"{JToken.Parse(options).SelectToken("contextJwt")}";
+
+            // logging
+            if (string.IsNullOrEmpty(token))
+            {
+                logger.Error("Get-XpandToken" +
+                    $"-Route [{command.Route}]" +
+                    $"-Project [{authentication.Project}]" +
+                    $"-Key [{command.Headers[Xacpt]}] = false");
+            }
 
             // apply
             message.Headers.Add(Xacpt, token);

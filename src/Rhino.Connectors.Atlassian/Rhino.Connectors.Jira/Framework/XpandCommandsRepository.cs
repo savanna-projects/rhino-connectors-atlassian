@@ -173,6 +173,26 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
                 Route = route
             };
         }
+
+        /// <summary>
+        /// Gets a collection of test runs under a test execution issue.
+        /// </summary>
+        /// <param name="idAndKey">The execution issue ID and key.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand GetRunsByExecution((string id, string key) idAndKey)
+        {
+            // setup
+            const string Format = "/api/internal/testruns?testExecIssueId={0}";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new { Fields = new[] { "status", "key" } },
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idAndKey.id)
+            };
+        }
         #endregion
 
         #region *** Put  ***
@@ -300,6 +320,48 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             return new HttpCommand
             {
                 Data = new { action, result, index },
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idAndKey.id)
+            };
+        }
+
+        /// <summary>
+        /// Adds a test execution to an existing test plan.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test plan issue.</param>
+        /// <param name="idExecution">The ID of the test execution issue.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand AddExecutionToPlan((string id, string key) idAndKey, string idExecution)
+        {
+            // setup
+            const string Format = "/api/internal/testplan/{0}/addTestExecs";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new[] { idExecution },
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idAndKey.id)
+            };
+        }
+
+        /// <summary>
+        /// Adds a collection of test issue to an existing test set.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test set issue.</param>
+        /// <param name="idsTests">A collection of test issue is to add.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand AddTestsToSet((string id, string key) idAndKey, IEnumerable<string> idsTests)
+        {
+            // setup
+            const string Format = "/api/internal/issuelinks/testset/{0}/tests";
+
+            // get
+            return new HttpCommand
+            {
+                Data = idsTests,
                 Headers = GetHeaders(issueKey: idAndKey.key),
                 Method = HttpMethod.Post,
                 Route = string.Format(Format, idAndKey.id)
