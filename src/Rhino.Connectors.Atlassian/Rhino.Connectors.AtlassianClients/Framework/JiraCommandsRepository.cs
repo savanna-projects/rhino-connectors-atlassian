@@ -120,6 +120,25 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 Route = "/rest/gira/1/"
             };
         }
+
+        /// <summary>
+        /// Gets assignable user by issue key and email.
+        /// </summary>
+        /// <param name="key">The key of the issue.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand GetAssignableUsers(string key)
+        {
+            // setup
+            const string Format = "/rest/api/" + ApiVersion + "/user/assignable/search?issueKey={0}";
+
+            // get
+            return new HttpCommand
+            {
+                Data = default,
+                Method = HttpMethod.Get,
+                Route = string.Format(Format, key)
+            };
+        }
         #endregion
 
         #region *** Put    ***
@@ -267,6 +286,26 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 Data = data,
                 Method = HttpMethod.Post,
                 Route = $"/rest/api/{ApiVersion}/issue/{idOrKey}/transitions"
+            };
+        }
+
+        /// <summary>
+        /// Assign an issue to a user by user email.
+        /// </summary>
+        /// <param name="idOrKey">The ID or key of the issue.</param>
+        /// <param name="account">The user account ID.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand Assign(string idOrKey, string account)
+        {
+            // setup
+            const string Format = "/rest/api/" + ApiVersion + "/issue/{0}/assignee";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new { AccountId = account },
+                Method = HttpMethod.Put,
+                Route = string.Format(Format, idOrKey)
             };
         }
         #endregion

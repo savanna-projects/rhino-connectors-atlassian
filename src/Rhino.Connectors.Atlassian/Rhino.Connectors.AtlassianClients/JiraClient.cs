@@ -131,6 +131,47 @@ namespace Rhino.Connectors.AtlassianClients
             // get
             return JToken.Parse(options).SelectToken("contextJwt").ToString();
         }
+
+        /// <summary>
+        /// Gets the user information.
+        /// </summary>
+        /// <param name="key">The issue key.</param>
+        /// <param name="emailAddress">The user (assignee) email.</param>
+        /// <returns>The assignee account ID.</returns>
+        public JToken GetUser(string key, string emailAddress)
+        {
+            return DoGetAccountId(key, emailAddress);
+        }
+
+        /// <summary>
+        /// Gets the assignee account ID.
+        /// </summary>
+        /// <param name="key">The issue key.</param>
+        /// <param name="emailAddress">The user (assignee) email.</param>
+        public void Assign(string key, string emailAddress)
+        {
+            // setup
+            var account = DoGetAccountId(key, emailAddress).AsJObject().SelectToken("accountId");
+
+            // assign
+            JiraCommandsRepository.Assign(idOrKey: key, $"{account}").Send(executor);
+        }
+
+        private JToken DoGetAccountId(string key, string emailAddress)
+        {
+            // get
+            var users = JiraCommandsRepository
+                .GetAssignableUsers(key)
+                .Send(executor)
+                .AsJToken()
+                .Select(i => i.AsJObject());
+
+            // parse
+            var user = users.FirstOrDefault(i => $"{i.SelectToken("emailAddress")}".Equals(emailAddress, Compare));
+
+            // get
+            return user == default ? JObject.Parse("{}") : user;
+        }
         #endregion
 
         #region *** Post: Issue    ***

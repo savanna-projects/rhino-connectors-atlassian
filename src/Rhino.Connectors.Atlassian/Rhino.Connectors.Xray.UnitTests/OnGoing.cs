@@ -244,7 +244,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-62"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1340"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {

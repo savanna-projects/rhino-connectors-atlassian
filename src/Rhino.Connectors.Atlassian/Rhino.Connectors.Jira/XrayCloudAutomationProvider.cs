@@ -316,8 +316,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 ["project"] = new { Key = Configuration.ConnectorConfiguration.Project },
                 ["summary"] = TestRun.Title,
                 ["description"] = Utilities.GetActionSignature("created"),
-                ["issuetype"] = new { Name = $"{capabilities[AtlassianCapabilities.ExecutionType]}" },
-                ["assignee"] = new { EmailAddress = Configuration.ConnectorConfiguration.User }
+                ["issuetype"] = new { Name = $"{capabilities[AtlassianCapabilities.ExecutionType]}" }
             };
             var data = new Dictionary<string, object>
             {
@@ -332,6 +331,9 @@ namespace Rhino.Connectors.Xray.Cloud
             testRun.Link = $"{response.SelectToken("self")}";
             testRun.Context["runtimeid"] = $"{response.SelectToken("id")}";
             testRun.Context["testRun"] = response;
+
+            // assign
+            jiraClient.Assign(testRun.Key, emailAddress: jiraClient.Authentication.User);
         }
 
         private void PutExecutionDetails(RhinoTestRun testRun)
