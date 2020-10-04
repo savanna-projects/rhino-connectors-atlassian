@@ -161,7 +161,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             [AtlassianCapabilities.TestType] = "Test",
             [AtlassianCapabilities.SetType] = "Test Set",
             [AtlassianCapabilities.PlanType] = "Test Plan",
-            [AtlassianCapabilities.PreconditionsType] = "Pre-condition",
+            [AtlassianCapabilities.PreconditionsType] = "Precondition",
             [AtlassianCapabilities.ExecutionType] = "Test Execution",
             [AtlassianCapabilities.BugType] = "Bug"
         };

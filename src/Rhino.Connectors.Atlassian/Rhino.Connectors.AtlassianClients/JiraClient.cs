@@ -19,6 +19,7 @@ using Rhino.Connectors.AtlassianClients.Framework;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -37,7 +38,8 @@ namespace Rhino.Connectors.AtlassianClients
         private readonly JiraCommandsExecutor executor;
 
         // private properties
-        private string CreateMessage => $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} UTC: Automatically created by Rhino engine.";
+        private static string CreateMessage
+            => $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} UTC: Automatically created by Rhino engine.";
 
         #region *** Constructors   ***
         /// <summary>
@@ -244,6 +246,7 @@ namespace Rhino.Connectors.AtlassianClients
         /// </summary>
         /// <param name="issue">Issue token by which to fetch data.</param>
         /// <returns>The issue type as returned by Jira server.</returns>
+        [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Designed to be an instance public method.")]
         public string GetIssueType(JToken issue)
         {
             return ExtractIssueType(issue);
@@ -361,8 +364,9 @@ namespace Rhino.Connectors.AtlassianClients
 
             // get transition
             var onTransition = transitions.FirstOrDefault(i => i["to"].Equals(transition, Compare));
-            if (transition == default)
+            if (onTransition == default)
             {
+                logger?.Info($"Get-Transition -Key [{idOrKey}] -Transition [{transition}] = false");
                 return false;
             }
 
@@ -472,7 +476,7 @@ namespace Rhino.Connectors.AtlassianClients
         }
 
         // extract issue type from issue JSON response
-        private string ExtractIssueType(JToken issue)
+        private static string ExtractIssueType(JToken issue)
         {
             return issue == default ? "-1" : $"{issue.SelectToken("fields.issuetype.name")}";
         }
@@ -489,11 +493,14 @@ namespace Rhino.Connectors.AtlassianClients
         }
 
         // extract transitions for issue
-        private IEnumerable< IDictionary<string, string>> DoGetTransitions(string idOrKey)
+        private IEnumerable<IDictionary<string, string>> DoGetTransitions(string idOrKey)
         {
             // get & verify response
-            var response = JiraCommandsRepository.GetTransitions(idOrKey).Send(executor).AsJToken();
-            var transitions = response.SelectToken("transitions");
+            var transitions = JiraCommandsRepository
+                .GetTransitions(idOrKey)
+                .Send(executor)
+                .AsJObject()
+                .SelectToken("transitions");
 
             // exit conditions
             if (transitions == default || !(transitions is JArray))

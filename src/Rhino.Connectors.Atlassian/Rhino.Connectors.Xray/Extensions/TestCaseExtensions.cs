@@ -362,7 +362,7 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // setup
             var bugType = testCase.GetCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
-            var onBug = jiraClient.Get(idOrKey);
+            var onBug = jiraClient.Get(idOrKey).AsJObject();
 
             // setup conditions
             var isDefault = onBug == default;

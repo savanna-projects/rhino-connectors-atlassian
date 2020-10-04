@@ -166,7 +166,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RHIN-1"/*"XT-7"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1"/*"XT-7"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -178,12 +178,13 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Collection = "http://localhost:8080",
                     Password = "admin",
                     User = "admin",
-                    Project = "RHIN",
+                    Project = "RA",
                     //Collection = "https://pangobugs.atlassian.net",
                     //Password = "aLNwnhE8fupLguQ6fwYo8A00",
                     //User = "s_roei@msn.com",
                     //Project = "XT",
-                    BugManager = true
+                    BugManager = true,
+                    Connector = Connector.JiraXRay
                 },
                 DriverParameters = new[]
                 {
@@ -214,7 +215,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
-                    MaxParallel = 2
+                    MaxParallel = 8
                 },
                 Capabilities = new Dictionary<string, object>
                 {
@@ -243,7 +244,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-1340"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-62"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -307,7 +308,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     [$"{Connector.JiraXryCloud}:options"] = new Dictionary<string, object>
                     {
                         ["dryRun"] = false,
-                        ["bucketSize"] = 15,
+                        ["bucketSize"] = 40,
                         //[AtlassianCapabilities.TestType] = "Xray Test",
                         //[AtlassianCapabilities.PreconditionsType] = "Precondition"
                     }

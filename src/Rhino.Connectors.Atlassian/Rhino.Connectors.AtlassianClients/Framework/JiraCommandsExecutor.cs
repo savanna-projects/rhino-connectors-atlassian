@@ -278,7 +278,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             return string.IsNullOrEmpty(responseBody) ? GetCustomResponse(response) : responseBody;
         }
 
-        private string GetCustomResponse(HttpResponseMessage response)
+        private static string GetCustomResponse(HttpResponseMessage response)
         {
             // setup
             var resopnseObjt = new

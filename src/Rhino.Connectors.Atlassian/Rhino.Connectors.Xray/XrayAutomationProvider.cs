@@ -160,7 +160,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey);
+            var jsonObject = jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -183,7 +183,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetOne(string issueKey)
         {
             // get issue & exit conditions
-            var JToken = jiraClient.Get(issueKey);
+            var JToken = jiraClient.Get(issueKey).AsJObject();
             if (JToken == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -216,7 +216,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey);
+            var jsonObject = jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -252,7 +252,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> DoGetBySet(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey);
+            var jsonObject = jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -275,7 +275,7 @@ namespace Rhino.Connectors.Xray
         private RhinoTestCase DoGetByTest(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey);
+            var jsonObject = jiraClient.Get(issueKey).AsJObject();
 
             // parse into connector test case
             var test = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
@@ -565,6 +565,7 @@ namespace Rhino.Connectors.Xray
             // update
             bugs = jiraClient
                 .Get(idsOrKeys: bugs)
+                .Select(i => i.AsJObject())
                 .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false))
                 .Select(i => $"{i.SelectToken("key")}")
                 .Where(i => !string.IsNullOrEmpty(i));
@@ -638,9 +639,18 @@ namespace Rhino.Connectors.Xray
                     closedBugs.Add($"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{bug}");
                     continue;
                 }
-                logger?.Error($"Close-Bug -Bug [{bug}] -Test [{testCase.Key}] = false");
+                logger?.Info($"Close-Bug -Bug [{bug}] -Test [{testCase.Key}] = false");
             }
-            return closedBugs;
+
+            // context
+            if (!testCase.Context.ContainsKey(ContextEntry.BugClosed) || !(testCase.Context[ContextEntry.BugClosed] is IEnumerable<string>))
+            {
+                testCase.Context[ContextEntry.BugClosed] = new List<string>();
+            }
+            var onBugsClosed = (testCase.Context[ContextEntry.BugClosed] as IEnumerable<string>).ToList();
+            onBugsClosed.AddRange(closedBugs);
+            testCase.Context[ContextEntry.BugClosed] = onBugsClosed;
+            return onBugsClosed;
         }
 
         private IEnumerable<JToken> DoGetBugs(RhinoTestCase testCase)
@@ -651,7 +661,7 @@ namespace Rhino.Connectors.Xray
             const string statusPath = "fields.status.name";
 
             // get test issue
-            var test = jiraClient.Get(testCase.Key);
+            var test = jiraClient.Get(testCase.Key).AsJObject();
 
             // get bugs
             var bugsKeys = test

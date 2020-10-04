@@ -8,6 +8,7 @@ using Gravity.Extensions;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Generic;
@@ -25,22 +26,23 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // initialize test case instance & fetch issues            
             var onTestCase = new RhinoTestCase();
+            var testCaseObject = testCase.AsJObject();
 
             // apply context
             onTestCase.Context ??= new Dictionary<string, object>();
-            onTestCase.Context[nameof(testCase)] = testCase;
+            onTestCase.Context[nameof(testCase)] = testCaseObject;
 
             // fields: setup
-            var priority = GetPriority(testCase);
+            var priority = GetPriority(testCaseObject);
 
             // fields: values
             onTestCase.Priority = string.IsNullOrEmpty(priority) ? onTestCase.Priority : priority;
-            onTestCase.Key = $"{testCase["key"]}";
-            onTestCase.Scenario = $"{testCase.SelectToken("fields.summary")}";
-            onTestCase.Link = $"{testCase["self"]}";
+            onTestCase.Key = $"{testCaseObject.SelectToken("key")}";
+            onTestCase.Scenario = $"{testCaseObject.SelectToken("fields.summary")}";
+            onTestCase.Link = $"{testCaseObject.SelectToken("self")}";
 
             // initialize test steps collection
-            var testSteps = testCase.SelectToken("..steps");
+            var testSteps = testCaseObject.SelectToken("..steps");
             var parsedSteps = new List<RhinoTestStep>();
 
             // iterate test steps & normalize action/expected
@@ -66,7 +68,7 @@ namespace Rhino.Connectors.Xray.Extensions
             return onTestCase;
         }
 
-        private static string GetPriority(JToken testCase)
+        private static string GetPriority(JObject testCase)
         {
             // setup conditions
             var priorityField = testCase.SelectToken("fields.priority");

@@ -10,8 +10,6 @@ using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.AtlassianClients.Framework;
 using Rhino.Connectors.Xray.Framework;
 
-using System;
-
 namespace Rhino.Connectors.Xray.Extensions
 {
     internal static class TestRunExtensions
@@ -26,7 +24,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var executor = new JiraCommandsExecutor(testRun.GetAuthentication());
 
             // get results
-            var response = RavenCommandsRepository.GetTestsByExecution(testRun.Key).Send(executor);
+            var response = RavenCommandsRepository.GetTestsByExecution(testRun.Key).Send(executor).AsJToken();
 
             // return all tests
             return response is JArray ? response : JToken.Parse("[]");

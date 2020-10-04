@@ -8,7 +8,6 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
@@ -473,7 +472,7 @@ namespace Rhino.Connectors.Xray.Cloud
             return onTestCases;
         }
 
-        private void OnMethodsError(IEnumerable<MethodInfo> methods)
+        private static void OnMethodsError(IEnumerable<MethodInfo> methods)
         {
             if (methods.Count() > 1)
             {
@@ -514,7 +513,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = (JToken)testCase.Context[nameof(testCase)];
+            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
 
             // put
             testCase.TestSuites = xpandClient.GetSetsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
@@ -549,7 +548,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = (JToken)testCase.Context[nameof(testCase)];
+            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
 
             // put
             testCase.Context["testPlans"] = xpandClient.GetPlansByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
@@ -584,7 +583,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = (JToken)testCase.Context[nameof(testCase)];
+            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
             var preconditions = xpandClient.GetPreconditionsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
 
             // exit conditions
