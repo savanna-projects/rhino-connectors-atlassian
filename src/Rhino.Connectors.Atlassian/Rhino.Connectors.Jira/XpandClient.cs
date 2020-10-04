@@ -18,7 +18,10 @@ using Rhino.Connectors.Xray.Cloud.Framework;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -462,6 +465,17 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             return XpandCommandsRepository.AddTestsToSet(idAndKey, idsTests).Send(executor).AsJToken();
         }
+
+        /// <summary>
+        /// Sets a comment on test execution.
+        /// </summary>
+        /// <param name="idAndKey">The internal runtime ID and key of the test set issue.</param>
+        /// <param name="comment">The comment to set</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public JToken SetCommentOnExecution((string id, string key) idAndKey, string comment)
+        {
+            return XpandCommandsRepository.SetCommentOnExecution(idAndKey, comment).Send(executor);
+        }
         #endregion
 
         #region *** Post: Test Steps   ***
@@ -475,6 +489,63 @@ namespace Rhino.Connectors.Xray.Cloud
         public void CreateTestStep((string id, string key) idAndKey, string action, string result, int index)
         {
             XpandCommandsRepository.CreateTestStep(idAndKey, action, result, index).Send(executor);
+        }
+
+        /// <summary>
+        /// Adds a test step to an existing test issue.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test run issue.</param>
+        /// <param name="testRun">The test run internal ID.</param>
+        /// <param name="testStep">The test step internal ID.</param>
+        /// <param name="file">The file to upload as evidence.</param>
+        public void CreateEvidence((string id, string key) idAndKey, string testRun, string testStep, string file)
+        {
+            // setup
+            var urlPath = $"{XpandCommandsRepository.XpandPath}/api/internal/attachments?testRunId={testRun}";
+
+            // build request
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
+            requestMessage.Headers.ExpectContinue = false;
+            requestMessage.Headers.Authorization = Authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
+
+            // build multi part content
+            var multiPartContent = new MultipartFormDataContent($"----{Guid.NewGuid()}");
+
+            // build file content
+            var fileInfo = new FileInfo(file);
+            var fileContents = File.ReadAllBytes(fileInfo.FullName);
+            var byteArrayContent = new ByteArrayContent(fileContents);
+            byteArrayContent.Headers.Add("Content-Type", "application/octet-stream");
+            multiPartContent.Add(byteArrayContent, "attachment", fileInfo.Name);
+
+            // set request content
+            requestMessage.Content = multiPartContent;
+            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(idAndKey.key));
+
+            // send to jira
+            var response = JiraCommandsExecutor.HttpClient.SendAsync(requestMessage).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Create-Evidence -Key [{idAndKey.key}] -File [{file}] = false");
+                return;
+            }
+
+            // send to XpandIT
+            // https://xray.cloud.xpand-it.com/api/internal/testrun/5f7a1f821d110f0019704490/step/022bbc25-d47c-4b09-9680-f16ac307b5a2/evidence
+            var requestBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var endpoint = $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
+
+            requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
+            requestMessage.Headers.ExpectContinue = false;
+            requestMessage.Headers.Authorization = Authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
+            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(idAndKey.key));
+            requestMessage.RequestUri = new Uri(endpoint);
+            requestMessage.Content = content;
+            var a = JiraCommandsExecutor.HttpClient.SendAsync(requestMessage).GetAwaiter().GetResult();
+
         }
         #endregion
     }

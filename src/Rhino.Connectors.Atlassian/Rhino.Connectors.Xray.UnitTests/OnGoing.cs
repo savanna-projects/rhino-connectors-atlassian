@@ -2,10 +2,15 @@ using Gravity.Services.DataContracts;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using Newtonsoft.Json.Linq;
+
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
+using Rhino.Connectors.AtlassianClients.Extensions;
+using Rhino.Connectors.AtlassianClients.Framework;
 using Rhino.Connectors.Xray.Cloud;
 
 using System;
@@ -244,7 +249,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-1350"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1340"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -325,41 +330,112 @@ namespace Rhino.Connectors.Xray.UnitTests
         [TestMethod]
         public void T()
         {
+            // setup
+            //var baseAddress = GetBaseAddress(authentication);
+            //var apiVersion = authentication.GetCapability(AtlassianCapabilities.JiraApiVersion, "latest");
+            //var urlPath = $"{baseAddress}/rest/api/{apiVersion}/issue/{idOrKey}/attachments";
+            var urlPath = "https://xray.cloud.xpand-it.com/api/internal/attachments?testRunId=5f79f0fbb301db0019621ea6";
 
-            FileInfo fi = new FileInfo(@"D:\garbage\rhino-issue-1.txt");
-            byte[] fileContents = File.ReadAllBytes(fi.FullName);
-            var urlPath = "http://localhost:8080/rest/api/2/issue/" + "RHIN-21" + "/attachments";
+            // build request
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
             requestMessage.Headers.ExpectContinue = false;
-            requestMessage.Headers.Authorization = GetAuthenticationHeader("admin", "admin");
+            requestMessage.Headers.Authorization = GetAuthenticationHeader("rhino.api@gmail.com", "0hshf1gBkfZqsoABp9oO173D");
             requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
 
-            var multiPartContent = new MultipartFormDataContent("----MyGreatBoundary");
-            var byteArrayContent = new ByteArrayContent(fileContents);
-            byteArrayContent.Headers.Add("Content-Type", "image/png");
-            byteArrayContent.Headers.Add("X-Atlassian-Token", "no-check");
-            multiPartContent.Add(byteArrayContent, "file", fi.Name);
+            // build multi part content
+            var multiPartContent = new MultipartFormDataContent($"----{Guid.NewGuid()}");
+
+            // build file content
+            var files = new[]
+            {
+                (Path: @"D:\garbage\1.png", "application/octet-stream")
+            };
+            foreach (var (Path, ContentType) in files)
+            {
+                var fileInfo = new FileInfo(Path);
+                var fileContents = File.ReadAllBytes(fileInfo.FullName);
+                var byteArrayContent = new ByteArrayContent(fileContents);
+                byteArrayContent.Headers.Add("Content-Type", ContentType);
+                //byteArrayContent.Headers.Add("X-Atlassian-Token", "no-check");
+                multiPartContent.Add(byteArrayContent, "attachment", fileInfo.Name);
+            }
+
+            // set request content
             requestMessage.Content = multiPartContent;
-
-            HttpClient httpClient = new HttpClient();
-            try
+            requestMessage = FactorXpandMessage(requestMessage, new HttpCommand
             {
-                Task<HttpResponseMessage> httpRequest = httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseContentRead, CancellationToken.None);
-                HttpResponseMessage httpResponse = httpRequest.Result;
-                HttpStatusCode statusCode = httpResponse.StatusCode;
-                HttpContent responseContent = httpResponse.Content;
-
-                if (responseContent != null)
+                Headers = new Dictionary<string, string>
                 {
-                    Task<String> stringContentsTask = responseContent.ReadAsStringAsync();
-                    String stringContents = stringContentsTask.Result;
+                    ["X-acpt"] = "RA-1359"
                 }
-            }
-            catch (Exception ex)
+            });
+
+            using (var client = new HttpClient())
             {
-                Console.WriteLine(ex.Message);
+                var r = client.SendAsync(requestMessage).GetAwaiter().GetResult();
             }
+
+            // post response to /api/internal/testrun/5f79f0fbb301db0019621ea6/step/31f75693-636f-40b9-8dfe-6ff1311efa41/evidence
+
+            //FileInfo fi = new FileInfo(@"D:\garbage\rhino-issue-1.txt");
+            //byte[] fileContents = File.ReadAllBytes(fi.FullName);
+            //var urlPath = "http://localhost:8080/rest/api/2/issue/" + "RHIN-21" + "/attachments";
+            //var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
+            //requestMessage.Headers.ExpectContinue = false;
+            //requestMessage.Headers.Authorization = GetAuthenticationHeader("admin", "admin");
+            //requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
+
+            //var multiPartContent = new MultipartFormDataContent("----MyGreatBoundary");
+            //var byteArrayContent = new ByteArrayContent(fileContents);
+            //byteArrayContent.Headers.Add("Content-Type", "image/png");
+            //byteArrayContent.Headers.Add("X-Atlassian-Token", "no-check");
+            //multiPartContent.Add(byteArrayContent, "file", fi.Name);
+            //requestMessage.Content = multiPartContent;
+
+            //HttpClient httpClient = new HttpClient();
+            //try
+            //{
+            //    Task<HttpResponseMessage> httpRequest = httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseContentRead, CancellationToken.None);
+            //    HttpResponseMessage httpResponse = httpRequest.Result;
+            //    HttpStatusCode statusCode = httpResponse.StatusCode;
+            //    HttpContent responseContent = httpResponse.Content;
+
+            //    if (responseContent != null)
+            //    {
+            //        Task<String> stringContentsTask = responseContent.ReadAsStringAsync();
+            //        String stringContents = stringContentsTask.Result;
+            //    }
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine(ex.Message);
+            //}
         }
+
+        private HttpRequestMessage FactorXpandMessage(HttpRequestMessage message, HttpCommand command)
+        {
+            var j = new JiraAuthentication
+            {
+                User = "rhino.api@gmail.com",
+                Password = "0hshf1gBkfZqsoABp9oO173D",
+                Collection = "https://rhinoapi.atlassian.net"
+            };
+            // constants
+            const string Xacpt = "X-acpt";
+
+            // extract
+            var response = JiraCommandsRepository.GetToken("RA", command.Headers[Xacpt]).Send(j).AsJToken();
+            var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
+            var token = $"{JToken.Parse(options).SelectToken("contextJwt")}";
+
+            // apply
+            message.Headers.Add(Xacpt, token);
+            //message.RequestUri = new Uri($"https://xray.cloud.xpand-it.com{command.Route}");
+
+            // get
+            return message;
+        }
+
         private static AuthenticationHeaderValue GetAuthenticationHeader(string user, string password)
         {
             // setup: provider authentication and base address

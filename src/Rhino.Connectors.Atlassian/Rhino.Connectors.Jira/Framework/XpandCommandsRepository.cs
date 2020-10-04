@@ -16,6 +16,9 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
     /// </summary>
     internal static class XpandCommandsRepository
     {
+        // constants
+        public const string XpandPath = "https://xray.cloud.xpand-it.com";
+
         #region *** Get  ***
         /// <summary>
         /// Gets all steps from a test issue.
@@ -362,6 +365,27 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             return new HttpCommand
             {
                 Data = idsTests,
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idAndKey.id)
+            };
+        }
+
+        /// <summary>
+        /// Sets a comment on test execution.
+        /// </summary>
+        /// <param name="idAndKey">The internal runtime ID and key of the test set issue.</param>
+        /// <param name="comment">The comment to set</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand SetCommentOnExecution((string id, string key) idAndKey, string comment)
+        {
+            // setup
+            const string Format = "/api/internal/testRun/{0}/comment";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new { Comment = comment },
                 Headers = GetHeaders(issueKey: idAndKey.key),
                 Method = HttpMethod.Post,
                 Route = string.Format(Format, idAndKey.id)

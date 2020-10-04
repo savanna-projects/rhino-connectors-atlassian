@@ -367,14 +367,29 @@ namespace Rhino.Connectors.Xray.Cloud
                 detailsMap.Add((testCase.Key, details));
             });
 
-            // put
+            // put execution details
             foreach (var (Key, Details) in detailsMap)
             {
                 foreach (var onTest in testRun.TestCases.Where(i => i.Key.Equals(Key, Compare)))
                 {
-                    onTest.Context["executionDetails"] = Details;
-                    onTest.Context["testRun"] = testRun.Context["testRun"];
+                    Put(testRun, onTest, Details);
                 }
+            }
+        }
+
+        private void Put(RhinoTestRun testRun, RhinoTestCase testCase, JToken details)
+        {
+            testCase.Context["executionDetails"] = details;
+            testCase.Context["testRun"] = testRun.Context["testRun"];
+
+            var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject());
+            for (int i = 0; i < testCase.Steps.Count(); i++)
+            {
+                if (i > onSteps.Count() - 1)
+                {
+                    continue;
+                }
+                testCase.Steps.ElementAt(i).Context["runtimeid"] = $"{onSteps.ElementAt(i).SelectToken("id")}";
             }
         }
         #endregion
@@ -626,6 +641,7 @@ namespace Rhino.Connectors.Xray.Cloud
         #endregion
 
         // UTILITIES
+        // TODO: clean
         private void DoUpdateTestResults(RhinoTestCase testCase)
         {
             // constants
@@ -670,6 +686,12 @@ namespace Rhino.Connectors.Xray.Cloud
                 {
                     SetInconclusiveComment(testCase, execution);
                 }
+
+                // evidences
+                CreateEvidence(testCase);
+
+                // comment
+                UpdateFailedComment(testCase);
             }
             catch (Exception e) when (e != null)
             {
@@ -688,6 +710,37 @@ namespace Rhino.Connectors.Xray.Cloud
                 comment:
                     $"Test run for [{testCase.Key}] marked with status '{status}' by Rhino Engine." +
                     " Reason: test result is inconclusive.");
+        }
+
+        private void CreateEvidence(RhinoTestCase testCase)
+        {
+            // setup
+            var forUploadOutcomes = new[] { "PASSED", "FAILED" };
+
+            // exit conditions
+            if (!forUploadOutcomes.Contains($"{testCase.Context["outcome"]}".ToUpper()))
+            {
+                return;
+            }
+
+            // evidences
+            testCase.UploadEvidences();
+        }
+
+        private void UpdateFailedComment(RhinoTestCase testCase)
+        {
+            // setup
+            var outcome = $"{testCase.Context["outcome"]}";
+            var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+            var id = $"{(testCase.Context["executionDetails"] as JToken)?.AsJObject().SelectToken("_id")}";
+            var key = $"{testRun.SelectToken("key")}";
+
+            // fail message
+            if (outcome.Equals("FAILED", Compare) || testCase.Steps.Any(i => i.Exception != default))
+            {
+                var comment = testCase.GetFailComment();
+                xpandClient.SetCommentOnExecution((id, key), comment);
+            }
         }
     }
 }
