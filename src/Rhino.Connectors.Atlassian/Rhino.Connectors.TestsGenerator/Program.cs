@@ -14,18 +14,18 @@ namespace Rhino.Connectors.TestsGenerator
     internal static class Program
     {
         // TODO: move to configuration
-        private const int NumberOfTests = 1100;
-        //private const string TestSetKey = "RA-62";
-        //private const string Collection = "https://rhinoapi.atlassian.net";
-        //private const string Project = "RA";
-        //private const string User = "rhino.api@gmail.com";
-        //private const string Password = "0hshf1gBkfZqsoABp9oO173D";
-
-        private const string TestSetKey = "RA-1";
-        private const string Collection = "http://localhost:8080";
+        private const int NumberOfTests = 1;
+        private const string TestSetKey = "RA-62";
+        private const string Collection = "https://rhinoapi.atlassian.net";
         private const string Project = "RA";
-        private const string User = "admin";
-        private const string Password = "admin";
+        private const string User = "rhino.api@gmail.com";
+        private const string Password = "0hshf1gBkfZqsoABp9oO173D";
+
+        //private const string TestSetKey = "RA-1";
+        //private const string Collection = "http://localhost:8080";
+        //private const string Project = "RA";
+        //private const string User = "admin";
+        //private const string Password = "admin";
 
         private static IDictionary<string, object> capabilities = new Dictionary<string, object>
         {
@@ -75,8 +75,8 @@ namespace Rhino.Connectors.TestsGenerator
             };
 
             // TODO: create factory for different connectors
-            //var connector = new XrayCloudConnector(configuration);
-            var connector = new XrayConnector(configuration);
+            var connector = new XrayCloudConnector(configuration);
+            //var connector = new XrayConnector(configuration);
 
             // send
             var options = new ParallelOptions { MaxDegreeOfParallelism = 8 };

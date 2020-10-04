@@ -30,6 +30,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private readonly ILogger logger;
         private readonly JiraClient jiraClient;
         private readonly JiraCommandsExecutor executor;
+        private readonly ParallelOptions options;
         private readonly int bucketSize;
 
         #region *** Constructors       ***
@@ -54,6 +55,7 @@ namespace Rhino.Connectors.Xray.Cloud
             Authentication = jiraClient.Authentication;
             executor = new JiraCommandsExecutor(authentication, this.logger);
             bucketSize = authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
+            options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
         }
         #endregion
 
@@ -103,6 +105,37 @@ namespace Rhino.Connectors.Xray.Cloud
         public IEnumerable<JToken> GetTestsByPlans(IEnumerable<string> idsOrKeys)
         {
             return DoGetByPlanOrSet(byPlans: true, idsOrKeys);
+        }
+
+        /// <summary>
+        /// Gets a collection of test cases issues from test execution.
+        /// </summary>
+        /// <param name="idsOrKeys">A collection of ID or key of the issue.</param>
+        /// <returns>A collection of test cases.</returns>
+        public IEnumerable<JToken> GetTestsByExecution(IEnumerable<string> idsOrKeys)
+        {
+            // setup
+            var testCases = new ConcurrentBag<string>();
+
+            // get
+            Parallel.ForEach(idsOrKeys, options, idOrKey =>
+            {
+                var execution = jiraClient.Get(idOrKey).AsJObject();
+                var id = $"{execution.SelectToken("id")}";
+                var key = $"{execution.SelectToken("key")}";
+
+                var runs = XpandCommandsRepository
+                    .GetRunsByExecution((id, key))
+                    .Send(executor)
+                    .AsJToken()
+                    .Select(i => i.AsJObject());
+
+                var range = runs.Select(i => $"{i.SelectToken("testIssueId")}");
+                testCases.AddRange(range);
+            });
+
+            // get
+            return DoGetTestCases(idsOrKeys: testCases);
         }
 
         // COMMON METHODS
@@ -155,7 +188,6 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // setup
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
             var onTestCases = new ConcurrentBag<JToken>();
 
             // iterate

@@ -147,14 +147,14 @@ namespace Rhino.Connectors.AtlassianClients
         /// Gets the assignee account ID.
         /// </summary>
         /// <param name="key">The issue key.</param>
-        /// <param name="emailAddress">The user (assignee) email.</param>
+        /// <param name="emailAddress">The user (assignee) account ID.</param>
         public void Assign(string key, string emailAddress)
         {
             // setup
-            var account = DoGetAccountId(key, emailAddress).AsJObject().SelectToken("accountId");
+            var id = DoGetAccountId(key, emailAddress).AsJObject().SelectToken("accountId");
 
             // assign
-            JiraCommandsRepository.Assign(idOrKey: key, $"{account}").Send(executor);
+            JiraCommandsRepository.Assign(idOrKey: key, $"{id}").Send(executor);
         }
 
         private JToken DoGetAccountId(string key, string emailAddress)
@@ -260,7 +260,7 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             // compose custom field key
-            var customFields = ProjectMeta.SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
+            var customFields = ProjectMeta.AsJObject().SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
             var customField = $"customfield_{customFields.Parent.Parent["customId"]}";
 
             // logging

@@ -103,18 +103,22 @@ namespace Rhino.Connectors.Xray.Cloud
             var byTests = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare)).Select(i => i.Key);
             var bySets = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare)).Select(i => i.Key);
             var byPlans = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.PlanType]}", Compare)).Select(i => i.Key);
+            var byExecutions = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.ExecutionType]}", Compare)).Select(i => i.Key);
 
             // setup
             var testCases = new ConcurrentBag<RhinoTestCase>();
 
             // get and apply
-            var onTestCases = GetByTests(byTests.ToArray());
+            var onTestCases = GetByTests(byTests);
             testCases.AddRange(onTestCases);
 
-            onTestCases = GetBySets(bySets.ToArray());
+            onTestCases = GetBySets(bySets);
             testCases.AddRange(onTestCases);
 
-            onTestCases = GetByPlans(byPlans.ToArray());
+            onTestCases = GetByPlans(byPlans);
+            testCases.AddRange(onTestCases);
+
+            onTestCases = GetByExecutions(byExecutions);
             testCases.AddRange(onTestCases);
 
             // results
@@ -132,20 +136,30 @@ namespace Rhino.Connectors.Xray.Cloud
         }
 
         // gets a collection of RhinoTestCase based on test set issue
-        private IEnumerable<RhinoTestCase> GetBySets(params string[] issueKeys)
+        private IEnumerable<RhinoTestCase> GetBySets(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = xpandClient.GetTestsBySets(issueKeys);
+            var testCases = xpandClient.GetTestsBySets(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
         }
 
         // gets a collection of RhinoTestCase based on test plan issue
-        private IEnumerable<RhinoTestCase> GetByPlans(params string[] issueKeys)
+        private IEnumerable<RhinoTestCase> GetByPlans(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = xpandClient.GetTestsByPlans(issueKeys);
+            var testCases = xpandClient.GetTestsByPlans(idsOrKeys);
+
+            // convert
+            return ProcessTests(testCases);
+        }
+
+        // gets a collection of RhinoTestCase based on test execution issue
+        private IEnumerable<RhinoTestCase> GetByExecutions(IEnumerable<string> idsOrKeys)
+        {
+            // setup
+            var testCases = xpandClient.GetTestsByExecution(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
@@ -216,6 +230,11 @@ namespace Rhino.Connectors.Xray.Cloud
                 logger?.Fatal("Was not able to create a test case.");
                 return default;
             }
+
+            // assign
+            jiraClient.Assign(key: $"{issue.SelectToken("key")}", emailAddress: jiraClient.Authentication.User);
+
+            // get
             return issue;
         }
 
@@ -423,7 +442,7 @@ namespace Rhino.Connectors.Xray.Cloud
         }
         #endregion
 
-        #region *** PUT: Test Run     ***
+        #region *** Put: Test Run     ***
         /// <summary>
         /// Updates a single test results iteration under automation provider.
         /// </summary>
