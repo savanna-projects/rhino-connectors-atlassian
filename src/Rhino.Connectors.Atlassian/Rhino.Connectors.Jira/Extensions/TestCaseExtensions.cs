@@ -8,6 +8,7 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.Xray.Cloud.Framework;
@@ -91,24 +92,43 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
         /// Upload evidences into an existing test execution.
         /// </summary>
         /// <param name="testCase">RhinoTestCase by and into which to upload evidences.</param>
-        public static void UploadEvidences(this RhinoTestCase testCase)
+        public static RhinoTestCase SetEvidences(this RhinoTestCase testCase)
         {
-            // setup
-            var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
-            var id = $"{testRun.SelectToken("id")}";
-            var key = $"{testRun.SelectToken("key")}";
-            var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
-
-            // send
-            var client = new XpandClient(testCase.GetAuthentication());
-            Parallel.ForEach(GetEvidence(testCase), options, evidenceData =>
+            try
             {
-                var evidences = evidenceData["evidences"] as List<string>;
-                evidences ??= new List<string>();
+                // setup
+                var forUploadOutcomes = new[] { "PASSED", "FAILED" };
 
-                Parallel.ForEach(evidences, options, evidence
-                    => client.CreateEvidence((id, key), $"{evidenceData["testRun"]}", $"{evidenceData["step"]}", evidence));
-            });
+                // exit conditions
+                if (!forUploadOutcomes.Contains($"{testCase.Context["outcome"]}".ToUpper()))
+                {
+                    return testCase;
+                }
+
+                // setup
+                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+                var id = $"{testRun.SelectToken("id")}";
+                var key = $"{testRun.SelectToken("key")}";
+                var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+                // send
+                var client = new XpandClient(testCase.GetAuthentication());
+                Parallel.ForEach(GetEvidence(testCase), options, evidenceData =>
+                {
+                    var evidences = evidenceData["evidences"] as List<string>;
+                    evidences ??= new List<string>();
+
+                    Parallel.ForEach(evidences, options, evidence
+                        => client.CreateEvidence((id, key), $"{evidenceData["testRun"]}", $"{evidenceData["step"]}", evidence));
+                });
+            }
+            catch (Exception e) when (e != null)
+            {
+                // ignore exceptions
+            }
+
+            // get
+            return testCase;
         }
 
         private static IEnumerable<IDictionary<string, object>> GetEvidence(RhinoTestCase testCase)
@@ -116,7 +136,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // get screenshots
             var screenshots = testCase.GetScreenshots();
             var automation = testCase.GetWebAutomation();
-            var execution = $"{GetExecutionDetails(testCase).AsJObject().SelectToken("_id")}";
+            var execution = $"{DoGetExecutionDetails(testCase).AsJObject().SelectToken("_id")}";
 
             // exit conditions
             if (!screenshots.Any() || automation == default)
@@ -133,15 +153,9 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             return evidences;
         }
 
-        private static JToken GetExecutionDetails(RhinoTestCase testCase)
-        {
-            return testCase.Context.ContainsKey("executionDetails")
-                ? testCase.Context["executionDetails"] as JToken
-                : JToken.Parse("{}");
-        }
-
-        // TODO: clean
-        private static IEnumerable<IDictionary<string, object>> GetEvidenceData(RhinoTestCase testCase, IEnumerable<string> screenshots)
+        private static IEnumerable<IDictionary<string, object>> GetEvidenceData(
+            RhinoTestCase testCase,
+            IEnumerable<string> screenshots)
         {
             // setup
             var evidences = new List<IDictionary<string, object>>();
@@ -150,42 +164,187 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             foreach (var screenshot in screenshots)
             {
                 // setup
-                var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
-                if (!isReference)
+                var evidence = GetEvidenceData(testCase, screenshot, evidences);
+                if (evidence.Count != 0)
                 {
-                    return Array.Empty<IDictionary<string, object>>();
+                    evidences.Add(evidence);
                 }
-
-                // get attachment data
-                var reference = testCase.GetActionReference(referenceOut).Reference;
-
-                // check if exists
-                var evidence = evidences.Find(i => (int)i["reference"] == reference);
-                if (evidence != default)
-                {
-                    var images = evidence["evidences"] as List<string>;
-                    images.Add(screenshot);
-                    evidence["evidences"] = images;
-                    continue;
-                }
-
-                var step = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
-                    ? $"{testCase.Steps.ElementAt(reference).Context["runtimeid"]}"
-                    : "-1";
-
-                // get
-                evidences.Add(new Dictionary<string, object>
-                {
-                    ["reference"] = reference,
-                    ["evidences"] = new List<string>() { screenshot },
-                    ["step"] = step
-                });
             }
 
             // get
             return evidences;
         }
+
+        private static IDictionary<string, object> GetEvidenceData(
+            RhinoTestCase testCase,
+            string screenshot,
+            List<IDictionary<string, object>> evidences)
+        {
+            // setup
+            var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
+            if (!isReference)
+            {
+                return new Dictionary<string, object>();
+            }
+
+            // get attachment data
+            var reference = testCase.GetActionReference(referenceOut).Reference;
+
+            // check if exists
+            var evidence = evidences.Find(i => (int)i["reference"] == reference);
+            if (evidence != default)
+            {
+                var images = evidence["evidences"] as List<string>;
+                images.Add(screenshot);
+                evidence["evidences"] = images;
+                return new Dictionary<string, object>();
+            }
+
+            var step = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
+                ? $"{testCase.Steps.ElementAt(reference).Context["runtimeid"]}"
+                : "-1";
+
+            // get
+            return new Dictionary<string, object>
+            {
+                ["reference"] = reference,
+                ["evidences"] = new List<string>() { screenshot },
+                ["step"] = step
+            };
+        }
         #endregion
+
+        #region *** Actual Result    ***
+        /// <summary>
+        /// Updates test step actual result.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to update for.</param>
+        public static RhinoTestCase SetActual(this RhinoTestCase testCase)
+        {
+            try
+            {
+                // setup
+                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+                var id = $"{testRun.SelectToken("id")}";
+                var key = $"{testRun.SelectToken("key")}";
+                var run = $"{DoGetExecutionDetails(testCase).SelectToken("_id")}";
+                var client = new XpandClient(testCase.GetAuthentication());
+                var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+                // update
+                Parallel.ForEach(testCase.Steps, options, step => SetActual(step, client, (id, key), run));
+            }
+            catch (Exception e) when (e != null)
+            {
+                // ignore exceptions
+            }
+
+            // get
+            return testCase;
+        }
+
+        private static void SetActual(RhinoTestStep step, XpandClient client, (string id, string key) idAndKey, string run)
+        {
+            try
+            {
+                if (step.Actual)
+                {
+                    return;
+                }
+                var actual = step.Exception == default
+                    ? step.ReasonPhrase
+                    : "{noformat}" + $"{step.Exception}" + "{noformat}";
+                client.UpdateStepActual(idAndKey, run, ($"{step.Context["runtimeid"]}", actual));
+            }
+            catch (Exception e) when (e != null)
+            {
+                // ignore exceptions
+            }
+        }
+        #endregion
+
+        /// <summary>
+        /// Gets execution details token from RhinoTestCase.Context.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to extract from.</param>
+        /// <returns>Execution details token.</returns>
+        public static JToken GetExecutionDetails(this RhinoTestCase testCase)
+        {
+            return DoGetExecutionDetails(testCase);
+        }
+
+        /// <summary>
+        /// Sets test execution failure comment.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to update for.</param>
+        public static RhinoTestCase SetFailedComment(this RhinoTestCase testCase)
+        {
+            try
+            {
+                // constants
+                const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
+
+                // setup
+                var outcome = $"{testCase.Context["outcome"]}";
+
+                // exit conditions
+                if (!outcome.Equals("FAILED", Compare))
+                {
+                    return testCase;
+                }
+
+                // setup
+                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+                var id = $"{(testCase.Context["executionDetails"] as JToken)?.AsJObject().SelectToken("_id")}";
+                var key = $"{testRun.SelectToken("key")}";
+                var client = new XpandClient(testCase.GetAuthentication());
+
+                // send
+                var comment = testCase.GetFailComment();
+                client.SetCommentOnExecution((id, key), comment);
+            }
+            catch (Exception e) when (e != null)
+            {
+                // ignore exceptions
+            }
+
+            // get
+            return testCase;
+        }
+
+        /// <summary>
+        /// Sets test execution inconclusive comment.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to update for.</param>
+        public static RhinoTestCase SetInconclusiveComment(this RhinoTestCase testCase)
+        {
+            try
+            {
+                // exit conditions
+                if (!testCase.Inconclusive)
+                {
+                    return testCase;
+                }
+
+                // setup
+                var execution = $"{DoGetExecutionDetails(testCase).SelectToken("testExecIssueId")}";
+                var jiraClient = new JiraClient(testCase.GetAuthentication());
+
+                // set
+                jiraClient.AddComment(
+                    idOrKey: execution,
+                    comment:
+                        $"Test run for [{testCase.Key}] marked with default status by Rhino Engine." +
+                        " Reason: test result is inconclusive.");
+            }
+            catch (Exception e) when (e != null)
+            {
+                // ignore exceptions
+            }
+
+            // get
+            return testCase;
+        }
 
         // VALIDATION UTILITY
         private static void Validate(RhinoTestCase testCase, params string[] keys)
@@ -212,6 +371,13 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // exception
             var message = string.Format(M, key, L);
             throw new InvalidOperationException(message) { HelpLink = L };
+        }
+
+        private static JToken DoGetExecutionDetails(RhinoTestCase testCase)
+        {
+            return testCase.Context.ContainsKey("executionDetails")
+                ? testCase.Context["executionDetails"] as JToken
+                : JToken.Parse("{}");
         }
     }
 }

@@ -71,8 +71,9 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             // get
             return new HttpCommand
             {
+                Data = new { IsFinal = true},
                 Headers = GetHeaders(issueKey: idAndKey.key),
-                Method = HttpMethod.Get,
+                Method = HttpMethod.Post,
                 Route = string.Format(Format, idAndKey.id)
             };
         }
@@ -278,7 +279,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         }
 
         /// <summary>
-        /// Updates test step result.
+        /// Updates test step status.
         /// </summary>
         /// <param name="idAndKey">The ID and key of the test execution issue.</param>
         /// <param name="run">The execution details ID.</param>
@@ -294,6 +295,35 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             var data = new Dictionary<string, object>
             {
                 ["status"] = step.status.ToUpper()
+            };
+
+            // get
+            return new HttpCommand
+            {
+                Data = data,
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, run, step.id)
+            };
+        }
+
+        /// <summary>
+        /// Updates test step actual result.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test execution issue.</param>
+        /// <param name="run">The execution details ID.</param>
+        /// <param name="step">The step ID and result to update.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand UpdateStepActual(
+            (string id, string key) idAndKey,
+            string run,
+            (string id, string actual) step)
+        {
+            // setup
+            const string Format = "/api/internal/testRun/{0}/step/{1}/actualresult";
+            var data = new Dictionary<string, object>
+            {
+                ["actualResult"] = step.actual
             };
 
             // get

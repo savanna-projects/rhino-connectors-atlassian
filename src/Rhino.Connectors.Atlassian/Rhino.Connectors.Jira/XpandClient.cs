@@ -165,12 +165,12 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // setup
             var testCases = new ConcurrentBag<string>();
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
+            var token = byPlans ? "issueId" : "id";
 
             // extract
             Parallel.ForEach(commands, options, command =>
             {
-                var ids = command.Send(executor).AsJToken().Select(i => $"{i.SelectToken("id")}");
+                var ids = command.Send(executor).AsJToken().Select(i => $"{i.SelectToken(token)}");
                 testCases.AddRange(ids);
             });
 
@@ -445,6 +445,20 @@ namespace Rhino.Connectors.Xray.Cloud
         }
 
         /// <summary>
+        /// Updates test step actual result.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the test execution issue.</param>
+        /// <param name="run">The execution details ID.</param>
+        /// <param name="step">The step ID and result to update.</param>
+        public void UpdateStepActual(
+            (string id, string key) idAndKey,
+            string run,
+            (string id, string actual) step)
+        {
+            XpandCommandsRepository.UpdateStepActual(idAndKey, run, step).Send(executor);
+        }
+
+        /// <summary>
         /// Adds a test execution to an existing test plan.
         /// </summary>
         /// <param name="idAndKey">The ID and key of the test plan issue.</param>
@@ -492,13 +506,46 @@ namespace Rhino.Connectors.Xray.Cloud
         }
 
         /// <summary>
-        /// Adds a test step to an existing test issue.
+        /// Creates an evidence on a test step and test run (the same evidence, linked to both)
         /// </summary>
         /// <param name="idAndKey">The ID and key of the test run issue.</param>
         /// <param name="testRun">The test run internal ID.</param>
         /// <param name="testStep">The test step internal ID.</param>
         /// <param name="file">The file to upload as evidence.</param>
         public void CreateEvidence((string id, string key) idAndKey, string testRun, string testStep, string file)
+        {
+            // setup: create attachment request (on test run)
+            var request = CreateAttachmentRequest(testRun, idAndKey.key, file);
+
+            // send to jira
+            var response = JiraCommandsExecutor.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Create-Attachment -Key [{idAndKey.key}] -File [{file}] = false");
+                return;
+            }
+
+            // setup
+            var requestBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            // send to XpandIT step
+            request = CreateEvidenceRequest(idAndKey.key, testRun, testStep, requestBody);
+            response = JiraCommandsExecutor.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Create-Evidence -Key [{idAndKey.key}] -Step [{testStep}] -File [{file}] = false");
+            }
+
+            // send to XpandIT run
+            request = CreateEvidenceRequest(idAndKey.key, testRun, testStep: string.Empty, requestBody);
+            response = JiraCommandsExecutor.HttpClient.SendAsync(request).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
+            {
+                logger?.Error($"Create-Evidence -Key [{idAndKey.key}] -Run [{testRun}] -File [{file}] = false");
+            }
+        }
+
+        private HttpRequestMessage CreateAttachmentRequest(string testRun, string key, string file)
         {
             // setup
             var urlPath = $"{XpandCommandsRepository.XpandPath}/api/internal/attachments?testRunId={testRun}";
@@ -521,31 +568,35 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // set request content
             requestMessage.Content = multiPartContent;
-            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(idAndKey.key));
+            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(key));
 
-            // send to jira
-            var response = JiraCommandsExecutor.HttpClient.SendAsync(requestMessage).GetAwaiter().GetResult();
-            if (!response.IsSuccessStatusCode)
-            {
-                logger?.Error($"Create-Evidence -Key [{idAndKey.key}] -File [{file}] = false");
-                return;
-            }
+            // get
+            return requestMessage;
+        }
 
-            // send to XpandIT
-            // https://xray.cloud.xpand-it.com/api/internal/testrun/5f7a1f821d110f0019704490/step/022bbc25-d47c-4b09-9680-f16ac307b5a2/evidence
-            var requestBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        private HttpRequestMessage CreateEvidenceRequest(string key, string testRun, string testStep, string requestBody)
+        {
+            // setup
+            var endpoint = string.IsNullOrEmpty(testStep)
+                ? $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/evidence"
+                : $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
             var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-            var endpoint = $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
+            var jwt = jiraClient.GetJwt(key);
 
-            requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
-            requestMessage.Headers.ExpectContinue = false;
-            requestMessage.Headers.Authorization = Authentication.GetAuthenticationHeader();
-            requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
-            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(idAndKey.key));
-            requestMessage.RequestUri = new Uri(endpoint);
-            requestMessage.Content = content;
-            var a = JiraCommandsExecutor.HttpClient.SendAsync(requestMessage).GetAwaiter().GetResult();
+            // build
+            var request = new HttpRequestMessage
+            {
+                Content = content,
+                Method = HttpMethod.Post,
+                RequestUri = new Uri(endpoint)
+            };
+            request.Headers.ExpectContinue = false;
+            request.Headers.Authorization = Authentication.GetAuthenticationHeader();
+            request.Headers.Add("X-Atlassian-Token", "no-check");
+            request.Headers.Add("X-acpt", jwt);
 
+            // get
+            return request;
         }
         #endregion
     }

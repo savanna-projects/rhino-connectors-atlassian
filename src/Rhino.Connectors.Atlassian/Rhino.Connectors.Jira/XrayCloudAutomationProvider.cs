@@ -641,7 +641,6 @@ namespace Rhino.Connectors.Xray.Cloud
         #endregion
 
         // UTILITIES
-        // TODO: clean
         private void DoUpdateTestResults(RhinoTestCase testCase)
         {
             // constants
@@ -656,42 +655,10 @@ namespace Rhino.Connectors.Xray.Cloud
             var steps = executionDetails.SelectToken("steps").Select(i => $"{i["id"]}").Where(i => i != default).ToArray();
             var project = $"{jiraClient.ProjectMeta.SelectToken("id")}";
 
+            // update
             try
             {
-                // exit conditions
-                if (!testCase.Context.ContainsKey("outcome") || $"{testCase.Context["outcome"]}".Equals("EXECUTING", Compare))
-                {
-                    xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, "EXECUTING");
-                    logger.Trace($"Get-TestStatus -Key [{testCase.Key}] = EXECUTING");
-                    return;
-                }
-
-                // build
-                var testSteps = new List<(string, string)>();
-                for (int i = 0; i < steps.Length; i++)
-                {
-                    var result = testCase.Steps.ElementAt(i).Actual ? "PASSED" : "FAILED";
-                    testSteps.Add((steps[i], result));
-                }
-
-                // apply on steps
-                Parallel.ForEach(testSteps, options, testStep
-                    => xpandClient.UpdateStepStatus((execution, testCase.TestRunKey), run, testStep));
-
-                // apply on test
-                xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, $"{testCase.Context["outcome"]}");
-
-                // comments
-                if (testCase.Inconclusive)
-                {
-                    SetInconclusiveComment(testCase, execution);
-                }
-
-                // evidences
-                CreateEvidence(testCase);
-
-                // comment
-                UpdateFailedComment(testCase);
+                DoUpdateTestResults(testCase, project, execution, run, steps);
             }
             catch (Exception e) when (e != null)
             {
@@ -699,48 +666,42 @@ namespace Rhino.Connectors.Xray.Cloud
             }
         }
 
-        private void SetInconclusiveComment(RhinoTestCase testCase, string execution)
+        private void DoUpdateTestResults(
+            RhinoTestCase testCase,
+            string project,
+            string execution,
+            string run,
+            IEnumerable<string> steps)
         {
-            // setup
-            var status = $"{testCase.Context["outcome"]}";
-
-            // set
-            jiraClient.AddComment(
-                idOrKey: execution,
-                comment:
-                    $"Test run for [{testCase.Key}] marked with status '{status}' by Rhino Engine." +
-                    " Reason: test result is inconclusive.");
-        }
-
-        private void CreateEvidence(RhinoTestCase testCase)
-        {
-            // setup
-            var forUploadOutcomes = new[] { "PASSED", "FAILED" };
-
             // exit conditions
-            if (!forUploadOutcomes.Contains($"{testCase.Context["outcome"]}".ToUpper()))
+            if (!testCase.Context.ContainsKey("outcome") || $"{testCase.Context["outcome"]}".Equals("EXECUTING", Compare))
             {
+                xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, "EXECUTING");
+                logger.Trace($"Get-TestStatus -Key [{testCase.Key}] = EXECUTING");
                 return;
             }
 
-            // evidences
-            testCase.UploadEvidences();
-        }
-
-        private void UpdateFailedComment(RhinoTestCase testCase)
-        {
-            // setup
-            var outcome = $"{testCase.Context["outcome"]}";
-            var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
-            var id = $"{(testCase.Context["executionDetails"] as JToken)?.AsJObject().SelectToken("_id")}";
-            var key = $"{testRun.SelectToken("key")}";
-
-            // fail message
-            if (outcome.Equals("FAILED", Compare) || testCase.Steps.Any(i => i.Exception != default))
+            // build
+            var onSteps = steps.ToArray();
+            var testSteps = new List<(string, string)>();
+            for (int i = 0; i < onSteps.Length; i++)
             {
-                var comment = testCase.GetFailComment();
-                xpandClient.SetCommentOnExecution((id, key), comment);
+                var result = testCase.Steps.ElementAt(i).Actual ? "PASSED" : "FAILED";
+                testSteps.Add((onSteps[i], result));
             }
+
+            // apply on steps
+            Parallel.ForEach(testSteps, options, testStep
+                => xpandClient.UpdateStepStatus((execution, testCase.TestRunKey), run, testStep));
+
+            testCase
+                .SetInconclusiveComment()
+                .SetEvidences()
+                .SetActual()
+                .SetFailedComment();
+
+            // apply on test
+            xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, $"{testCase.Context["outcome"]}");
         }
     }
 }
