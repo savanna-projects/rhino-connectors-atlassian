@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Contracts.Configuration;
 
 using System;
 using System.Collections.Generic;
@@ -199,6 +200,18 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // results
             return markdown.Trim();
+        }
+        #endregion
+
+        #region *** Run Markdown    ***
+        /// <summary>
+        /// Gets a markdown description of this configuration.
+        /// </summary>
+        /// <param name="configuration">RhinoConfiguration to parse.</param>
+        /// <returns>Markdown description of this configuration</returns>
+        public static string GetRunDescription(this RhinoConfiguration configuration)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 
