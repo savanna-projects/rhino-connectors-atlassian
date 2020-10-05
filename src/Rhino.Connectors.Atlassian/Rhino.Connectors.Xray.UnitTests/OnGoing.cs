@@ -249,7 +249,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-68"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1340"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -282,7 +282,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     new Dictionary<string, object>
                     {
                         ["driver"] = "ChromeDriver",
-                        ["driverBinaries"] = @"D:\automation-env\web-drivers",
+                        ["driverBinaries"] = @"D:\automation_env\web_drivers",
                         ["capabilities"] = new Dictionary<string, object>
                         {
                             ["build"] = "Test Build",

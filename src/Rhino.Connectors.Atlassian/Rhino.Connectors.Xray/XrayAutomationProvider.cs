@@ -47,6 +47,7 @@ namespace Rhino.Connectors.Xray
         private readonly IDictionary<string, object> capabilities;
         private readonly JiraClient jiraClient;
         private readonly JiraCommandsExecutor ravenClient;
+        private readonly JiraBugsManager bugsManager;
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
@@ -99,6 +100,9 @@ namespace Rhino.Connectors.Xray
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
+
+            // integration
+            bugsManager = new JiraBugsManager(jiraClient);
         }
         #endregion        
 
@@ -495,7 +499,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
         public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
         {
-            return DoGetBugs(testCase).Select(i => $"{i}");
+            return bugsManager.GetBugs(testCase);
         }
 
         /// <summary>
@@ -505,14 +509,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>An open bug.</returns>
         public override string GetOpenBug(RhinoTestCase testCase)
         {
-            // setup
-            var bugs = DoGetBugs(testCase);
-
-            // get
-            var openBug = bugs.Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
-
-            // assert
-            return openBug.Any() ? $"{openBug.First()}" : string.Empty;
+            return bugsManager.GetOpenBug(testCase);
         }
 
         /// <summary>
@@ -522,14 +519,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>The ID of the newly created entity.</returns>
         public override string OnCreateBug(RhinoTestCase testCase)
         {
-            // exit conditions
-            if (testCase.Actual)
-            {
-                return string.Empty;
-            }
-
-            // create bug
-            return DoCreateBug(testCase);
+            return bugsManager.OnCreateBug(testCase);
         }
 
         /// <summary>
@@ -538,42 +528,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
         public override string OnUpdateBug(RhinoTestCase testCase)
         {
-            // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-
-            // exit conditions
-            if (bugs.All(i => string.IsNullOrEmpty(i)))
-            {
-                return "-1";
-            }
-
-            // possible duplicates
-            if (bugs.Count() > 1)
-            {
-                var issues = jiraClient.Get(idsOrKeys: bugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: true));
-
-                var onBugs = issues
-                    .OrderBy(i => $"{i["key"]}")
-                    .Skip(1)
-                    .Select(i => $"{i.SelectToken("key")}")
-                    .Where(i => !string.IsNullOrEmpty(i));
-
-                DoCloseBugs(testCase, resolution: "Duplicate", bugs: onBugs);
-            }
-
-            // update
-            bugs = jiraClient
-                .Get(idsOrKeys: bugs)
-                .Select(i => i.AsJObject())
-                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false))
-                .Select(i => $"{i.SelectToken("key")}")
-                .Where(i => !string.IsNullOrEmpty(i));
-
-            testCase.UpdateBug(idOrKey: bugs.FirstOrDefault(), jiraClient);
-
-            // get
-            return $"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{bugs.FirstOrDefault()}";
+            return bugsManager.OnUpdateBug(testCase, "Closed", "Duplicate"); // status and resolution apply here only for duplicates.
         }
 
         /// <summary>
@@ -582,18 +537,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
-            // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-
-            // get conditions (double check for bugs)
-            if (!bugs.Any())
-            {
-                bugs = DoGetBugs(testCase).Select(i => $"{i}");
-            }
-
-            // close bugs
-            return DoCloseBugs(testCase, resolution: "Done", bugs);
+            return bugsManager.OnCloseBugs(testCase, "Closed", "Duplicate");
         }
 
         /// <summary>
@@ -602,90 +546,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override string OnCloseBug(RhinoTestCase testCase)
         {
-            // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var contextBugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-            var bugs = jiraClient.Get(idsOrKeys: contextBugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
-
-            // get conditions (double check for bugs)
-            if (!bugs.Any())
-            {
-                return string.Empty;
-            }
-
-            // close bugs: first
-            var onBug = $"{bugs.FirstOrDefault()?.SelectToken("key")}";
-            testCase.CloseBug(bugIssueKey: onBug, "Done", jiraClient);
-
-            // close bugs: duplicate (if any)
-            foreach (var bug in bugs.Skip(1))
-            {
-                testCase.CloseBug($"{bug.SelectToken("key")}", "Duplicate", jiraClient);
-            }
-            return onBug;
-        }
-
-        private IEnumerable<string> DoCloseBugs(RhinoTestCase testCase, string resolution, IEnumerable<string> bugs)
-        {
-            // close bugs
-            var closedBugs = new List<string>();
-            foreach (var bug in bugs)
-            {
-                var isClosed = testCase.CloseBug(bugIssueKey: bug, resolution: resolution, jiraClient);
-
-                // logs
-                if (isClosed)
-                {
-                    closedBugs.Add($"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{bug}");
-                    continue;
-                }
-                logger?.Info($"Close-Bug -Bug [{bug}] -Test [{testCase.Key}] = false");
-            }
-
-            // context
-            if (!testCase.Context.ContainsKey(ContextEntry.BugClosed) || !(testCase.Context[ContextEntry.BugClosed] is IEnumerable<string>))
-            {
-                testCase.Context[ContextEntry.BugClosed] = new List<string>();
-            }
-            var onBugsClosed = (testCase.Context[ContextEntry.BugClosed] as IEnumerable<string>).ToList();
-            onBugsClosed.AddRange(closedBugs);
-            testCase.Context[ContextEntry.BugClosed] = onBugsClosed;
-            return onBugsClosed;
-        }
-
-        private IEnumerable<JToken> DoGetBugs(RhinoTestCase testCase)
-        {
-            // shortcuts
-            var bugType = $"{capabilities[AtlassianCapabilities.BugType]}";
-            const string typePath = "fields.issuetype.name";
-            const string statusPath = "fields.status.name";
-
-            // get test issue
-            var test = jiraClient.Get(testCase.Key).AsJObject();
-
-            // get bugs
-            var bugsKeys = test
-                .SelectTokens("..inwardIssue")
-                .Where(i => $"{i.SelectToken(typePath)}"?.Equals(bugType) == true && $"{i.SelectToken(statusPath)}"?.Equals("Closed") != true)
-                .Select(i => $"{i["key"]}")
-                .ToArray();
-
-            // add to context
-            testCase.Context["bugs"] = bugsKeys;
-
-            // get issues
-            return jiraClient.Get(bugsKeys);
-        }
-
-        private string DoCreateBug(RhinoTestCase testCase)
-        {
-            // get bug response
-            var response = testCase.CreateBug(jiraClient);
-
-            // results
-            return response == default
-                ? "-1"
-                : $"{Utilities.GetUrl(Configuration.ConnectorConfiguration.Collection)}/browse/{response["key"]}";
+            return bugsManager.OnCloseBug(testCase, "Closed", "Done");
         }
         #endregion
 

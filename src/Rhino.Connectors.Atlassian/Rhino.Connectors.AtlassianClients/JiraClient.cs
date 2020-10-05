@@ -136,28 +136,44 @@ namespace Rhino.Connectors.AtlassianClients
         /// Gets the user information.
         /// </summary>
         /// <param name="key">The issue key.</param>
-        /// <param name="emailAddress">The user (assignee) email.</param>
+        /// <param name="nameOrAddress">The user (assignee) email.</param>
         /// <returns>The assignee account ID.</returns>
-        public JToken GetUser(string key, string emailAddress)
+        public JToken GetUser(string key, string nameOrAddress)
         {
-            return DoGetAccountId(key, emailAddress);
+            return DoGetUser(key, nameOrAddress);
         }
 
         /// <summary>
-        /// Gets the assignee account ID.
+        /// Assign to the current authenticated user.
         /// </summary>
         /// <param name="key">The issue key.</param>
-        /// <param name="emailAddress">The user (assignee) account ID.</param>
-        public void Assign(string key, string emailAddress)
+        public void Assign(string key)
         {
+            DoAssign(key, Authentication.User);
+        }
+
+        /// <summary>
+        /// Assign to the provided user.
+        /// </summary>
+        /// <param name="key">The issue key.</param>
+        public void Assign(string key, string nameOrAddress)
+        {
+            DoAssign(key, nameOrAddress);
+        }
+
+        private void DoAssign(string key, string nameOrAddress)
+        {
+            // get
+            var onUser = DoGetUser(key, nameOrAddress);
+
             // setup
-            var id = DoGetAccountId(key, emailAddress).AsJObject().SelectToken("accountId");
+            var id = $"{onUser.SelectToken("accountId")}";
 
             // assign
             JiraCommandsRepository.Assign(idOrKey: key, $"{id}").Send(executor);
         }
 
-        private JToken DoGetAccountId(string key, string emailAddress)
+        private JToken DoGetUser(string key, string nameOrAddress)
         {
             // get
             var users = JiraCommandsRepository
@@ -166,8 +182,10 @@ namespace Rhino.Connectors.AtlassianClients
                 .AsJToken()
                 .Select(i => i.AsJObject());
 
-            // parse
-            var user = users.FirstOrDefault(i => $"{i.SelectToken("emailAddress")}".Equals(emailAddress, Compare));
+            // parse displayName
+            var user = users
+                .FirstOrDefault(i => $"{i.SelectToken("emailAddress")}".Equals(nameOrAddress, Compare)
+                    || $"{i.SelectToken("displayName")}".Equals(nameOrAddress, Compare));
 
             // get
             return user == default ? JObject.Parse("{}") : user;

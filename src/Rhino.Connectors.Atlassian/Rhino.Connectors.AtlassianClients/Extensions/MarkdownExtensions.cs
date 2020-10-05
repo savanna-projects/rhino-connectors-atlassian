@@ -382,15 +382,15 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // build
-            var markdown = action + "||Result||Assertion||\\r\\n";
+            var markdown = new List<string>();
             for (int i = 0; i < expectedResults.Length; i++)
             {
-                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
-                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
+                var outcome = failedOn.Contains(i) ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
+                markdown.Add(outcome + expectedResults[i].Replace("{", "\\\\{") + "{panel}");
             }
 
             // results
-            return markdown.Replace(@"""", @"\""").Trim();
+            return string.Join("\\r\\n", markdown);
         }
 
         private static string DictionaryToMarkdown(IDictionary<string, object> data)

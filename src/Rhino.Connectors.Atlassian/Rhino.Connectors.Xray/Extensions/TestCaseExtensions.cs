@@ -352,298 +352,298 @@ namespace Rhino.Connectors.Xray.Extensions
         }
         #endregion
 
-        #region *** Update: Bug      ***
-        /// <summary>
-        /// Updates a bug based on this RhinoTestCase.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase by which to update a bug.</param>
-        /// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
-        public static bool UpdateBug(this RhinoTestCase testCase, string idOrKey, JiraClient jiraClient)
-        {
-            // setup
-            var bugType = testCase.GetCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
-            var onBug = jiraClient.Get(idOrKey).AsJObject();
+        //#region *** Update: Bug      ***
+        ///// <summary>
+        ///// Updates a bug based on this RhinoTestCase.
+        ///// </summary>
+        ///// <param name="testCase">RhinoTestCase by which to update a bug.</param>
+        ///// <returns><see cref="true"/> if successful, <see cref="false"/> if not.</returns>
+        //public static bool UpdateBug(this RhinoTestCase testCase, string idOrKey, JiraClient jiraClient)
+        //{
+        //    // setup
+        //    var bugType = testCase.GetCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
+        //    var onBug = jiraClient.Get(idOrKey).AsJObject();
 
-            // setup conditions
-            var isDefault = onBug == default;
-            var isBug = !isDefault && $"{onBug.SelectToken("fields.issuetype.name")}".Equals(bugType, Compare);
+        //    // setup conditions
+        //    var isDefault = onBug == default;
+        //    var isBug = !isDefault && $"{onBug.SelectToken("fields.issuetype.name")}".Equals(bugType, Compare);
 
-            // exit conditions
-            if (!isBug)
-            {
-                return false;
-            }
+        //    // exit conditions
+        //    if (!isBug)
+        //    {
+        //        return false;
+        //    }
 
-            // update body
-            var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
-            var isUpdate = jiraClient.UpdateIssue(idOrKey, requestBody);
-            if (!isUpdate)
-            {
-                return isUpdate;
-            }
+        //    // update body
+        //    var requestBody = GetUpdateBugPayload(testCase, onBug, jiraClient);
+        //    var isUpdate = jiraClient.UpdateIssue(idOrKey, requestBody);
+        //    if (!isUpdate)
+        //    {
+        //        return isUpdate;
+        //    }
 
-            // delete all attachments
-            jiraClient.DeleteAttachments(idOrKey: $"{onBug["key"]}");
+        //    // delete all attachments
+        //    jiraClient.DeleteAttachments(idOrKey: $"{onBug["key"]}");
 
-            // upload new attachments
-            var files = testCase.GetScreenshots();
-            jiraClient.AddAttachments($"{onBug["key"]}", files.ToArray());
+        //    // upload new attachments
+        //    var files = testCase.GetScreenshots();
+        //    jiraClient.AddAttachments($"{onBug["key"]}", files.ToArray());
 
-            // results
-            return isUpdate;
-        }
+        //    // results
+        //    return isUpdate;
+        //}
 
-        private static object GetUpdateBugPayload(RhinoTestCase testCase, JToken onBug, JiraClient jiraClient)
-        {
-            // setup
-            var comment =
-                $"{RhinoUtilities.GetActionSignature("updated")} " +
-                $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
+        //private static object GetUpdateBugPayload(RhinoTestCase testCase, JToken onBug, JiraClient jiraClient)
+        //{
+        //    // setup
+        //    var comment =
+        //        $"{RhinoUtilities.GetActionSignature("updated")} " +
+        //        $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
 
-            // verify if bug is already open
-            var template = testCase.BugMarkdown(jiraClient);
-            var description = $"{JToken.Parse(template).SelectToken("fields.description")}";
+        //    // verify if bug is already open
+        //    var template = testCase.BugMarkdown(jiraClient);
+        //    var description = $"{JToken.Parse(template).SelectToken("fields.description")}";
 
-            // setup
-            return new
-            {
-                Update = new
-                {
-                    Comment = new[]
-                    {
-                        new
-                        {
-                            Add = new
-                            {
-                                Body = comment
-                            }
-                        }
-                    }
-                },
-                Fields = new
-                {
-                    Description = description
-                }
-            };
-        }
-        #endregion
+        //    // setup
+        //    return new
+        //    {
+        //        Update = new
+        //        {
+        //            Comment = new[]
+        //            {
+        //                new
+        //                {
+        //                    Add = new
+        //                    {
+        //                        Body = comment
+        //                    }
+        //                }
+        //            }
+        //        },
+        //        Fields = new
+        //        {
+        //            Description = description
+        //        }
+        //    };
+        //}
+        //#endregion
 
-        #region *** Create: Bug      ***
-        /// <summary>
-        /// Creates a bug based on this RhinoTestCase.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase by which to create a bug.</param>
-        /// <returns>Bug creation results from Jira.</returns>
-        public static JToken CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
-        {
-            // setup
-            var issueBody = testCase.BugMarkdown(jiraClient);
+        //#region *** Create: Bug      ***
+        ///// <summary>
+        ///// Creates a bug based on this RhinoTestCase.
+        ///// </summary>
+        ///// <param name="testCase">RhinoTestCase by which to create a bug.</param>
+        ///// <returns>Bug creation results from Jira.</returns>
+        //public static JToken CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
+        //{
+        //    // setup
+        //    var issueBody = testCase.BugMarkdown(jiraClient);
 
-            // post
-            var response = jiraClient.Create(issueBody);
-            if (response == default)
-            {
-                return default;
-            }
+        //    // post
+        //    var response = jiraClient.Create(issueBody);
+        //    if (response == default)
+        //    {
+        //        return default;
+        //    }
 
-            // link to test case
-            var comment =
-                $"{RhinoUtilities.GetActionSignature("created")} " +
-                $"On execution [{testCase.TestRunKey}]";
-            jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
+        //    // link to test case
+        //    var comment =
+        //        $"{RhinoUtilities.GetActionSignature("created")} " +
+        //        $"On execution [{testCase.TestRunKey}]";
+        //    jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
 
-            // add attachments
-            var files = testCase.GetScreenshots();
-            jiraClient.AddAttachments($"{response["key"]}", files.ToArray());
+        //    // add attachments
+        //    var files = testCase.GetScreenshots();
+        //    jiraClient.AddAttachments($"{response["key"]}", files.ToArray());
 
-            // add to context
-            testCase.Context["bugOpenedResponse"] = response;
+        //    // add to context
+        //    testCase.Context["bugOpenedResponse"] = response;
 
-            // results
-            return response;
-        }
-        #endregion
+        //    // results
+        //    return response;
+        //}
+        //#endregion
 
-        #region *** Close: Bug       ***
-        /// <summary>
-        /// Close a bug based on this RhinoTestCase.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase by which to close a bug.</param>
-        /// <param name="bugIssueKey">The bug issue key to close.</param>
-        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
-        /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
-        public static bool CloseBug(this RhinoTestCase testCase, string bugIssueKey, string resolution, JiraClient jiraClient)
-        {
-            // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-            var exists = bugs.Any(i => i.Equals(bugIssueKey, Compare));
+        //#region *** Close: Bug       ***
+        ///// <summary>
+        ///// Close a bug based on this RhinoTestCase.
+        ///// </summary>
+        ///// <param name="testCase">RhinoTestCase by which to close a bug.</param>
+        ///// <param name="bugIssueKey">The bug issue key to close.</param>
+        ///// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
+        ///// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
+        //public static bool CloseBug(this RhinoTestCase testCase, string bugIssueKey, string resolution, JiraClient jiraClient)
+        //{
+        //    // get existing bugs
+        //    var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+        //    var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
+        //    var exists = bugs.Any(i => i.Equals(bugIssueKey, Compare));
 
-            // exit conditions
-            if (!exists)
-            {
-                return true;
-            }
+        //    // exit conditions
+        //    if (!exists)
+        //    {
+        //        return true;
+        //    }
 
-            // setup
-            var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
+        //    // setup
+        //    var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
 
-            // send transition
-            return jiraClient.CreateTransition(idOrKey: bugIssueKey, "Closed", resolution, comment);
-        }
-        #endregion
+        //    // send transition
+        //    return jiraClient.CreateTransition(idOrKey: bugIssueKey, "Closed", resolution, comment);
+        //}
+        //#endregion
 
-        #region *** Bug/Test Match   ***
-        /// <summary>
-        /// Return true if a bug meta data match to test meta data.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase to match to.</param>
-        /// <param name="bug">Bug JSON token to match by.</param>
-        /// <param name="assertDataSource"><see cref="true"/> to match also RhinoTestCase.DataSource</param>
-        /// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
-        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource)
-        {
-            // setup
-            var onBug = $"{bug}";
-            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+        //#region *** Bug/Test Match   ***
+        ///// <summary>
+        ///// Return true if a bug meta data match to test meta data.
+        ///// </summary>
+        ///// <param name="testCase">RhinoTestCase to match to.</param>
+        ///// <param name="bug">Bug JSON token to match by.</param>
+        ///// <param name="assertDataSource"><see cref="true"/> to match also RhinoTestCase.DataSource</param>
+        ///// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
+        //public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource)
+        //{
+        //    // setup
+        //    var onBug = $"{bug}";
+        //    var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
-            // build fields
-            int.TryParse(Regex.Match(input: onBug, pattern: @"(?<=\WOn Iteration\W+)\d+").Value, out int iteration);
-            var driver = Regex.Match(input: onBug, pattern: @"(?<=\|Driver\|)\w+(?=\|)").Value;
+        //    // build fields
+        //    int.TryParse(Regex.Match(input: onBug, pattern: @"(?<=\WOn Iteration\W+)\d+").Value, out int iteration);
+        //    var driver = Regex.Match(input: onBug, pattern: @"(?<=\|Driver\|)\w+(?=\|)").Value;
 
-            // setup conditions
-            var isCapabilities = AssertCapabilities(testCase, onBug);
-            var isDataSource = AssertDataSource(testCase, onBug);
-            var isDriver = $"{driverParams["driver"]}".Equals(driver, Compare);
-            var isIteration = testCase.Iteration == iteration;
-            var isOptions = AssertOptions(testCase, onBug);
+        //    // setup conditions
+        //    var isCapabilities = AssertCapabilities(testCase, onBug);
+        //    var isDataSource = AssertDataSource(testCase, onBug);
+        //    var isDriver = $"{driverParams["driver"]}".Equals(driver, Compare);
+        //    var isIteration = testCase.Iteration == iteration;
+        //    var isOptions = AssertOptions(testCase, onBug);
 
-            // assert
-            return assertDataSource
-                ? isDataSource && isCapabilities && isDriver && isIteration && isOptions
-                : isCapabilities && isDriver && isIteration && isOptions;
-        }
+        //    // assert
+        //    return assertDataSource
+        //        ? isDataSource && isCapabilities && isDriver && isIteration && isOptions
+        //        : isCapabilities && isDriver && isIteration && isOptions;
+        //}
 
-        private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
-        {
-            try
-            {
-                // setup
-                var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+        //private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
+        //{
+        //    try
+        //    {
+        //        // setup
+        //        var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
-                // extract test capabilities
-                var tstCapabilities = driverParams.ContainsKey("capabilities")
-                    ? ((IDictionary<string, object>)driverParams["capabilities"]).ToJiraMarkdown()
-                    : string.Empty;
+        //        // extract test capabilities
+        //        var tstCapabilities = driverParams.ContainsKey("capabilities")
+        //            ? ((IDictionary<string, object>)driverParams["capabilities"]).ToJiraMarkdown()
+        //            : string.Empty;
 
-                // normalize to markdown
-                var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
-                tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
+        //        // normalize to markdown
+        //        var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
+        //        tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
 
-                // extract bug capabilities
-                var bugCapabilities = Regex.Match(
-                    input: onBug,
-                    pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
+        //        // extract bug capabilities
+        //        var bugCapabilities = Regex.Match(
+        //            input: onBug,
+        //            pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
 
-                // normalize to markdown
-                var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
-                bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
+        //        // normalize to markdown
+        //        var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
+        //        bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
 
-                // exit conditions
-                var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
-                var isTstCapabilities = !string.IsNullOrEmpty(tstCapabilities);
-                if (isBugCapabilities ^ isTstCapabilities)
-                {
-                    return false;
-                }
-                else if (!isBugCapabilities && !isTstCapabilities)
-                {
-                    return true;
-                }
+        //        // exit conditions
+        //        var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
+        //        var isTstCapabilities = !string.IsNullOrEmpty(tstCapabilities);
+        //        if (isBugCapabilities ^ isTstCapabilities)
+        //        {
+        //            return false;
+        //        }
+        //        else if (!isBugCapabilities && !isTstCapabilities)
+        //        {
+        //            return true;
+        //        }
 
-                // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
-                var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+        //        // convert to data table and than to dictionary collection
+        //        var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+        //        var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
 
-                // assert
-                return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
-            }
-            catch (Exception e) when (e != null)
-            {
-                return false;
-            }
-        }
+        //        // assert
+        //        return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
+        //    }
+        //    catch (Exception e) when (e != null)
+        //    {
+        //        return false;
+        //    }
+        //}
 
-        private static bool AssertDataSource(RhinoTestCase testCase, string onBug)
-        {
-            try
-            {
-                // extract test capabilities
-                var compareableTstData = testCase.DataSource?.Any() == true
-                    ? testCase.DataSource.ToJson().ToUpper().Sort()
-                    : string.Empty;
+        //private static bool AssertDataSource(RhinoTestCase testCase, string onBug)
+        //{
+        //    try
+        //    {
+        //        // extract test capabilities
+        //        var compareableTstData = testCase.DataSource?.Any() == true
+        //            ? testCase.DataSource.ToJson().ToUpper().Sort()
+        //            : string.Empty;
 
-                // extract bug capabilities
-                var bugData = Regex.Match(input: onBug, pattern: @"(?<=Local Data Source\W+\\r\\n\|\|).*(?=\|)").Value;
+        //        // extract bug capabilities
+        //        var bugData = Regex.Match(input: onBug, pattern: @"(?<=Local Data Source\W+\\r\\n\|\|).*(?=\|)").Value;
 
-                // normalize to markdown
-                var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
-                bugData = string.Join(Environment.NewLine, onBugData);
+        //        // normalize to markdown
+        //        var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
+        //        bugData = string.Join(Environment.NewLine, onBugData);
 
-                // exit conditions
-                var isBugCapabilities = !string.IsNullOrEmpty(compareableTstData);
-                var isTstCapabilities = !string.IsNullOrEmpty(bugData);
-                if (isBugCapabilities ^ isTstCapabilities)
-                {
-                    return false;
-                }
-                else if (!isBugCapabilities && !isTstCapabilities)
-                {
-                    return true;
-                }
+        //        // exit conditions
+        //        var isBugCapabilities = !string.IsNullOrEmpty(compareableTstData);
+        //        var isTstCapabilities = !string.IsNullOrEmpty(bugData);
+        //        if (isBugCapabilities ^ isTstCapabilities)
+        //        {
+        //            return false;
+        //        }
+        //        else if (!isBugCapabilities && !isTstCapabilities)
+        //        {
+        //            return true;
+        //        }
 
-                // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable()
-                    .FromMarkDown(bugData)
-                    .ToDictionary()
-                    .ToJson()
-                    .ToUpper()
-                    .Sort();
+        //        // convert to data table and than to dictionary collection
+        //        var compareableBugCapabilites = new DataTable()
+        //            .FromMarkDown(bugData)
+        //            .ToDictionary()
+        //            .ToJson()
+        //            .ToUpper()
+        //            .Sort();
 
-                // assert
-                return compareableBugCapabilites.Equals(compareableTstData, Compare);
-            }
-            catch (Exception e) when (e != null)
-            {
-                return false;
-            }
-        }
+        //        // assert
+        //        return compareableBugCapabilites.Equals(compareableTstData, Compare);
+        //    }
+        //    catch (Exception e) when (e != null)
+        //    {
+        //        return false;
+        //    }
+        //}
 
-        private static bool AssertOptions(RhinoTestCase testCase, string onBug)
-        {
-            // setup
-            var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
+        //private static bool AssertOptions(RhinoTestCase testCase, string onBug)
+        //{
+        //    // setup
+        //    var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
-            // extract test capabilities
-            var tstOptions = driverParams.ContainsKey("options")
-                ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
-                : string.Empty;
+        //    // extract test capabilities
+        //    var tstOptions = driverParams.ContainsKey("options")
+        //        ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
+        //        : string.Empty;
 
-            // extract bug capabilities
-            var onBugOptions = Regex.Match(input: onBug, pattern: @"(?<=Options\W+\\r\\n\{code:json}).*?(?=\{code})").Value;
-            onBugOptions = onBugOptions.Replace("\\r", string.Empty).Replace("\\n", string.Empty).Replace(@"\", string.Empty);
-            var bugOptions = string.IsNullOrEmpty(onBugOptions) ? string.Empty : onBugOptions;
+        //    // extract bug capabilities
+        //    var onBugOptions = Regex.Match(input: onBug, pattern: @"(?<=Options\W+\\r\\n\{code:json}).*?(?=\{code})").Value;
+        //    onBugOptions = onBugOptions.Replace("\\r", string.Empty).Replace("\\n", string.Empty).Replace(@"\", string.Empty);
+        //    var bugOptions = string.IsNullOrEmpty(onBugOptions) ? string.Empty : onBugOptions;
 
-            // deserialize
-            if (!string.IsNullOrEmpty(bugOptions))
-            {
-                var bugOptionsObjt = JsonConvert.DeserializeObject<object>(bugOptions);
-                bugOptions = JsonConvert.SerializeObject(bugOptionsObjt, Formatting.None).ToUpper().Sort();
-            }
+        //    // deserialize
+        //    if (!string.IsNullOrEmpty(bugOptions))
+        //    {
+        //        var bugOptionsObjt = JsonConvert.DeserializeObject<object>(bugOptions);
+        //        bugOptions = JsonConvert.SerializeObject(bugOptionsObjt, Formatting.None).ToUpper().Sort();
+        //    }
 
-            // assert
-            return tstOptions.Equals(bugOptions, Compare);
-        }
-        #endregion
+        //    // assert
+        //    return tstOptions.Equals(bugOptions, Compare);
+        //}
+        //#endregion
     }
 }

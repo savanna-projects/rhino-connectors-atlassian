@@ -1,4 +1,9 @@
-﻿using Gravity.Abstraction.Logging;
+﻿/*
+ * CHANGE LOG - keep only last 5 threads
+ * 
+ * RESOURCES
+ */
+using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
 using Newtonsoft.Json;
@@ -39,6 +44,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private readonly IDictionary<string, object> capabilities;
         private readonly JiraCommandsExecutor executor;
         private readonly ParallelOptions options;
+        private readonly JiraBugsManager bugsManager;
 
         #region *** Constructors      ***
         /// <summary>
@@ -82,6 +88,9 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // misc
             options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
+
+            // integration
+            bugsManager = new JiraBugsManager(jiraClient);
         }
         #endregion
 
@@ -232,7 +241,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // assign
-            jiraClient.Assign(key: $"{issue.SelectToken("key")}", emailAddress: jiraClient.Authentication.User);
+            jiraClient.Assign(key: $"{issue.SelectToken("key")}");
 
             // get
             return issue;
@@ -352,7 +361,7 @@ namespace Rhino.Connectors.Xray.Cloud
             testRun.Context["testRun"] = response;
 
             // assign
-            jiraClient.Assign(testRun.Key, emailAddress: jiraClient.Authentication.User);
+            jiraClient.Assign(testRun.Key);
         }
 
         private void PutExecutionDetails(RhinoTestRun testRun)
@@ -602,7 +611,7 @@ namespace Rhino.Connectors.Xray.Cloud
             Parallel.ForEach(testCases, options, onTestCase => onTestCases.Add(SetDataSource(onTestCase)));
 
             // results
-            return onTestCases;
+            return onTestCases;            
         }
 
         private RhinoTestCase SetDataSource(RhinoTestCase testCase)
@@ -637,6 +646,79 @@ namespace Rhino.Connectors.Xray.Cloud
             // put
             testCase.DataSource = dataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
             return testCase;
+        }
+
+        // puts the project key under each RhinoTestCase.Context
+        [Pipeline(order: 3)]
+        private IEnumerable<RhinoTestCase> SetProjectKey(IEnumerable<RhinoTestCase> testCases)
+        {
+            // iterate
+            foreach (var testCase in testCases)
+            {
+                testCase.Context["projectKey"] = $"{jiraClient.ProjectMeta.SelectToken("key")}";
+            }
+
+            // get
+            return testCases;
+        }
+        #endregion
+
+        #region *** Bugs & Defects    ***
+        /// <summary>
+        /// Gets a list of open bugs.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to find bugs.</param>
+        /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
+        public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
+        {
+            return bugsManager.GetBugs(testCase);
+        }
+
+        /// <summary>
+        /// Asserts if the RhinoTestCase has already an open bug.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to assert against match bugs.</param>
+        /// <returns>An open bug.</returns>
+        public override string GetOpenBug(RhinoTestCase testCase)
+        {
+            return bugsManager.GetOpenBug(testCase);
+        }
+
+        /// <summary>
+        /// Creates a new bug under the specified automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider bug.</param>
+        /// <returns>The ID of the newly created entity.</returns>
+        public override string OnCreateBug(RhinoTestCase testCase)
+        {
+            return bugsManager.OnCreateBug(testCase);
+        }
+
+        /// <summary>
+        /// Updates an existing bug (partial updates are supported, i.e. you can submit and update specific fields only).
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
+        public override string OnUpdateBug(RhinoTestCase testCase)
+        {
+            return bugsManager.OnUpdateBug(testCase, "Done", string.Empty); // status and resolution apply here only for duplicates.
+        }
+
+        /// <summary>
+        /// Close all existing bugs.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
+        public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
+        {
+            return bugsManager.OnCloseBugs(testCase, "Done", string.Empty);
+        }
+
+        /// <summary>
+        /// Close all existing bugs.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
+        public override string OnCloseBug(RhinoTestCase testCase)
+        {
+            return bugsManager.OnCloseBug(testCase, "Done", string.Empty);
         }
         #endregion
 

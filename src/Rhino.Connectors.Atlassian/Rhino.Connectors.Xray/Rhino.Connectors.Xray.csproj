@@ -18,10 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.10.1.1" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj" />
   </ItemGroup>
 </Project>
