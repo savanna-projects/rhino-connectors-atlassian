@@ -249,7 +249,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-1429"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1339"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -306,7 +306,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 },
                 EngineConfiguration = new RhinoEngineConfiguration
                 {
-                    MaxParallel = 8
+                    MaxParallel = 1
                 },
                 Capabilities = new Dictionary<string, object>
                 {
