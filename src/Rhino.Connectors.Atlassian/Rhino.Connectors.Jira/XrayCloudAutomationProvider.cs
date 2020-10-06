@@ -391,14 +391,18 @@ namespace Rhino.Connectors.Xray.Cloud
             testCase.Context["executionDetails"] = details;
             testCase.Context["testRun"] = testRun.Context["testRun"];
 
-            var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject());
+            var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject()).ToArray();
             for (int i = 0; i < testCase.Steps.Count(); i++)
             {
-                if (i > onSteps.Count() - 1)
+                if (i > onSteps.Length - 1)
                 {
                     continue;
                 }
-                testCase.Steps.ElementAt(i).Context["runtimeid"] = $"{onSteps.ElementAt(i).SelectToken("id")}";
+                var jobject = JObject.Parse($"{onSteps[i]}");
+                jobject.Add("index", i);
+
+                testCase.Steps.ElementAt(i).Context["testStep"] = jobject;
+                testCase.Steps.ElementAt(i).Context["runtimeid"] = $"{onSteps[i].SelectToken("id")}";
             }
         }
         #endregion
