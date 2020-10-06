@@ -249,7 +249,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                 Name = "For Integration Testing",
                 TestsRepository = new[]
                 {
-                    "RA-1339"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
+                    "RA-1338"/*"RHIN-1"*//*"XT-58"*//*, "XT-8", "XT-9"*//*, "XT-1", "XT-6"*/
                 },
                 Authentication = new Authentication
                 {
@@ -274,7 +274,7 @@ namespace Rhino.Connectors.Xray.UnitTests
                     Password = "0hshf1gBkfZqsoABp9oO173D",
                     User = "rhino.api@gmail.com",
                     Project = "RA",
-                    BugManager = true,
+                    BugManager = false,
                     Connector = Connector.JiraXryCloud
                 },
                 DriverParameters = new[]

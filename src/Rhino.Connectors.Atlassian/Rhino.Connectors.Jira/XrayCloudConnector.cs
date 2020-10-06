@@ -116,7 +116,15 @@ namespace Rhino.Connectors.Xray.Cloud
             testCase.Context["outcome"] = outcome;
 
             // update
-            ProviderManager.UpdateTestResult(testCase);
+            var alreadyFail = ProviderManager
+                .TestRun
+                .TestCases
+                .Any(i => i.Key == testCase.Key && !i.Actual && i.Context.ContainsKey("runUpdated") && (bool)i.Context["runUpdated"]);
+
+            if ((alreadyFail ^ testCase.Actual) || (!alreadyFail && !testCase.Actual))
+            {
+                ProviderManager.UpdateTestResult(testCase);
+            }
 
             // return with results
             return testCase;
