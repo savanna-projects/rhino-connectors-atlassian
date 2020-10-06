@@ -288,7 +288,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 var outcome = $"{testCase.Context["outcome"]}";
 
                 // exit conditions
-                if (!outcome.Equals("FAILED", Compare))
+                var isFail = outcome.Equals("FAILED", Compare);
+                if ((isFail && testCase.Actual) || !isFail)
                 {
                     return testCase;
                 }

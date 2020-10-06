@@ -105,8 +105,23 @@ namespace Rhino.Connectors.Xray.Cloud
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
         public override RhinoTestCase OnPostTestExecute(RhinoTestCase testCase)
         {
+            // constants
+            const string Updated = "runUpdated";
+
             // setup
             var outcome = testCase.Actual ? "PASSED" : "FAILED";
+            var alreadyFail = ProviderManager
+                .TestRun
+                .TestCases
+                .Any(i => i.Key == testCase.Key && !i.Actual && i.Context.ContainsKey(Updated) && (bool)i.Context[Updated]);
+
+            // failed on this run (mark as fail)
+            if (alreadyFail)
+            {
+                outcome = "FAILED";
+            }
+
+            // inconclusive on this run (mark as default)
             if (ProviderManager.TestRun.TestCases.Any(i => i.Key.Equals(testCase.Key) && i.Inconclusive))
             {
                 outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "TODO");
@@ -116,15 +131,7 @@ namespace Rhino.Connectors.Xray.Cloud
             testCase.Context["outcome"] = outcome;
 
             // update
-            var alreadyFail = ProviderManager
-                .TestRun
-                .TestCases
-                .Any(i => i.Key == testCase.Key && !i.Actual && i.Context.ContainsKey("runUpdated") && (bool)i.Context["runUpdated"]);
-
-            if ((alreadyFail ^ testCase.Actual) || (!alreadyFail && !testCase.Actual))
-            {
-                ProviderManager.UpdateTestResult(testCase);
-            }
+            ProviderManager.UpdateTestResult(testCase);
 
             // return with results
             return testCase;
