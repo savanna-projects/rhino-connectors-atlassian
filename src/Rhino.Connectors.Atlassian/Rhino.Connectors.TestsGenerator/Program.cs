@@ -7,7 +7,6 @@ using Newtonsoft.Json.Linq;
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Connectors.TestsGenerator.Properties;
 using Rhino.Connectors.Xray;
 using Rhino.Connectors.Xray.Cloud;
 
@@ -19,12 +18,12 @@ namespace Rhino.Connectors.TestsGenerator
     internal static class Program
     {
         // settings
-        private static readonly int numberOfTests = App.Default.NumberOfTests;
-        private static readonly string testSetKey = App.Default.TestSetKey;
-        private static readonly string collection = App.Default.Collection;
-        private static readonly string project = App.Default.Project;
-        private static readonly string user = App.Default.User;
-        private static readonly string password = App.Default.Password;
+        private static readonly int numberOfTests = 1;//"App.Default.NumberOfTests";
+        private static readonly string testSetKey = "App.Default.TestSetKey";
+        private static readonly string collection = "App.Default.Collection";
+        private static readonly string project = "App.Default.Project";
+        private static readonly string user = "App.Default.User";
+        private static readonly string password = "App.Default.Password";
 
         // state
         private static readonly RhinoConfiguration configuration = GetConfiguration();
@@ -33,10 +32,10 @@ namespace Rhino.Connectors.TestsGenerator
         {
             // setup
             var testCaseTemplate = GetTestTemplate();
-            var options = new ParallelOptions { MaxDegreeOfParallelism = App.Default.BucketSize };
+            var options = new ParallelOptions { MaxDegreeOfParallelism = 8/*App.Default.BucketSize*/ };
 
             // connector
-            var connector = App.Default.ForCloud
+            var connector = false//App.Default.ForCloud
                 ? new XrayCloudConnector(configuration) as RhinoConnector
                 : new XrayConnector(configuration);
 
@@ -55,7 +54,7 @@ namespace Rhino.Connectors.TestsGenerator
             var connecotrConfiguration = new RhinoConnectorConfiguration
             {
                 Collection = collection,
-                Connector = App.Default.ForCloud ? Connector.JiraXryCloud : Connector.JiraXRay,
+                Connector = false /*App.Default.ForCloud*/ ? Connector.JiraXryCloud : Connector.JiraXRay,
                 Password = password,
                 User = user,
                 Project = project
