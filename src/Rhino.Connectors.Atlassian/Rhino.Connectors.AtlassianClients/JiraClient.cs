@@ -503,8 +503,11 @@ namespace Rhino.Connectors.AtlassianClients
         // creates or updates an issue by id or key
         private JToken DoCraeteOrUpdate(string idOrKey, object data)
         {
+            // setup conditions
+            var isUpdate = !string.IsNullOrEmpty(idOrKey);
+
             // setup
-            var command = string.IsNullOrEmpty(idOrKey)
+            var command = isUpdate
                 ? JiraCommandsRepository.Create(data)
                 : JiraCommandsRepository.Update(idOrKey, data);
 
@@ -523,12 +526,16 @@ namespace Rhino.Connectors.AtlassianClients
             }
             else if (!isCode && isFail)
             {
-                return default;
+                return JToken.Parse("{}");
             }
 
-            // update test run key
-            var key = response.SelectToken("key");
+            // log
+            var key = $"{response.SelectToken("key")}";
             logger?.Debug($"Create-Issue [{key}] = true");
+
+            // comment
+            var action = isUpdate ? "updated" : "creted";
+            JiraCommandsRepository.AddComment(idOrKey: key, comment: Api.Extensions.Utilities.GetActionSignature(action));
 
             // results
             return response;
