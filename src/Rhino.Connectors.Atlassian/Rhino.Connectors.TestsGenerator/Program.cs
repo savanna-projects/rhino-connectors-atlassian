@@ -1,91 +1,99 @@
-﻿using Newtonsoft.Json.Linq;
-
+﻿/*
+ * CHANGE LOG - keep only last 5 threads
+ * 
+ * RESSOURCES
+ */
+using Newtonsoft.Json.Linq;
+using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Connectors.TestsGenerator.Properties;
 using Rhino.Connectors.Xray;
 using Rhino.Connectors.Xray.Cloud;
 
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Rhino.Connectors.TestsGenerator
 {
     internal static class Program
     {
-        // TODO: move to configuration
-        private const int NumberOfTests = 1;
-        private const string TestSetKey = "RA-62";
-        private const string Collection = "https://rhinoapi.atlassian.net";
-        private const string Project = "RA";
-        private const string User = "rhino.api@gmail.com";
-        private const string Password = "0hshf1gBkfZqsoABp9oO173D";
+        // settings
+        private static readonly int numberOfTests = App.Default.NumberOfTests;
+        private static readonly string testSetKey = App.Default.TestSetKey;
+        private static readonly string collection = App.Default.Collection;
+        private static readonly string project = App.Default.Project;
+        private static readonly string user = App.Default.User;
+        private static readonly string password = App.Default.Password;
 
-        //private const string TestSetKey = "RA-1";
-        //private const string Collection = "http://localhost:8080";
-        //private const string Project = "RA";
-        //private const string User = "admin";
-        //private const string Password = "admin";
+        // state
+        private static readonly RhinoConfiguration configuration = GetConfiguration();
 
-        private static IDictionary<string, object> capabilities = new Dictionary<string, object>
-        {
-            ["dryRun"] = false,
-            ["bucketSize"] = 8
-        };
-
-        private static void Main(string[] args)
+        private static void Main()
         {
             // setup
-            var connecotrConfiguration = new RhinoConnectorConfiguration
-            {
-                Collection = Collection,
-                Connector = Connector.JiraXryCloud,
-                Password = Password,
-                User = User,
-                Project = Project
-            };
-            var configuration = new RhinoConfiguration
-            {
-                TestsRepository = new[] { "" },
-                ConnectorConfiguration = connecotrConfiguration
-            };
-            var testCaseTemplate = new RhinoTestCase
-            {
-                TestSuites = new[] { TestSetKey },
-                Steps = new[]
-                {
-                    new RhinoTestStep
-                    {
-                        Action = "go to url {https://gravitymvctestapplication.azurewebsites.net/student}",
-                    },
-                    new RhinoTestStep
-                    {
-                        Action = "send keys {Carson} into {SearchString} using {id}"
-                    },
-                    new RhinoTestStep
-                    {
-                        Action = "click on {SearchButton} using {id}",
-                        Expected = "verify that {text} of {student_last_name_1} using {id} match {Alexander}"
-                    },
-                    new RhinoTestStep
-                    {
-                        Action = "close browser"
-                    }
-                }
-            };
+            var testCaseTemplate = GetTestTemplate();
+            var options = new ParallelOptions { MaxDegreeOfParallelism = App.Default.BucketSize };
 
-            // TODO: create factory for different connectors
-            var connector = new XrayCloudConnector(configuration);
-            //var connector = new XrayConnector(configuration);
+            // connector
+            var connector = App.Default.ForCloud
+                ? new XrayCloudConnector(configuration) as RhinoConnector
+                : new XrayConnector(configuration);
 
-            // send
-            var options = new ParallelOptions { MaxDegreeOfParallelism = 8 };
-            Parallel.For(0, NumberOfTests, options, (_) =>
+            // send            
+            Parallel.For(0, numberOfTests, options, (_) =>
             {
-                testCaseTemplate.Scenario = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - Demo Rhino Test Case";
+                testCaseTemplate.Scenario = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - Demo Rhino Test Case";               
                 var issue = JToken.Parse(connector.ProviderManager.CreateTestCase(testCaseTemplate));
                 Console.WriteLine($"Test {issue["id"]} created");
             });
         }
+
+        private static RhinoConfiguration GetConfiguration()
+        {
+            // setup
+            var connecotrConfiguration = new RhinoConnectorConfiguration
+            {
+                Collection = collection,
+                Connector = App.Default.ForCloud ? Connector.JiraXryCloud : Connector.JiraXRay,
+                Password = password,
+                User = user,
+                Project = project
+            };
+
+            // get
+            return new RhinoConfiguration
+            {
+                TestsRepository = new[] { "" },
+                ConnectorConfiguration = connecotrConfiguration
+            };
+        }
+
+        private static RhinoTestCase GetTestTemplate() => new RhinoTestCase
+        {
+            TestSuites = new[] { testSetKey },
+            Steps = new[]
+            {
+                new RhinoTestStep
+                {
+                    Action = "go to url {https://gravitymvctestapplication.azurewebsites.net/student}",
+                },
+                new RhinoTestStep
+                {
+                    Action = "send keys {Carson} into {SearchString} using {id}"
+                },
+                new RhinoTestStep
+                {
+                    Action = "click on {SearchButton} using {id}",
+                    Expected =
+                    "verify that {text} of {student_last_name_1} using {id} match {Alexander}\n" +
+                    "verify that {text} of {student_first_name_1} using {id} match {Carson}"
+                },
+                new RhinoTestStep
+                {
+                    Action = "close browser"
+                }
+            }
+        };
     }
 }
