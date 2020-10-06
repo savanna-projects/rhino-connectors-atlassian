@@ -508,8 +508,8 @@ namespace Rhino.Connectors.AtlassianClients
 
             // setup
             var command = isUpdate
-                ? JiraCommandsRepository.Create(data)
-                : JiraCommandsRepository.Update(idOrKey, data);
+                ? JiraCommandsRepository.Update(idOrKey, data)
+                : JiraCommandsRepository.Create(data);
 
             // get
             var response = command.Send(executor).AsJToken();
