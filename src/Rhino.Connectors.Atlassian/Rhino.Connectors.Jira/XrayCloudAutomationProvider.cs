@@ -6,7 +6,6 @@
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api;
@@ -14,6 +13,7 @@ using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
+
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -632,14 +632,13 @@ namespace Rhino.Connectors.Xray.Cloud
                 return testCase;
             }
 
-            // merge
-            var dataSource = jiraClient
+            // get all preconditions as data tables
+            var dataTables = jiraClient
                 .Get(preconditions)
-                .Select(i => new DataTable().FromMarkDown($"{i.SelectToken("fields.description")}".Trim(), default))
-                .Merge();
+                .Select(i => new DataTable().FromMarkDown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim(), default));
 
             // put
-            testCase.DataSource = dataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
+            testCase.DataSource = dataTables.First().Apply(dataTables.Skip(1)).ToArray();
             return testCase;
         }
 

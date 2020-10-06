@@ -494,7 +494,11 @@ namespace Rhino.Connectors.AtlassianClients
         private IEnumerable<JToken> DoSearch(string jql)
         {
             // parse
-            var issues = JiraCommandsRepository.Search(jql).Send(executor).AsJToken().SelectToken("issues");
+            var issues = JiraCommandsRepository
+                .Search(jql)
+                .Send(executor)
+                .AsJToken()
+                .SelectToken("issues");
 
             // get
             return issues == default || !(issues is JArray) ? JToken.Parse("[]") : issues;
