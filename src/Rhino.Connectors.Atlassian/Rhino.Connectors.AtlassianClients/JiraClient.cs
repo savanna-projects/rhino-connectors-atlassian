@@ -534,8 +534,10 @@ namespace Rhino.Connectors.AtlassianClients
             logger?.Debug($"Create-Issue [{key}] = true");
 
             // comment
-            var action = isUpdate ? "updated" : "creted";
-            JiraCommandsRepository.AddComment(idOrKey: key, comment: Api.Extensions.Utilities.GetActionSignature(action));
+            var action = isUpdate ? "updated" : "created";
+            JiraCommandsRepository
+                .AddComment(idOrKey: key, comment: Api.Extensions.Utilities.GetActionSignature(action))
+                .Send(executor);
 
             // results
             return response;
