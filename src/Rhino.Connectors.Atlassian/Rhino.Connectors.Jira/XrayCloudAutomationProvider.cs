@@ -611,7 +611,7 @@ namespace Rhino.Connectors.Xray.Cloud
             Parallel.ForEach(testCases, options, onTestCase => onTestCases.Add(SetDataSource(onTestCase)));
 
             // results
-            return onTestCases;            
+            return onTestCases;
         }
 
         private RhinoTestCase SetDataSource(RhinoTestCase testCase)

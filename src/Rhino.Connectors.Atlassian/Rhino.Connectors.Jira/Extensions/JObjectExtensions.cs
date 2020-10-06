@@ -49,8 +49,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             {
                 var step = new RhinoTestStep
                 {
-                    Action = $"{testStep["action"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{"),
-                    Expected = $"{testStep["result"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{")
+                    Action = $"{testStep["action"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "["),
+                    Expected = $"{testStep["result"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "[")
                 };
 
                 // normalize auto links (if any)
