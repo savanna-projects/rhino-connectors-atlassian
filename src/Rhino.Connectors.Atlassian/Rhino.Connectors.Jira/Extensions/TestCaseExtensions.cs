@@ -334,7 +334,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 jiraClient.AddComment(
                     idOrKey: execution,
                     comment:
-                        $"Test run for [{testCase.Key}] marked with default status by Rhino Engine." +
+                        $"Test iteration {testCase.Iteration} on test run [{testCase.Key}] marked with default status by Rhino Engine." +
                         " Reason: test result is inconclusive.");
             }
             catch (Exception e) when (e != null)

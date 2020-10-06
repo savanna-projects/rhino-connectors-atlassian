@@ -424,13 +424,13 @@ namespace Rhino.Connectors.Xray.Cloud
         /// <param name="idProject">The ID of the project.</param>
         /// <param name="run">The execution details ID.</param>
         /// <param name="status">The status to update.</param>
-        public void UpdateTestRunStatus(
+        public JToken UpdateTestRunStatus(
             (string id, string key) idAndKey,
             string idProject,
             string run,
             string status)
         {
-            XpandCommandsRepository.UpdateTestRunStatus(idAndKey, idProject, run, status).Send(executor);
+            return XpandCommandsRepository.UpdateTestRunStatus(idAndKey, idProject, run, status).Send(executor).AsJToken();
         }
 
         /// <summary>

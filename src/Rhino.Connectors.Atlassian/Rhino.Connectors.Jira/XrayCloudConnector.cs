@@ -17,6 +17,7 @@ using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Rhino.Connectors.Xray.Cloud
 {
@@ -106,7 +107,7 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             var outcome = testCase.Actual ? "PASSED" : "FAILED";
-            if (testCase.Inconclusive)
+            if (ProviderManager.TestRun.TestCases.Any(i => i.Key.Equals(testCase.Key) && i.Inconclusive))
             {
                 outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "TODO");
             }

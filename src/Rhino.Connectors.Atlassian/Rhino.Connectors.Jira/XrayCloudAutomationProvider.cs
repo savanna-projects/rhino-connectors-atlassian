@@ -416,23 +416,18 @@ namespace Rhino.Connectors.Xray.Cloud
                 return;
             }
 
-            // setup: failed to update
-            var inStatus = new[] { "TODO", "EXECUTING" };
-
             // get all test keys to re-assign outcome
-            var response = xpandClient.GetRunsByExecution(($"{testRun.Context["runtimeid"]}", testRun.Key));
-            var testCases = JsonConvert
-                .DeserializeObject<IEnumerable<IDictionary<string, string>>>($"{response}")
-                .Where(i => inStatus.Contains($"{i["status"]}"))
-                .Select(i => i["testIssueId"]);
+            var testCases = testRun
+                .TestCases
+                .Where(i => !i.Context.ContainsKey("runUpdated") || !(bool)i.Context["runUpdated"]);
 
             // iterate: pass/fail
-            foreach (var testCase in testRun.TestCases.Where(i => testCases.Contains($"{((JToken)i.Context["testCase"]).SelectToken("id")}") && !i.Inconclusive))
+            foreach (var testCase in testCases.Where(i => !i.Inconclusive))
             {
                 DoUpdateTestResults(testCase);
             }
             // iterate: inconclusive
-            foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
+            foreach (var testCase in testCases.Where(i => i.Inconclusive))
             {
                 DoUpdateTestResults(testCase);
             }
@@ -783,7 +778,11 @@ namespace Rhino.Connectors.Xray.Cloud
                 .SetFailedComment();
 
             // apply on test
-            xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, $"{testCase.Context["outcome"]}");
+            var response = xpandClient
+                .UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, $"{testCase.Context["outcome"]}");
+
+            // set in context
+            testCase.Context["runUpdated"] = response.SelectToken("testIssueId") != null;
         }
     }
 }
