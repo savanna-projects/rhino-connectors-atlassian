@@ -18,12 +18,12 @@ namespace Rhino.Connectors.TestsGenerator
     internal static class Program
     {
         // settings
-        private static readonly int numberOfTests = 1;//"App.Default.NumberOfTests";
-        private static readonly string testSetKey = "App.Default.TestSetKey";
-        private static readonly string collection = "App.Default.Collection";
-        private static readonly string project = "App.Default.Project";
-        private static readonly string user = "App.Default.User";
-        private static readonly string password = "App.Default.Password";
+        private const int numberOfTests = 1;
+        private const string testSetKey = "App.Default.TestSetKey";
+        private const string collection = "App.Default.Collection";
+        private const string project = "App.Default.Project";
+        private const string user = "App.Default.User";
+        private const string password = "App.Default.Password";
 
         // state
         private static readonly RhinoConfiguration configuration = GetConfiguration();
@@ -42,7 +42,7 @@ namespace Rhino.Connectors.TestsGenerator
             // send            
             Parallel.For(0, numberOfTests, options, (_) =>
             {
-                testCaseTemplate.Scenario = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - Demo Rhino Test Case";               
+                testCaseTemplate.Scenario = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} - Demo Rhino Test Case";
                 var issue = JToken.Parse(connector.ProviderManager.CreateTestCase(testCaseTemplate));
                 Console.WriteLine($"Test {issue["id"]} created");
             });

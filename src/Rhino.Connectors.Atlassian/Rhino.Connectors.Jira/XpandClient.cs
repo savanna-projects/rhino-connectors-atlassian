@@ -386,7 +386,6 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             var batches = idsOrKeysTest.Split(49);
-            var options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
 
             // put
             Parallel.ForEach(batches, options, batch => AddTests(idOrKeyExecution, idsOrKeysTest: batch));

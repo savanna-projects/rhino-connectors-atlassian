@@ -588,7 +588,7 @@ namespace Rhino.Connectors.Xray
                 // fail message
                 if (outcome.Equals("FAIL", Compare) || testCase.Steps.Any(i => i.Exception != default))
                 {
-                    var comment = testCase.GetFailComment(); //TestRun.TestCases.Where(i => i.Key == testCase.Key && !i.Actual).Select(i => i.GetFailComment());
+                    var comment = testCase.GetFailComment();
                     testCase.UpdateResultComment(comment);
                 }
             }
