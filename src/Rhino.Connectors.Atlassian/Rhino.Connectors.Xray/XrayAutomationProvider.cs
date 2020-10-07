@@ -388,6 +388,7 @@ namespace Rhino.Connectors.Xray
             var testCases = JsonConvert.SerializeObject(testRun.TestCases.Select(i => i.Key));
 
             // load JSON body
+            var comment = Utilities.GetActionSignature("created");
             var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
                 .Replace("[project-key]", Configuration.ConnectorConfiguration.Project)
                 .Replace("[run-title]", TestRun.Title)
@@ -395,7 +396,7 @@ namespace Rhino.Connectors.Xray
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ConnectorConfiguration.User);
-            var responseBody = jiraClient.Create(requestBody);
+            var responseBody = jiraClient.Create(requestBody, comment);
 
             // setup
             testRun.Key = $"{responseBody["key"]}";
