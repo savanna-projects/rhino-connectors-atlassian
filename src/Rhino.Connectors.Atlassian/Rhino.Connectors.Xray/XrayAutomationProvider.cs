@@ -197,8 +197,8 @@ namespace Rhino.Connectors.Xray
             var type = jiraClient.GetIssueType(issueKey);
 
             // setup conditions & exit conditions
-            var isTest = type.Equals($"{Configuration.Capabilities[AtlassianCapabilities.TestType]}", Compare);
-            var isTestSet = type.Equals($"{Configuration.Capabilities[AtlassianCapabilities.SetType]}", Compare);
+            var isTest = type.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare);
+            var isTestSet = type.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare);
             if (!isTest && !isTestSet)
             {
                 return Array.Empty<RhinoTestCase>();
