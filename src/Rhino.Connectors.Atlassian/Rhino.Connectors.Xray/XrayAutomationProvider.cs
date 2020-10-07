@@ -542,7 +542,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
-            return bugsManager.OnCloseBugs(testCase, "Closed", "Duplicate");
+            return bugsManager.OnCloseBugs(testCase, "Closed", "Done");
         }
 
         /// <summary>
