@@ -164,13 +164,23 @@ namespace Rhino.Connectors.AtlassianClients
         private void DoAssign(string key, string nameOrAddress)
         {
             // get
-            var onUser = DoGetUser(key, nameOrAddress);
+            var onUser = DoGetUser(key, nameOrAddress).AsJObject();
 
             // setup
-            var id = $"{onUser.SelectToken("accountId")}";
+            var isByName = !onUser.ContainsKey("accountId");
+            var user = isByName ? $"{onUser.SelectToken("displayName")}" : $"{onUser.SelectToken("accountId")}";
 
             // assign
-            JiraCommandsRepository.Assign(idOrKey: key, $"{id}").Send(executor);
+            if (isByName)
+            {
+                JiraCommandsRepository
+                    .Update(idOrKey: key, data: new { Fields = new { Assignee = new { Name = user } } })
+                    .Send(executor);
+            }
+            else if (onUser.ContainsKey("accountId"))
+            {
+                JiraCommandsRepository.Assign(idOrKey: key, $"{user}").Send(executor);
+            }
         }
 
         private JToken DoGetUser(string key, string nameOrAddress)
