@@ -261,13 +261,6 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             // setup
             var data = new Dictionary<string, object>
             {
-                ["update"] = new
-                {
-                    Comment = new[]
-                    {
-                        new { Add = new { Body = comment } }
-                    }
-                },
                 ["transition"] = new { Id = transition }
             };
 
@@ -277,6 +270,18 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 data["fields"] = new
                 {
                     Resolution = new { Name = resolution }
+                };
+            }
+
+            // setup: comment
+            if (!string.IsNullOrEmpty(comment))
+            {
+                data["update"] = new
+                {
+                    Comment = new[]
+                    {
+                        new { Add = new { Body = comment } }
+                    }
                 };
             }
 
