@@ -4,7 +4,7 @@
  * RESOURCES
  */
 using Gravity.Extensions;
-using System;
+
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -53,7 +53,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // get
-            return results;
+            return results.Count > 0 ? results : onDataTable[0].ToDictionary();
         }
 
         private static IEnumerable<IDictionary<string, object>> ApplyOne(DataTable t, DataTable dataTable)
