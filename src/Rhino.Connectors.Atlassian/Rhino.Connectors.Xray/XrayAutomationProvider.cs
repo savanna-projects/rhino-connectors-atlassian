@@ -457,7 +457,8 @@ namespace Rhino.Connectors.Xray
             AttachToTestPlan(testRun);
 
             // close
-            jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Closed", resolution: "Done");
+            var comment = Utilities.GetActionSignature("closed");
+            jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Closed", resolution: "Done", comment);
         }
 
         private void AttachToTestPlan(RhinoTestRun testRun)
