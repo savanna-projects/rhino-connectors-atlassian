@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30320.27
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray", "Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj", "{C8F540EF-3D17-4843-8831-8AA76C46ED28}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray", "Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj", "{C8F540EF-3D17-4843-8831-8AA76C46ED28}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{9D26B500-E353-480C-9631-F38B92EE69B4}"
 	ProjectSection(SolutionItems) = preProject
@@ -21,9 +21,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestSettings", "TestSetting
 		..\..\test\azure_settings_mstest.runsettings = ..\..\test\azure_settings_mstest.runsettings
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray.UnitTests", "Rhino.Connectors.Xray.UnitTests\Rhino.Connectors.Xray.UnitTests.csproj", "{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.AtlassianClients", "Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj", "{66F1F228-A4ED-436F-9759-DBD0DE395D43}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.AtlassianClients", "Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj", "{66F1F228-A4ED-436F-9759-DBD0DE395D43}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.UnitTests", "Rhino.Connectors.Xray.UnitTests\Rhino.Connectors.Xray.UnitTests.csproj", "{1E06A425-61B7-4968-B33B-1ED03C5A3F42}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.Cloud", "Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj", "{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.TestsGenerator", "Rhino.Connectors.TestsGenerator\Rhino.Connectors.TestsGenerator.csproj", "{8EF967A8-C684-456E-85B4-FDD55C54FEEE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,14 +39,22 @@ Global
 		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C8F540EF-3D17-4843-8831-8AA76C46ED28}.Release|Any CPU.Build.0 = Release|Any CPU
-		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{407C4B1C-21CB-4629-BE69-E78BBB0C3AD2}.Release|Any CPU.Build.0 = Release|Any CPU
 		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{66F1F228-A4ED-436F-9759-DBD0DE395D43}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E06A425-61B7-4968-B33B-1ED03C5A3F42}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E06A425-61B7-4968-B33B-1ED03C5A3F42}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E06A425-61B7-4968-B33B-1ED03C5A3F42}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E06A425-61B7-4968-B33B-1ED03C5A3F42}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA11EA91-A13D-44B6-B8BB-5C09CAE259F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

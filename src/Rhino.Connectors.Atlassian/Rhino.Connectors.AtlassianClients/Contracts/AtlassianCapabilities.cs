@@ -5,13 +5,13 @@
  */
 using System.Runtime.Serialization;
 
-namespace Rhino.Connectors.Xray.Contracts
+namespace Rhino.Connectors.AtlassianClients.Contracts
 {
     /// <summary>
     /// Constants for XRay Connector capabilities
     /// </summary>
     [DataContract]
-    public static class XrayCapabilities
+    public static class AtlassianCapabilities
     {
         /// <summary>
         /// Test case issue type capability, if not set "Test" is the default.
@@ -58,6 +58,26 @@ namespace Rhino.Connectors.Xray.Contracts
         /// <summary>
         /// Holds test plans keys. If set, when test is created it will also be associated with these test plans.
         /// </summary>
+        [DataMember]
         public const string TestPlans = "testPlans";
+
+        /// <summary>
+        /// The Jira API version to use when executing requests against Jira API. If not specified, "latest" will be used.
+        /// </summary>
+        [DataMember]
+        public const string JiraApiVersion = "jiraApiVersion";
+
+        /// <summary>
+        /// The number of parallel requests which will send when using Jira API. If not specified, 4 will be used.
+        /// </summary>
+        [DataMember]
+        public const string BucketSize = "bucketSize";
+
+        /// <summary>
+        /// The status which will be assigned to a test case when the test result is inconclusive.
+        /// </summary>
+        /// <remarks>Inconclusive can happen when test have no assertions or violating pass/fail thresholds.</remarks>
+        [DataMember]
+        public const string InconclusiveStatus = "inconclusiveStatus";
     }
 }

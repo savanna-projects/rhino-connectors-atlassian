@@ -11,17 +11,18 @@ using Rhino.Api.Contracts.AutomationProvider;
 
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
-namespace Rhino.Connectors.Xray.Extensions
+namespace Rhino.Connectors.Xray.Cloud.Extensions
 {
-    internal static class JObjectExtensions
+    internal static class JTokenExtensions
     {
         /// <summary>
         /// Converts test management test case interface into a RhinoTestCase.
         /// </summary>
         /// <param name="testCase">Test case token (from Jira response) to convert.</param>
         /// <returns>RhinoTestCase object.</returns>
-        public static RhinoTestCase ToRhinoTestCase(this JObject testCase)
+        public static RhinoTestCase ToRhinoTestCase(this JToken testCase)
         {
             // initialize test case instance & fetch issues            
             var onTestCase = new RhinoTestCase();
@@ -48,9 +49,13 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 var step = new RhinoTestStep
                 {
-                    Action = $"{testStep["fields"]["Action"]}".Replace("{{", "{").Replace("}}", "}"),
-                    Expected = $"{testStep["fields"]["Expected Result"]}".Replace("{{", "{").Replace("}}", "}")
+                    Action = $"{testStep["action"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "["),
+                    Expected = $"{testStep["result"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "[")
                 };
+
+                // normalize auto links (if any)
+                step.Action = NormalizeAutoLink(step.Action);
+                step.Expected = NormalizeAutoLink(step.Expected);
 
                 // normalize line breaks from XRay
                 var onExpected = step.Expected.SplitByLines();
@@ -66,19 +71,55 @@ namespace Rhino.Connectors.Xray.Extensions
             return onTestCase;
         }
 
-        private static string GetPriority(JObject testCase)
+        private static string GetPriority(JToken testCase)
         {
             // setup conditions
             var priorityField = testCase.SelectToken("fields.priority");
 
             // exit conditions
-            if(priorityField == default)
+            if (priorityField == default)
             {
                 return string.Empty;
             }
 
             // setup priority
             return $"{priorityField["id"]} - {priorityField["name"]}";
+        }
+
+        private static string NormalizeAutoLink(string input)
+        {
+            // setup
+            var match = Regex.Match(input, pattern: @"(?<=\{\[)[^\]]*(?=]\})");
+
+            // exit conditions
+            if (string.IsNullOrEmpty(match.Value))
+            {
+                return input;
+            }
+
+            // enqueue
+            var queue = new Queue<Match>();
+            queue.Enqueue(match);
+
+            // iterate
+            while (queue.Count > 0)
+            {
+                var onMatch = queue.Dequeue();
+                var segmeants = onMatch.Value.Split('|');
+
+                if (segmeants.Length <= 1)
+                {
+                    return onMatch.Value;
+                }
+                input = input.Replace($"[{onMatch.Value}]", segmeants[1]);
+
+                match = Regex.Match(input, pattern: @"(?<=\{\[)[^\]]*(?=]\})");
+                if (!string.IsNullOrEmpty(match.Value))
+                {
+                    queue.Enqueue(match);
+                }
+            }
+            return input;
         }
     }
 }

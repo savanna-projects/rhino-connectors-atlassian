@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj" />
     <ProjectReference Include="..\Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj" />
   </ItemGroup>
 

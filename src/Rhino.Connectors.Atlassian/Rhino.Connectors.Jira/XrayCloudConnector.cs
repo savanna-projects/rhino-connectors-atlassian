@@ -2,8 +2,8 @@
  * CHANGE LOG - keep only last 5 threads
  * 
  * RESSOURCES
- * https://docs.getxray.app/display/XRAY/REST+API
- * https://github.com/Xray-App/xray-postman-collections
+ * https://docs.getxray.app/display/XRAYCLOUD/REST+API
+ * https://docs.getxray.app/display/XRAYCLOUD/Global+Settings%3A+API+Keys
  */
 using Gravity.Abstraction.Logging;
 
@@ -17,24 +17,25 @@ using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
-namespace Rhino.Connectors.Xray
+namespace Rhino.Connectors.Xray.Cloud
 {
     /// <summary>
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
     [Connector(
-        value: Connector.JiraXRay,
-        Name = "Connector - Atlassian XRay, On-Premise",
+        value: Connector.JiraXryCloud,
+        Name = "Connector - Atlassian XRay, On-Cloud",
         Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
-    public class XrayConnector : RhinoConnector
+    public class XrayCloudConnector : RhinoConnector
     {
         #region *** Constructors   ***
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
-        public XrayConnector(RhinoConfiguration configuration)
+        public XrayCloudConnector(RhinoConfiguration configuration)
             : this(configuration, Utilities.Types)
         { }
 
@@ -43,7 +44,7 @@ namespace Rhino.Connectors.Xray
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
-        public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types)
+        public XrayCloudConnector(RhinoConfiguration configuration, IEnumerable<Type> types)
             : this(configuration, types, Utilities.CreateDefaultLogger(configuration))
         { }
 
@@ -53,7 +54,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
-        public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
+        public XrayCloudConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : this(configuration, types, logger, connect: true)
         { }
 
@@ -65,15 +66,11 @@ namespace Rhino.Connectors.Xray
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
         /// <param name="connect"><see cref="true"/> for immediately connect after construct <see cref="false"/> skip connection.</param>
         /// <remarks>If you skip connection you must explicitly call Connect method.</remarks>
-        public XrayConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
+        public XrayCloudConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
             : base(configuration, types, logger)
         {
-            // setup connector type (double check)
-            configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
-            configuration.ConnectorConfiguration.Connector = Connector.JiraXRay;
-
             // setup provider manager
-            ProviderManager = new XrayAutomationProvider(configuration, types, logger);
+            ProviderManager = new XrayCloudAutomationProvider(configuration, types, logger);
 
             // connect on constructing
             if (connect)
@@ -108,11 +105,26 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
         public override RhinoTestCase OnPostTestExecute(RhinoTestCase testCase)
         {
+            // constants
+            const string Updated = "runUpdated";
+
             // setup
-            var outcome = testCase.Actual ? "PASS" : "FAIL";
-            if (testCase.Inconclusive)
+            var outcome = testCase.Actual ? "PASSED" : "FAILED";
+            var alreadyFail = ProviderManager
+                .TestRun
+                .TestCases
+                .Any(i => i.Key == testCase.Key && !i.Actual && i.Context.ContainsKey(Updated) && (bool)i.Context[Updated]);
+
+            // failed on this run (mark as fail)
+            if (alreadyFail)
             {
-                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
+                outcome = "FAILED";
+            }
+
+            // inconclusive on this run (mark as default)
+            if (ProviderManager.TestRun.TestCases.Any(i => i.Key.Equals(testCase.Key) && i.Inconclusive))
+            {
+                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "TODO");
             }
 
             // put

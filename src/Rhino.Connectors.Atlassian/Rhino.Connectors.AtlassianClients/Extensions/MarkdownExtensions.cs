@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
-using Rhino.Connectors.AtlassianClients;
+using Rhino.Api.Contracts.Configuration;
 
 using System;
 using System.Collections.Generic;
@@ -18,15 +18,47 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-namespace Rhino.Connectors.Xray.Extensions
+namespace Rhino.Connectors.AtlassianClients.Extensions
 {
-    /// <summary>
-    /// Extension package for converting Rhino entities into XRay compatible markdown.
-    /// </summary>
     public static class MarkdownExtensions
     {
         // constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
+
+        /// <summary>
+        /// Parse a collection of key/value pairs into a Jira compliant markdown table.
+        /// </summary>
+        /// <param name="data">Collection to parse.</param>
+        /// <returns>Jira compliant markdown table.</returns>
+        public static string ToMarkdown(this IEnumerable<IDictionary<string, object>> data)
+        {
+            // exit conditions
+            if (!data.Any())
+            {
+                return string.Empty;
+            }
+
+            // get columns
+            var columns = data.First().Select(i => i.Key);
+
+            // exit conditions
+            if (!columns.Any())
+            {
+                return string.Empty;
+            }
+
+            // build header
+            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
+
+            // build rows
+            foreach (var dataRow in data)
+            {
+                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
+            }
+
+            // results
+            return markdown.Trim();
+        }
 
         #region *** Bug Markdown    ***
         /// <summary>
@@ -84,7 +116,7 @@ namespace Rhino.Connectors.Xray.Extensions
         /// </summary>
         /// <param name="testCase">RhinoTestCase to convert.</param>
         /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string BugMarkdownEnvironment(this RhinoTestCase testCase)
+        public static string MarkdownEnvironment(this RhinoTestCase testCase)
         {
             return EnvironmentToBugMarkdown(testCase);
         }
@@ -95,7 +127,7 @@ namespace Rhino.Connectors.Xray.Extensions
         /// </summary>
         /// <param name="testCase">RhinoTestCase to convert.</param>
         /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string BugMarkdownPlatform(this RhinoTestCase testCase)
+        public static string MarkdownPlatform(this RhinoTestCase testCase)
         {
             return PlatformToBugMarkdown(testCase);
         }
@@ -110,6 +142,17 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             return DescriptionToBugMarkdown(testCase);
         }
+
+        /// <summary>
+        /// Converts a RhinoTestCase.DataSource into XRay compatible markdown which can be placed in any
+        /// description type field.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to convert.</param>
+        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
+        public static string MarkdownDataSource(this RhinoTestCase testCase)
+        {
+            return DataSourceToBugMarkdown(testCase);
+        }
         #endregion
 
         #region *** Object Markdown ***
@@ -117,18 +160,18 @@ namespace Rhino.Connectors.Xray.Extensions
         /// Gets a markdown table reflection of the provided map collection.
         /// </summary>
         /// <param name="data">A collection of <see cref="IDictionary{TKey, TValue}"/> by which to create table.</param>
-        /// <returns>XRay style table.</returns>
-        public static string ToXrayMarkdown(this IEnumerable<IDictionary<string, object>> data)
+        /// <returns>Jira style table.</returns>
+        public static string ToJiraMarkdown(this IEnumerable<IDictionary<string, object>> data)
         {
-            return DictionariesToMarkdown(data);
+            return data.ToMarkdown();
         }
 
         /// <summary>
         /// Gets a markdown table reflection of the provided map collection.
         /// </summary>
         /// <param name="data">A <see cref="IDictionary{TKey, TValue}"/> by which to create table.</param>
-        /// <returns>XRay style table.</returns>
-        public static string ToXrayMarkdown(this IDictionary<string, object> data)
+        /// <returns>Jira style table.</returns>
+        public static string ToJiraMarkdown(this IDictionary<string, object> data)
         {
             return DictionaryToMarkdown(data);
         }
@@ -137,8 +180,8 @@ namespace Rhino.Connectors.Xray.Extensions
         /// Gets a markdown table reflection of the provided map collection.
         /// </summary>
         /// <param name="data">A JSON Object by which to create table.</param>
-        /// <returns>XRay style table.</returns>
-        public static string ToXrayMarkdown(this JObject data)
+        /// <returns>Jira style table.</returns>
+        public static string ToJiraMarkdown(this JToken data)
         {
             // exit conditions
             if (!data.Children().Any())
@@ -150,13 +193,25 @@ namespace Rhino.Connectors.Xray.Extensions
             var markdown = "||Key||Value||\\r\\n";
 
             // append rows
-            foreach (var item in data)
+            foreach (var item in data.AsJObject())
             {
                 markdown += $"|{item.Key}|{item.Value}|\\r\\n";
             }
 
             // results
             return markdown.Trim();
+        }
+        #endregion
+
+        #region *** Run Markdown    ***
+        /// <summary>
+        /// Gets a markdown description of this configuration.
+        /// </summary>
+        /// <param name="configuration">RhinoConfiguration to parse.</param>
+        /// <returns>Markdown description of this configuration</returns>
+        public static string GetRunDescription(this RhinoConfiguration configuration)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 
@@ -177,7 +232,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var name = Regex.Match(input: testCase.Priority, @"(?<=\d+\s+-\s+)\w+").Value;
 
             // extract
-            var priority = JObject
+            var priority = JToken
                 .Parse(priorityData)["allowedValues"]
                 .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
 
@@ -213,7 +268,7 @@ namespace Rhino.Connectors.Xray.Extensions
         private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
         {
             return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + DictionariesToMarkdown(testCase.DataSource).Replace(@"""", @"\""")
+                ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToMarkdown().Replace(@"""", @"\""")
                 : string.Empty;
         }
 
@@ -327,45 +382,15 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // build
-            var markdown = action + "||Result||Assertion||\\r\\n";
+            var markdown = new List<string>();
             for (int i = 0; i < expectedResults.Length; i++)
             {
-                var outcome = failedOn.Contains(i) ? "(x)" : "(/)";
-                markdown += "|" + outcome + "|" + expectedResults[i].Replace("{", "\\\\{") + "|\\r\\n";
+                var outcome = failedOn.Contains(i) ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
+                markdown.Add(outcome + expectedResults[i].Replace("{", "\\\\{") + "{panel}");
             }
 
             // results
-            return markdown.Replace(@"""", @"\""").Trim();
-        }
-
-        private static string DictionariesToMarkdown(IEnumerable<IDictionary<string, object>> data)
-        {
-            // exit conditions
-            if (!data.Any())
-            {
-                return string.Empty;
-            }
-
-            // get columns
-            var columns = data.First().Select(i => i.Key);
-
-            // exit conditions
-            if (!columns.Any())
-            {
-                return string.Empty;
-            }
-
-            // build header
-            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
-
-            // build rows
-            foreach (var dataRow in data)
-            {
-                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
+            return string.Join("\\r\\n", markdown);
         }
 
         private static string DictionaryToMarkdown(IDictionary<string, object> data)
