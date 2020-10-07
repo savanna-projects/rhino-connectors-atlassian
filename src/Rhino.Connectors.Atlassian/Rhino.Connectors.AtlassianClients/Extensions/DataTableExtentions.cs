@@ -4,6 +4,7 @@
  * RESOURCES
  */
 using Gravity.Extensions;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -28,16 +29,26 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // merge conditions
-            var mergeable = dataTables.Where(i => i.Rows.Count == t.Rows.Count);
-            var onTable = new[] { t }.Concat(mergeable).Merge();
+            var mergeable = new[] { t }.Concat(dataTables).GroupBy(x => x.Rows.Count).Where(g => g.Count() > 1);
+            var notMergeable = new[] { t }.Concat(dataTables).GroupBy(x => x.Rows.Count).Where(g => g.Count() == 1).SelectMany(i=>i);
+
+            var onTables = new List<DataTable>();
+            foreach (var group in mergeable)
+            {
+                var table = group.Merge();
+                onTables.Add(table);
+            }
+
+            // setup
+            var onDataTable = notMergeable.Concat(onTables).ToArray();
 
             // setup
             var results = new List<IDictionary<string, object>>();
 
             // iterate
-            foreach (var dataTable in dataTables.Except(mergeable))
+            foreach (var dataTable in onDataTable.Skip(1))
             {
-                var rows = ApplyOne(onTable, dataTable);
+                var rows = ApplyOne(onDataTable[0], dataTable);
                 results.AddRange(rows);
             }
 
