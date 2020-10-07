@@ -476,9 +476,62 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="bugIssueKey">The bug issue key to close.</param>
         /// <param name="status">The status which will make the bug closed (i.e. Done or Closed).</param>
         /// <param name="resolution">The resolution of the closure.</param>
+        /// <param name="labels">A collecction of labels to apply when closing the bug.</param>
         /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
         /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
-        public static bool CloseBug(this RhinoTestCase testCase, string bugIssueKey, string status, string resolution, JiraClient jiraClient)
+        public static bool CloseBug(
+            this RhinoTestCase testCase,
+            string bugIssueKey,
+            string status,
+            string resolution,
+            IEnumerable<string> labels,
+            JiraClient jiraClient)
+        {
+            return DoCloseBug(testCase, bugIssueKey, status, resolution, labels, jiraClient);
+        }
+
+        /// <summary>
+        /// Close a bug based on this RhinoTestCase.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to close a bug.</param>
+        /// <param name="bugIssueKey">The bug issue key to close.</param>
+        /// <param name="status">The status which will make the bug closed (i.e. Done or Closed).</param>
+        /// <param name="resolution">The resolution of the closure.</param>
+        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
+        /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
+        public static bool CloseBug(
+            this RhinoTestCase testCase,
+            string bugIssueKey,
+            string status,
+            string resolution,
+            JiraClient jiraClient)
+        {
+            return DoCloseBug(testCase, bugIssueKey, status, resolution, Array.Empty<string>(), jiraClient);
+        }
+
+        /// <summary>
+        /// Close a bug based on this RhinoTestCase.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase by which to close a bug.</param>
+        /// <param name="bugIssueKey">The bug issue key to close.</param>
+        /// <param name="status">The status which will make the bug closed (i.e. Done or Closed).</param>
+        /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
+        /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
+        public static bool CloseBug(
+            this RhinoTestCase testCase,
+            string bugIssueKey,
+            string status,
+            JiraClient jiraClient)
+        {
+            return DoCloseBug(testCase, bugIssueKey, status, string.Empty, Array.Empty<string>(), jiraClient);
+        }
+
+        private static bool DoCloseBug(
+            RhinoTestCase testCase,
+            string bugIssueKey,
+            string status,
+            string resolution,
+            IEnumerable<string> labels, JiraClient jiraClient)
         {
             // get existing bugs
             var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
@@ -497,6 +550,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             {
                 var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
                 jiraClient.AddComment(idOrKey: bugIssueKey, comment);
+            }
+
+            // label
+            if (transition && labels.Any())
+            {
+                var data = new { Fields = new { Labels = labels } };
+                jiraClient.UpdateIssue(idOrKey: bugIssueKey, data);
             }
 
             // get

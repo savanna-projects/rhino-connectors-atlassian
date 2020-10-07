@@ -117,7 +117,9 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                     .Select(i => $"{i.SelectToken("key")}")
                     .Where(i => !string.IsNullOrEmpty(i));
 
-                DoCloseBugs(testCase, status, resolution: !string.IsNullOrEmpty(resolution) ? "Duplicate" : string.Empty, bugs: onBugs);
+                var labels = new[] { "Duplicate" };
+
+                DoCloseBugs(testCase, status, resolution: !string.IsNullOrEmpty(resolution) ? "Duplicate" : string.Empty, labels, bugs: onBugs);
             }
 
             // update
@@ -151,7 +153,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             }
 
             // close bugs
-            return DoCloseBugs(testCase, status, resolution, bugs);
+            return DoCloseBugs(testCase, status, resolution, Array.Empty<string>(), bugs);
         }
 
         /// <summary>
@@ -178,18 +180,24 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             // close bugs: duplicate (if any)
             foreach (var bug in bugs.Skip(1))
             {
-                testCase.CloseBug($"{bug.SelectToken("key")}", status, !string.IsNullOrEmpty(resolution) ? "Duplicate" : string.Empty, client);
+                var labels = new[] { "Duplicate" };
+                testCase.CloseBug(
+                    $"{bug.SelectToken("key")}",
+                    status,
+                    resolution: !string.IsNullOrEmpty(resolution) ? "Duplicate" : string.Empty,
+                    labels,
+                    client);
             }
             return onBug;
         }
 
-        private IEnumerable<string> DoCloseBugs(RhinoTestCase testCase, string status, string resolution, IEnumerable<string> bugs)
+        private IEnumerable<string> DoCloseBugs(RhinoTestCase testCase, string status, string resolution, IEnumerable<string> labels, IEnumerable<string> bugs)
         {
             // close bugs
             var closedBugs = new List<string>();
             foreach (var bug in bugs)
             {
-                var isClosed = testCase.CloseBug(bugIssueKey: bug, status, resolution, client);
+                var isClosed = testCase.CloseBug(bugIssueKey: bug, status, resolution, labels, client);
 
                 // logs
                 if (isClosed)
