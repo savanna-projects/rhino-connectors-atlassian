@@ -210,7 +210,18 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns>Response as JSON LINQ Object instance.</returns>
         public JToken Create(object data)
         {
-            return DoCraeteOrUpdate(idOrKey: string.Empty, data: data);
+            return DoCraeteOrUpdate(idOrKey: string.Empty, data: data, comment: string.Empty);
+        }
+
+        /// <summary>
+        /// Creates an issue.
+        /// </summary>
+        /// <param name="data">The request body for creating the issue (JSON formatted).</param>
+        /// <param name="comment">Comment to add when creating.</param>
+        /// <returns>Response as JSON LINQ Object instance.</returns>
+        public JToken Create(object data, string comment)
+        {
+            return DoCraeteOrUpdate(idOrKey: string.Empty, data: data, comment);
         }
         #endregion
 
@@ -223,7 +234,19 @@ namespace Rhino.Connectors.AtlassianClients
         /// <returns><see cref="true"/> if update was successful; <see cref="false"/> if not.</returns>
         public bool UpdateIssue(string idOrKey, object data)
         {
-            return DoCraeteOrUpdate(idOrKey, data: data) != default;
+            return DoCraeteOrUpdate(idOrKey, data: data, comment: string.Empty) != default;
+        }
+
+        /// <summary>
+        /// Creates an issue under Jira Server.
+        /// </summary>
+        /// <param name="idOrKey">Jira issue id or issue key.</param>
+        /// <param name="data">The request body for creating the issue (JSON formatted).</param>
+        /// <param name="comment">Comment to add when updating.</param>
+        /// <returns><see cref="true"/> if update was successful; <see cref="false"/> if not.</returns>
+        public bool UpdateIssue(string idOrKey, object data, string comment)
+        {
+            return DoCraeteOrUpdate(idOrKey, data: data, comment) != default;
         }
         #endregion
 
@@ -515,7 +538,7 @@ namespace Rhino.Connectors.AtlassianClients
         }
 
         // creates or updates an issue by id or key
-        private JToken DoCraeteOrUpdate(string idOrKey, object data)
+        private JToken DoCraeteOrUpdate(string idOrKey, object data, string comment)
         {
             // setup conditions
             var isUpdate = !string.IsNullOrEmpty(idOrKey);
@@ -548,10 +571,10 @@ namespace Rhino.Connectors.AtlassianClients
             logger?.Debug($"Create-Issue [{key}] = true");
 
             // comment
-            var action = isUpdate ? "updated" : "created";
-            JiraCommandsRepository
-                .AddComment(idOrKey: key, comment: Api.Extensions.Utilities.GetActionSignature(action))
-                .Send(executor);
+            if (!string.IsNullOrEmpty(comment))
+            {
+                JiraCommandsRepository.AddComment(idOrKey: key, comment).Send(executor);
+            }
 
             // results
             return response;

@@ -439,6 +439,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         {
             // setup
             var issueBody = testCase.BugMarkdown(jiraClient);
+            var comment =
+                $"{RhinoUtilities.GetActionSignature("created")} " +
+                $"On execution [{testCase.TestRunKey}]";
 
             // post
             var response = jiraClient.Create(issueBody);
@@ -448,9 +451,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // link to test case
-            var comment =
-                $"{RhinoUtilities.GetActionSignature("created")} " +
-                $"On execution [{testCase.TestRunKey}]";
             jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
 
             // add attachments
