@@ -282,21 +282,21 @@ namespace Rhino.Connectors.Xray
             var jsonObject = jiraClient.Get(issueKey).AsJObject();
 
             // parse into connector test case
-            var test = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
-            if (test.Key.Equals("-1"))
+            var testCase = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
+            if (testCase.Key.Equals("-1"))
             {
-                return test;
+                return testCase;
             }
 
             // setup project key
-            test.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
+            testCase.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
 
             // load test set (if available - will take the )
             var customField = jiraClient.GetCustomField(TestCaseSchema);
             var testSets = jsonObject.SelectToken($"..{customField}");
             if (testSets.Any())
             {
-                test.TestSuites = testSets.Select(i => $"{i}");
+                testCase.TestSuites = testSets.Select(i => $"{i}");
             }
 
             // load test-plans if any
@@ -307,24 +307,27 @@ namespace Rhino.Connectors.Xray
             {
                 onTestPlans.Add($"{testPlan}");
             }
-            test.Context["testPlans"] = onTestPlans.Count > 0 ? onTestPlans : new List<string>();
+            testCase.Context["testPlans"] = onTestPlans.Count > 0 ? onTestPlans : new List<string>();
 
             // load data-sources (multiple preconditions data loading)
             customField = jiraClient.GetCustomField(PreconditionSchema);
-            var preconditions = jsonObject.SelectToken($"..{customField}");
-            if (!preconditions.Any())
+            var preconditions = jsonObject.SelectToken($"..{customField}")?.Select(i => $"{i}");
+            if (preconditions?.Any() != true)
             {
-                return test;
+                return testCase;
             }
 
             // load preconditions
-            var mergedDataSource = preconditions
-                .Select(i => new DataTable().FromMarkDown($"{jiraClient.Get($"{i}").SelectToken("fields.description")}".Trim(), default))
-                .Merge();
-            test.DataSource = mergedDataSource.ToDictionary().Cast<Dictionary<string, object>>().ToArray();
+            // get all preconditions as data tables
+            var dataTables = jiraClient
+                .Get(preconditions)
+                .Select(i => new DataTable().FromMarkDown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim(), default));
+
+            // put
+            testCase.DataSource = dataTables.First().Apply(dataTables.Skip(1)).ToArray();
 
             // return populated test
-            return test;
+            return testCase;
         }
         #endregion
 
