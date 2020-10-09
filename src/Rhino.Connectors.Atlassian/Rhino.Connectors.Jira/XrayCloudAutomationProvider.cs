@@ -722,6 +722,12 @@ namespace Rhino.Connectors.Xray.Cloud
         // UTILITIES
         private void DoUpdateTestResults(RhinoTestCase testCase)
         {
+            // exit conditions
+            if (Configuration.IsDryRun())
+            {
+                return;
+            }
+
             // constants
             const string ContextKey = "executionDetails";
 
