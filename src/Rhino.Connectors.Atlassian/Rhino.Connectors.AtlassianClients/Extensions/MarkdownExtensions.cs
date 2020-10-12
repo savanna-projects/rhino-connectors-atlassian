@@ -390,7 +390,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // results
-            return string.Join("\\r\\n", markdown);
+            return action + string.Join("\\r\\n", markdown);
         }
 
         private static string DictionaryToMarkdown(IDictionary<string, object> data)

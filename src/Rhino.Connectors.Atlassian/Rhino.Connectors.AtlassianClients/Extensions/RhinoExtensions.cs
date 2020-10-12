@@ -298,6 +298,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 // normalize to markdown
                 var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
                 bugData = string.Join(Environment.NewLine, onBugData);
+                bugData = bugData.Substring(0, bugData.LastIndexOf('|') + 1);
 
                 // exit conditions
                 var isBugCapabilities = !string.IsNullOrEmpty(compareableTstData);
