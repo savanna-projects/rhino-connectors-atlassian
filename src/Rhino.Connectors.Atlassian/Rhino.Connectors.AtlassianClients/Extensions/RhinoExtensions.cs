@@ -246,6 +246,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 // normalize to markdown
                 var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
                 tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
+                tstCapabilities = tstCapabilities.Substring(0, tstCapabilities.LastIndexOf('|') + 1);
 
                 // extract bug capabilities
                 var bugCapabilities = Regex.Match(
@@ -255,6 +256,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 // normalize to markdown
                 var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
                 bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
+                bugCapabilities = bugCapabilities.Substring(0, bugCapabilities.LastIndexOf('|') + 1);
 
                 // exit conditions
                 var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
@@ -296,6 +298,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 // normalize to markdown
                 var onBugData = Regex.Split(string.IsNullOrEmpty(bugData) ? string.Empty : "||" + bugData + "|", @"\\r\\n");
                 bugData = string.Join(Environment.NewLine, onBugData);
+                bugData = bugData.Substring(0, bugData.LastIndexOf('|') + 1);
 
                 // exit conditions
                 var isBugCapabilities = !string.IsNullOrEmpty(compareableTstData);
