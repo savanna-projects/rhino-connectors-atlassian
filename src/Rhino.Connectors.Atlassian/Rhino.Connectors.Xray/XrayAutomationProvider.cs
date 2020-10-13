@@ -395,7 +395,7 @@ namespace Rhino.Connectors.Xray
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
-                .Replace("[assignee]", Configuration.ConnectorConfiguration.User);
+                .Replace("[assignee]", Configuration.ConnectorConfiguration.UserName);
             var responseBody = jiraClient.Create(requestBody, comment);
 
             // setup

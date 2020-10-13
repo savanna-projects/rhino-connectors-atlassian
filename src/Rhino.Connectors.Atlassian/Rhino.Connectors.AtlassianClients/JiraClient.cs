@@ -149,7 +149,7 @@ namespace Rhino.Connectors.AtlassianClients
         /// <param name="key">The issue key.</param>
         public void Assign(string key)
         {
-            DoAssign(key, Authentication.User);
+            DoAssign(key, Authentication.UserName);
         }
 
         /// <summary>

@@ -74,7 +74,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 Capabilities = configuration.Capabilities,
                 Collection = configuration.ConnectorConfiguration.Collection,
                 Password = configuration.ConnectorConfiguration.Password,
-                User = configuration.ConnectorConfiguration.User,
+                UserName = configuration.ConnectorConfiguration.UserName,
                 Project = configuration.ConnectorConfiguration.Project
             };
         }
