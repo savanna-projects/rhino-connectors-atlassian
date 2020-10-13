@@ -233,14 +233,17 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
         private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
         {
+            // constants
+            const string Capabliites = "capabilities";
+
             try
             {
                 // setup
                 var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
                 // extract test capabilities
-                var tstCapabilities = driverParams.ContainsKey("capabilities")
-                    ? ((IDictionary<string, object>)driverParams["capabilities"]).ToJiraMarkdown()
+                var tstCapabilities = driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null
+                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>(JsonConvert.SerializeObject(driverParams[Capabliites])).ToJiraMarkdown()
                     : string.Empty;
 
                 // normalize to markdown

@@ -435,6 +435,9 @@ namespace Rhino.Connectors.Xray.Cloud
                 DoUpdateTestResults(testCase);
             }
 
+            // align
+            AlignResults(testRun);
+
             // test plan
             AttachToTestPlan(testRun);
 
@@ -461,6 +464,25 @@ namespace Rhino.Connectors.Xray.Cloud
             // attach
             Parallel.ForEach(plans, options, plan
                 => xpandClient.AddExecutionToPlan(idAndKey: plan, idExecution: $"{testRun.Context["runtimeid"]}"));
+        }
+
+        private void AlignResults(RhinoTestRun testRun)
+        {
+            foreach (var testCase in testRun.TestCases.Select(i => i.Key).Distinct())
+            {
+                var anyFail = testRun.TestCases.Any(i => i.Key == testCase && !i.Actual && !i.Inconclusive);
+                if (!anyFail)
+                {
+                    continue;
+                }
+                var onTestCase = testRun.TestCases.FirstOrDefault(i => i.Key == testCase);
+                if (onTestCase == default)
+                {
+                    continue;
+                }
+                onTestCase.Context["outcome"] = "FAIL";
+                DoUpdateTestResults(onTestCase);
+            }
         }
         #endregion
 
