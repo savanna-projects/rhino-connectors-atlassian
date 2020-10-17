@@ -70,7 +70,10 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             var openBug = bugs.Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
 
             // assert
-            return openBug.Any() ? $"{openBug.First()}" : string.Empty;
+            var onBug = openBug.Any() ? openBug.First() : JToken.Parse("{}");
+
+            // get
+            return GetOpenBug(testCase, $"{onBug.SelectToken("key")}");
         }
 
         /// <summary>
@@ -143,14 +146,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         public IEnumerable<string> OnCloseBugs(RhinoTestCase testCase, string status, string resolution)
         {
             // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-
-            // get conditions (double check for bugs)
-            if (!bugs.Any())
-            {
-                bugs = DoGetBugs(testCase).Select(i => $"{i}");
-            }
+            var bugs = DoGetBugs(testCase).Select(i => $"{i.SelectToken("key")}").Where(i => !string.IsNullOrEmpty(i));
 
             // close bugs
             return DoCloseBugs(testCase, status, resolution, Array.Empty<string>(), bugs);
@@ -165,7 +161,9 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             // get existing bugs
             var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
             var contextBugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-            var bugs = client.Get(idsOrKeys: contextBugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
+            var bugs = client
+                .Get(idsOrKeys: contextBugs)
+                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));           
 
             // get conditions (double check for bugs)
             if (!bugs.Any())
@@ -240,7 +238,11 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             testCase.Context["bugs"] = bugsKeys;
 
             // get issues
-            return client.Get(bugsKeys);
+            var bugs = client.Get(bugsKeys);
+            testCase.Context["bugsData"] = bugs;
+
+            // get
+            return bugs;
         }
 
         private string DoCreateBug(RhinoTestCase testCase)
@@ -252,6 +254,44 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             return response == default
                 ? "-1"
                 : $"{Utilities.GetUrl(client.Authentication.Collection)}/browse/{response["key"]}";
+        }
+
+        private string GetOpenBug(RhinoTestCase testCase, string bugIssueKey)
+        {
+            // exit conditions
+            if (string.IsNullOrEmpty(bugIssueKey))
+            {
+                return string.Empty;
+            }
+
+            // constants
+            const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
+
+            // setup conditions
+            var isBugsData = testCase.Context.ContainsKey("bugsData") && testCase.Context["bugsData"] != default;
+
+            // setup
+            var bugs = isBugsData ? (IEnumerable<JToken>)testCase.Context["bugsData"] : Array.Empty<JToken>();
+
+            // get
+            if (!bugs.Any())
+            {
+                return string.Empty;
+            }
+
+            // assert: any
+            var onBug = bugs.FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(bugIssueKey, Compare));
+            if (onBug == default)
+            {
+                return string.Empty;
+            }
+
+            // assert: status
+            var isDoneStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Done", Compare);
+            var isClosedStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Done", Compare);
+
+            // get
+            return !(isDoneStatus || isClosedStatus) ? $"{onBug}" : string.Empty;
         }
     }
 }
