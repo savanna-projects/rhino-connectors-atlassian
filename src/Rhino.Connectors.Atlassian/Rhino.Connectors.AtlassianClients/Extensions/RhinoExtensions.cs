@@ -539,22 +539,21 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             string resolution,
             IEnumerable<string> labels, JiraClient jiraClient)
         {
-            // get existing bugs
-            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
-            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
-            var exists = bugs.Any(i => i.Equals(bugIssueKey, Compare));
-
             // exit conditions
-            if (!exists)
+            if (string.IsNullOrEmpty(GetOpenBug(testCase, bugIssueKey)))
             {
                 return true;
             }
 
+            // set comment
+            var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
+            jiraClient.AddComment(idOrKey: bugIssueKey, comment);
+
             // send transition
             var transition = jiraClient.CreateTransition(idOrKey: bugIssueKey, status, resolution, string.Empty);
-            if (transition)
+            if (!transition)
             {
-                var comment = $"{RhinoUtilities.GetActionSignature("closed")} On execution [{testCase.TestRunKey}]";
+                comment = "Rhino Engine failed to create transition for this issue. Please check Rhino log for more details.";
                 jiraClient.AddComment(idOrKey: bugIssueKey, comment);
             }
 
@@ -567,6 +566,41 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // get
             return transition;
+        }
+
+        private static string GetOpenBug(RhinoTestCase testCase, string bugIssueKey)
+        {
+            // exit conditions
+            if (string.IsNullOrEmpty(bugIssueKey))
+            {
+                return string.Empty;
+            }
+
+            // setup conditions
+            var isBugsData = testCase.Context.ContainsKey("bugsData") && testCase.Context["bugsData"] != default;
+
+            // setup
+            var bugs = isBugsData ? (IEnumerable<JToken>)testCase.Context["bugsData"] : Array.Empty<JToken>();
+
+            // get
+            if (!bugs.Any())
+            {
+                return string.Empty;
+            }
+
+            // assert: any
+            var onBug = bugs.FirstOrDefault(i => $"{i.SelectToken("key")}".Equals(bugIssueKey, Compare));
+            if (onBug == default)
+            {
+                return string.Empty;
+            }
+
+            // assert: status
+            var isDoneStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Done", Compare);
+            var isClosedStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Closed", Compare);
+
+            // get
+            return !(isDoneStatus || isClosedStatus) ? $"{onBug}" : string.Empty;
         }
         #endregion
     }

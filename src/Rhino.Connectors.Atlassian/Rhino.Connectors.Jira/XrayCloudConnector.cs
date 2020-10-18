@@ -69,6 +69,10 @@ namespace Rhino.Connectors.Xray.Cloud
         public XrayCloudConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
             : base(configuration, types, logger)
         {
+            // setup connector type (double check)
+            configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
+            configuration.ConnectorConfiguration.Connector = Connector.JiraXryCloud;
+
             // setup provider manager
             ProviderManager = new XrayCloudAutomationProvider(configuration, types, logger);
 

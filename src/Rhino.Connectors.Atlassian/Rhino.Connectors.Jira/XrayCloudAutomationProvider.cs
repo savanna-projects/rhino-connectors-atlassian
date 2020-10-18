@@ -108,10 +108,21 @@ namespace Rhino.Connectors.Xray.Cloud
             Parallel.ForEach(ids, options, id => map[id] = jiraClient.GetIssueType(idOrKey: id));
 
             // entities
-            var byTests = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare)).Select(i => i.Key);
-            var bySets = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare)).Select(i => i.Key);
-            var byPlans = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.PlanType]}", Compare)).Select(i => i.Key);
-            var byExecutions = map.Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.ExecutionType]}", Compare)).Select(i => i.Key);
+            var byTests = map
+                .Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare))
+                .Select(i => i.Key);
+
+            var bySets = map
+                .Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare))
+                .Select(i => i.Key);
+
+            var byPlans = map
+                .Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.PlanType]}", Compare))
+                .Select(i => i.Key);
+
+            var byExecutions = map
+                .Where(i => i.Value.Equals($"{capabilities[AtlassianCapabilities.ExecutionType]}", Compare))
+                .Select(i => i.Key);
 
             // setup
             var testCases = new ConcurrentBag<RhinoTestCase>();
