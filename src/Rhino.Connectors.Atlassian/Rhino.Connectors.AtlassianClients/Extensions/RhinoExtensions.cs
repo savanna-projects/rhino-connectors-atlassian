@@ -123,13 +123,17 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// </summary>
         /// <param name="configuration">Configuration to get bucket size from.</param>
         /// <returns>Bucket size.</returns>
-        public static int GetBuketSize(this RhinoConfiguration configuration)
+        public static int GetBucketSize(this RhinoConfiguration configuration)
         {
             // setup
             var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
-            var capabilities = configuration.Capabilities.ContainsKey(options)
-                ? configuration.Capabilities[options] as IDictionary<string, object>
-                : new Dictionary<string, object>();
+            var capabilities = new Dictionary<string, object>();
+
+            if (configuration.Capabilities.ContainsKey(options))
+            {
+                var cap = JsonConvert.SerializeObject(configuration.Capabilities[options]);
+                capabilities = JsonConvert.DeserializeObject<Dictionary<string, object>>(cap);
+            }
 
             // get bucket size value
             if (capabilities?.ContainsKey(ProviderCapability.BucketSize) == false)
