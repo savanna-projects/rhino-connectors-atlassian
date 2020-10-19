@@ -95,7 +95,7 @@ namespace Rhino.Connectors.Xray
             ravenClient = new JiraCommandsExecutor(authentication);
 
             // capabilities
-            BucketSize = configuration.GetBuketSize();
+            BucketSize = configuration.GetBucketSize();
             configuration.PutDefaultCapabilities();
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>

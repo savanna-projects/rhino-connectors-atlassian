@@ -79,7 +79,7 @@ namespace Rhino.Connectors.Xray.Cloud
             executor = new JiraCommandsExecutor(configuration.GetJiraAuthentication());
 
             // capabilities
-            BucketSize = configuration.GetBuketSize();
+            BucketSize = configuration.GetBucketSize();
             configuration.PutDefaultCapabilities();
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXryCloud}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXryCloud}:options"] as IDictionary<string, object>
