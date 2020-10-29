@@ -345,6 +345,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var tstOptions = driverParams.ContainsKey("options")
                 ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
                 : string.Empty;
+            if (tstOptions.Equals("{}"))
+            {
+                tstOptions = string.Empty;
+            }
 
             // extract bug capabilities
             var onBugOptions = Regex.Match(input: onBug, pattern: @"(?<=Options\W+\\r\\n\{code:json}).*?(?=\{code})").Value;
