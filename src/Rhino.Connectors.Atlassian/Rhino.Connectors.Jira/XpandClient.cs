@@ -489,6 +489,16 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             return XpandCommandsRepository.SetCommentOnExecution(idAndKey, comment).Send(executor);
         }
+
+        /// <summary>
+        /// Adds an existing defect to an existing execution.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the bug issue.</param>
+        /// <param name="idExecution">The internal runtime id of the excution.</param>
+        public JToken AddDefectToExecution((string id, string key) idAndKey, string idExecution)
+        {
+            return XpandCommandsRepository.AddDefectToExecution(idAndKey, idExecution).Send(executor);
+        }
         #endregion
 
         #region *** Post: Test Steps   ***

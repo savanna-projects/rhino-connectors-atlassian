@@ -46,7 +46,7 @@ namespace Rhino.Connectors.Xray
         private readonly ILogger logger;
         private readonly IDictionary<string, object> capabilities;
         private readonly JiraClient jiraClient;
-        private readonly JiraCommandsExecutor ravenClient;
+        private readonly JiraCommandsExecutor jiraExecutor;
         private readonly JiraBugsManager bugsManager;
 
         #region *** Public Constants  ***
@@ -92,7 +92,7 @@ namespace Rhino.Connectors.Xray
 
             var authentication = configuration.GetJiraAuthentication();
             jiraClient = new JiraClient(authentication);
-            ravenClient = new JiraCommandsExecutor(authentication);
+            jiraExecutor = new JiraCommandsExecutor(authentication);
 
             // capabilities
             BucketSize = configuration.GetBucketSize();
@@ -481,7 +481,7 @@ namespace Rhino.Connectors.Xray
 
             // send
             var options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
-            Parallel.ForEach(commands, options, command => ravenClient.SendCommand(command));
+            Parallel.ForEach(commands, options, command => jiraExecutor.SendCommand(command));
         }
         #endregion
 
@@ -525,6 +525,43 @@ namespace Rhino.Connectors.Xray
         public override string OnCreateBug(RhinoTestCase testCase)
         {
             return bugsManager.OnCreateBug(testCase);
+        }
+
+        /// <summary>
+        /// Executes a routie of post bug creation.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to execute routine on.</param>
+        public override void PostCreateBug(RhinoTestCase testCase)
+        {
+            // exit conditions
+            if (!testCase.Context.ContainsKey("lastBugKey"))
+            {
+                return;
+            }
+
+            // setup
+            var format = $"{Utilities.GetActionSignature("{0}")} On execution [{testCase.TestRunKey}]";
+            var key = $"{testCase.Context["lastBugKey"]}";
+            var id = GetExecution(testCase);
+
+            // put
+            testCase.CreateInwardLink(jiraClient, key, linkType: "Blocks", string.Format(format, "created"));
+
+            // post
+            var command = RavenCommandsRepository.AddDefectToExecution(keyBug: key, idExecution: id);
+            jiraExecutor.SendCommand(command);
+        }
+
+        private string GetExecution(RhinoTestCase testCase)
+        {
+            // exit conditions
+            if (!testCase.Context.ContainsKey("runtimeid"))
+            {
+                return string.Empty;
+            }
+
+            // get
+            return $"{testCase.Context["runtimeid"]}";
         }
 
         /// <summary>

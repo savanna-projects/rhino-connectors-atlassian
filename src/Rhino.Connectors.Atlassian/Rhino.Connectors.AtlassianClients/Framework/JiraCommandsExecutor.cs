@@ -294,7 +294,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         // gets a generic get request.
-        public static HttpRequestMessage GenericGetRequest(JiraAuthentication authentication, string route)
+        private static HttpRequestMessage GenericGetRequest(JiraAuthentication authentication, string route)
         {
             // address
             var baseAddress = GetBaseAddress(authentication);
@@ -310,7 +310,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         // gets a generic post request.
-        public static HttpRequestMessage GenericPostRequest(JiraAuthentication authentication, string route, object data)
+        private static HttpRequestMessage GenericPostRequest(JiraAuthentication authentication, string route, object data)
         {
             //setup
             var onPayload = JsonConvert.SerializeObject(data, JsonSettings);
@@ -324,7 +324,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         // gets a generic get request.
-        public static HttpRequestMessage GenericDeleteRequest(JiraAuthentication authentication, string route)
+        private static HttpRequestMessage GenericDeleteRequest(JiraAuthentication authentication, string route)
         {
             // address
             var baseAddress = GetBaseAddress(authentication);
@@ -340,7 +340,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         // gets a generic put request.
-        public static HttpRequestMessage GenericPutRequest(JiraAuthentication authentication, string route, object data)
+        private static HttpRequestMessage GenericPutRequest(JiraAuthentication authentication, string route, object data)
         {
             //setup
             var onPayload = JsonConvert.SerializeObject(data, JsonSettings);
