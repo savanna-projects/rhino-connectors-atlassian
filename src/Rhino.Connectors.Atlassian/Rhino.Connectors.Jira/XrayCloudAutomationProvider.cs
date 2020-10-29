@@ -486,7 +486,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 {
                     continue;
                 }
-                var onTestCase = testRun.TestCases.FirstOrDefault(i => i.Key == testCase);
+                var onTestCase = testRun.TestCases.FirstOrDefault(i => i.Key == testCase && !i.Actual);
                 if (onTestCase == default)
                 {
                     continue;
@@ -722,6 +722,41 @@ namespace Rhino.Connectors.Xray.Cloud
         public override string OnCreateBug(RhinoTestCase testCase)
         {
             return bugsManager.OnCreateBug(testCase);
+        }
+
+        /// <summary>
+        /// Executes a routie of post bug creation.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to execute routine on.</param>
+        public override void PostCreateBug(RhinoTestCase testCase)
+        {
+            // exit conditions
+            if (!testCase.Context.ContainsKey("lastBugKey"))
+            {
+                return;
+            }
+
+            // setup
+            var format = $"{Utilities.GetActionSignature("{0}")} On execution [{testCase.TestRunKey}]";
+            var key = $"{testCase.Context["lastBugKey"]}";
+            var id = $"{testCase.Context["lastBugId"]}";
+            var execution = GetExecution(testCase);
+
+            // put
+            testCase.CreateInwardLink(jiraClient, key, linkType: "Blocks", string.Format(format, "created"));
+            xpandClient.AddDefectToExecution((id, key), execution);
+        }
+
+        private string GetExecution(RhinoTestCase testCase)
+        {
+            // exit conditions
+            if (!testCase.Context.ContainsKey("executionDetails"))
+            {
+                return string.Empty;
+            }
+
+            // get
+            return (testCase.Context["executionDetails"] as JToken)?.SelectToken("_id").ToString();
         }
 
         /// <summary>

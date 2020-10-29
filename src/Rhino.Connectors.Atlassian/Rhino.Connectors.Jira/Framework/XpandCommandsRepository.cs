@@ -421,6 +421,30 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
                 Route = string.Format(Format, idAndKey.id)
             };
         }
+
+        /// <summary>
+        /// Adds an existing defect to an existing execution.
+        /// </summary>
+        /// <param name="idAndKey">The ID and key of the bug issue.</param>
+        /// <param name="idExecution">The internal runtime id of the excution.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand AddDefectToExecution((string id, string key) idAndKey, string idExecution)
+        {
+            // setup
+            const string Format = "/api/internal/testrun/{0}/defects";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new[]
+                {
+                    new { Id = idAndKey.id, Key = idAndKey.key }
+                },
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idExecution)
+            };
+        }
         #endregion
 
         // UTILITIES

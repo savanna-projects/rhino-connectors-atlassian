@@ -345,6 +345,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var tstOptions = driverParams.ContainsKey("options")
                 ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
                 : string.Empty;
+            if (tstOptions.Equals("{}"))
+            {
+                tstOptions = string.Empty;
+            }
 
             // extract bug capabilities
             var onBugOptions = Regex.Match(input: onBug, pattern: @"(?<=Options\W+\\r\\n\{code:json}).*?(?=\{code})").Value;
@@ -449,9 +453,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         {
             // setup
             var issueBody = testCase.BugMarkdown(jiraClient);
-            var comment =
-                $"{RhinoUtilities.GetActionSignature("created")} " +
-                $"On execution [{testCase.TestRunKey}]";
 
             // post
             var response = jiraClient.Create(issueBody);
@@ -460,15 +461,14 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 return default;
             }
 
-            // link to test case
-            jiraClient.CreateIssueLink(linkType: "Blocks", inward: $"{response["key"]}", outward: testCase.Key, comment);
-
             // add attachments
             var files = testCase.GetScreenshots();
             jiraClient.AddAttachments($"{response["key"]}", files.ToArray());
 
             // add to context
             testCase.Context["bugOpenedResponse"] = response;
+            testCase.Context["lastBugKey"] = $"{response["key"]}";
+            testCase.Context["lastBugId"] = $"{response["id"]}";
 
             // assing
             jiraClient.Assign($"{response["key"]}");
@@ -477,6 +477,32 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return response;
         }
         #endregion
+
+        /// <summary>
+        /// Link an issue to this test case.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to which create a link.</param>
+        /// <param name="jiraClient">JiraClient to use for linking items.</param>
+        /// <param name="inward">Issue key to link.</param>
+        /// <param name="linkType">Link type (check jira for available link types).</param>
+        /// <param name="comment">Comment to create with this link.</param>
+        public static void CreateInwardLink(this RhinoTestCase testCase, JiraClient jiraClient, string inward, string linkType, string comment)
+        {
+            jiraClient.CreateIssueLink(linkType: linkType, inward, outward: testCase.Key, comment);
+        }
+
+        /// <summary>
+        /// Link an issue to this test case.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase to which create a link.</param>
+        /// <param name="jiraClient">JiraClient to use for linking items.</param>
+        /// <param name="outward">Issue key to link.</param>
+        /// <param name="linkType">Link type (check jira for available link types).</param>
+        /// <param name="comment">Comment to create with this link.</param>
+        public static void CreateOutwardLink(this RhinoTestCase testCase, JiraClient jiraClient, string outward, string linkType, string comment)
+        {
+            jiraClient.CreateIssueLink(linkType: linkType, testCase.Key, outward, comment);
+        }
 
         #region *** Close: Bug       ***
         /// <summary>

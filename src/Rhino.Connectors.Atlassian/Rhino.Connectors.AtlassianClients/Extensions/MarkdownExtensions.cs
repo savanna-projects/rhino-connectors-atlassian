@@ -335,7 +335,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             if (isCapabilites && capabilitesToken != null)
             {
                 var data = JsonConvert.DeserializeObject<IDictionary<string, object>>($"{capabilitesToken}");
-                capabilites = "\r\n*Capabilities*\r\n" + DictionaryToMarkdown(data);
+                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + DictionaryToMarkdown(data);
             }
 
             // setup driver options
@@ -345,12 +345,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var optionsAsObject =
                     JsonConvert.DeserializeObject<IDictionary<string, object>>($"{driverParams.SelectToken(Options)}");
                 var optionsAsStr = JsonConvert.SerializeObject(optionsAsObject, Formatting.Indented);
+                const string optionsHeader = "\r\n*Options*\r\n";
 
-                options =
-                    "\r\n*Options*\r\n" +
-                    "{code:json}" +
-                    $"{optionsAsStr}" +
-                    "{code}";
+                var optionsData = optionsHeader + "{code:json}" + optionsAsStr + "{code}";
+                options = optionsAsObject.Count == 0 ? string.Empty : optionsData;
             }
 
             // results

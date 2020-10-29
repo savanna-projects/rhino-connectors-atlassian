@@ -153,6 +153,26 @@ namespace Rhino.Connectors.Xray.Framework
                 Route = string.Format(Format, testPlanKey)
             };
         }
+
+        /// <summary>
+        /// Adds an existing defect to an existing execution.
+        /// </summary>
+        /// <param name="keyBug">The ID of the bug issue.</param>
+        /// <param name="idExecution">The internal runtime id of the excution.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand AddDefectToExecution(string keyBug, string idExecution)
+        {
+            // setup
+            const string Format = "/rest/raven/" + ApiVersion + "/api/testrun/{0}/defect";
+
+            // get
+            return new HttpCommand
+            {
+                Data = new[] { keyBug },
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, idExecution)
+            };
+        }
         #endregion
     }
 }
