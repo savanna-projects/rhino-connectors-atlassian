@@ -50,12 +50,6 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         public const string BugType = "bugType";
 
         /// <summary>
-        /// Holds a boolean value rather or not to create Test Execution entity when running tests.
-        /// </summary>
-        [DataMember]
-        public const string DryRun = "dryRun";
-
-        /// <summary>
         /// Holds test plans keys. If set, when test is created it will also be associated with these test plans.
         /// </summary>
         [DataMember]
@@ -66,12 +60,6 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         /// </summary>
         [DataMember]
         public const string JiraApiVersion = "jiraApiVersion";
-
-        /// <summary>
-        /// The number of parallel requests which will send when using Jira API. If not specified, 4 will be used.
-        /// </summary>
-        [DataMember]
-        public const string BucketSize = "bucketSize";
 
         /// <summary>
         /// The status which will be assigned to a test case when the test result is inconclusive.

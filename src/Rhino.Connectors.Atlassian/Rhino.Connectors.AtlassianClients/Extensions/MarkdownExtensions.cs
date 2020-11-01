@@ -237,7 +237,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
 
             // results
-            return $"{priority["id"]}";
+            return priority == null ? testCase.Priority : $"{priority.SelectToken("id")}";
         }
 
         private static string EnvironmentToBugMarkdown(RhinoTestCase testCase)

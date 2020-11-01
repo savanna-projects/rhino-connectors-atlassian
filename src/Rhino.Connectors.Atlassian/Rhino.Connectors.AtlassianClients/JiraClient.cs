@@ -12,6 +12,7 @@ using Gravity.Extensions;
 
 using Newtonsoft.Json.Linq;
 
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.AtlassianClients.Framework;
@@ -98,7 +99,7 @@ namespace Rhino.Connectors.AtlassianClients
         public IEnumerable<JToken> Get(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
+            var bucketSize = Authentication.GetCapability(ProviderCapability.BucketSize, 4);
             logger?.Trace($"Set-Parameter [{nameof(bucketSize)}] = [{bucketSize}]");
 
             // get issues
@@ -274,7 +275,7 @@ namespace Rhino.Connectors.AtlassianClients
         public void DeleteAttachments(string idOrKey)
         {
             // setup
-            var bucketSize = Authentication.GetCapability(AtlassianCapabilities.BucketSize, 10);
+            var bucketSize = Authentication.GetCapability(ProviderCapability.BucketSize, 10);
 
             // get issue
             var issue = JiraCommandsRepository.Get(idOrKey, fields: "attachment").Send(executor).AsJToken();

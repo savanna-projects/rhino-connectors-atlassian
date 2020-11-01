@@ -16,6 +16,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using RhinoUtilities = Rhino.Api.Extensions.Utilities;
+
 namespace Rhino.Connectors.AtlassianClients.Framework
 {
     /// <summary>
@@ -156,6 +158,19 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         /// Close all existing bugs.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
+        public IEnumerable<string> OnCloseBugs(RhinoTestCase testCase, string status, string resolution, IEnumerable<string> bugs)
+        {
+            // set existing bugs
+            testCase.Context["bugs"] = bugs;
+
+            // close bugs
+            return DoCloseBugs(testCase, status, resolution, Array.Empty<string>(), bugs);
+        }
+
+        /// <summary>
+        /// Close all existing bugs.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public string OnCloseBug(RhinoTestCase testCase, string status, string resolution)
         {
             // get existing bugs
@@ -163,7 +178,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             var contextBugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
             var bugs = client
                 .Get(idsOrKeys: contextBugs)
-                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));           
+                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
 
             // get conditions (double check for bugs)
             if (!bugs.Any())
