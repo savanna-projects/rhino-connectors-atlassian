@@ -125,25 +125,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns>Bucket size.</returns>
         public static int GetBucketSize(this RhinoConfiguration configuration)
         {
-            // setup
-            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
-            var capabilities = new Dictionary<string, object>();
-
-            if (configuration.Capabilities.ContainsKey(options))
-            {
-                var cap = JsonConvert.SerializeObject(configuration.Capabilities[options]);
-                capabilities = JsonConvert.DeserializeObject<Dictionary<string, object>>(cap);
-            }
-
-            // get bucket size value
-            if (capabilities?.ContainsKey(ProviderCapability.BucketSize) == false)
-            {
-                return 15;
-            }
-            int.TryParse($"{capabilities[ProviderCapability.BucketSize]}", out int bucketSizeOut);
-
-            // return final value
-            return bucketSizeOut == 0 ? 15 : bucketSizeOut;
+            return configuration.Capabilities.GetCapability(ProviderCapability.BucketSize, 15);
         }
 
         #region *** Put Issue Types ***
@@ -182,27 +164,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             [AtlassianCapabilities.BugType] = "Bug"
         };
         #endregion
-
-        /// <summary>
-        /// Gets a value indicates if this is a dry run (will not create test execution report)
-        /// </summary>
-        /// <param name="configuration">RhinoConfiguration from which to get capabilities.</param>
-        /// <returns><see cref="true"/> for id dryRun; <see cref="false"/> if not.</returns>
-        public static bool IsDryRun(this RhinoConfiguration configuration)
-        {
-            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
-            var capabilities = configuration.Capabilities.ContainsKey(options)
-                ? configuration.Capabilities[options] as IDictionary<string, object>
-                : new Dictionary<string, object>();
-
-            // setup conditions
-            var isKey = capabilities.ContainsKey(AtlassianCapabilities.DryRun);
-            var value = isKey ? $"{capabilities[AtlassianCapabilities.DryRun]}" : "false";
-
-            // evaluate
-            bool.TryParse(value, out bool dryRunOut);
-            return isKey && dryRunOut;
-        }
 
         #region *** Bug/Test Match   ***
         /// <summary>
@@ -471,7 +432,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             testCase.Context["lastBugId"] = $"{response["id"]}";
 
             // assing
-            jiraClient.Assign($"{response["key"]}");
+            jiraClient.Assign($"{response.SelectToken("key")}");
 
             // results
             return response;

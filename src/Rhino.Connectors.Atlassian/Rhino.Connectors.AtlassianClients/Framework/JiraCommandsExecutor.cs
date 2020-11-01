@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
 
@@ -55,7 +56,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         {
             this.authentication = authentication;
             this.logger = logger != default ? logger.CreateChildLogger(nameof(JiraCommandsExecutor)) : logger;
-            bucketSize = authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
+            bucketSize = authentication.GetCapability(ProviderCapability.BucketSize, 4);
         }
         #endregion
 
