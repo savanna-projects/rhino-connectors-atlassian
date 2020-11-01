@@ -8,6 +8,7 @@ using Gravity.Extensions;
 
 using Newtonsoft.Json.Linq;
 
+using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -57,7 +58,7 @@ namespace Rhino.Connectors.Xray.Cloud
             jiraClient = new JiraClient(authentication, this.logger);
             Authentication = jiraClient.Authentication;
             executor = new JiraCommandsExecutor(authentication, this.logger);
-            bucketSize = authentication.GetCapability(AtlassianCapabilities.BucketSize, 4);
+            bucketSize = authentication.GetCapability(ProviderCapability.BucketSize, 4);
             options = new ParallelOptions { MaxDegreeOfParallelism = bucketSize };
         }
         #endregion
