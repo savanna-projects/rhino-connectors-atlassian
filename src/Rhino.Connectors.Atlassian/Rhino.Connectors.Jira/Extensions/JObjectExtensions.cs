@@ -47,11 +47,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // iterate test steps & normalize action/expected
             foreach (var testStep in testSteps.Children())
             {
-                var step = new RhinoTestStep
-                {
-                    Action = $"{testStep["action"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "["),
-                    Expected = $"{testStep["result"]}".Replace("{{", "{").Replace("}}", "}").Replace(@"\{", "{").Replace(@"\[", "[")
-                };
+                var step = GetTestStep(testStep);
 
                 // normalize auto links (if any)
                 step.Action = NormalizeAutoLink(step.Action);
@@ -120,6 +116,45 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 }
             }
             return input;
+        }
+
+        private static RhinoTestStep GetTestStep(JToken testStep)
+        {
+            // constants
+            const string Pattern = @"{{(?!\$).*?}}";
+
+            // 1st cycle
+            var rhinoStep = new RhinoTestStep
+            {
+                Action = $"{testStep["action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
+                Expected = $"{testStep["result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
+            };
+
+            // 2nd cycle: action
+            var matches = Regex.Matches(rhinoStep.Action, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Action = ReplaceByMatch(rhinoStep.Action, match);
+            }
+
+            // 3rd cycle: action
+            matches = Regex.Matches(rhinoStep.Expected, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
+            }
+
+            // get
+            return rhinoStep;
+        }
+
+        private static string ReplaceByMatch(string input, Match match)
+        {
+            // setup
+            var nValue = match.Value.Replace("{{", "{").Replace("}}", "}");
+
+            // replace
+            return input.Replace(match.Value, nValue);
         }
     }
 }

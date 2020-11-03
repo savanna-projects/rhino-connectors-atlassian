@@ -12,6 +12,7 @@ using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -48,11 +49,11 @@ namespace Rhino.Connectors.Xray.Extensions
             // iterate test steps & normalize action/expected
             foreach (var testStep in testSteps.Children())
             {
-                var step = new RhinoTestStep
-                {
-                    Action = $"{testStep["fields"]["Action"]}".Replace("{{", "{").Replace("}}", "}"),
-                    Expected = $"{testStep["fields"]["Expected Result"]}".Replace("{{", "{").Replace("}}", "}")
-                };
+                var step = GetTestStep(testStep);
+
+                // normalize auto links (if any)
+                step.Action = NormalizeAutoLink(step.Action);
+                step.Expected = NormalizeAutoLink(step.Expected);
 
                 // normalize line breaks from XRay
                 var onExpected = step.Expected.SplitByLines();
@@ -81,6 +82,81 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // setup priority
             return $"{priorityField["id"]} - {priorityField["name"]}";
+        }
+
+        private static string NormalizeAutoLink(string input)
+        {
+            // setup
+            var match = Regex.Match(input, pattern: @"(?<=\{\[)[^\]]*(?=]\})");
+
+            // exit conditions
+            if (string.IsNullOrEmpty(match.Value))
+            {
+                return input;
+            }
+
+            // enqueue
+            var queue = new Queue<Match>();
+            queue.Enqueue(match);
+
+            // iterate
+            while (queue.Count > 0)
+            {
+                var onMatch = queue.Dequeue();
+                var segmeants = onMatch.Value.Split('|');
+
+                if (segmeants.Length <= 1)
+                {
+                    return onMatch.Value;
+                }
+                input = input.Replace($"[{onMatch.Value}]", segmeants[1]);
+
+                match = Regex.Match(input, pattern: @"(?<=\{\[)[^\]]*(?=]\})");
+                if (!string.IsNullOrEmpty(match.Value))
+                {
+                    queue.Enqueue(match);
+                }
+            }
+            return input;
+        }
+
+        private static RhinoTestStep GetTestStep(JToken testStep)
+        {
+            // constants
+            const string Pattern = @"{{(?!\$).*?}}";
+
+            // 1st cycle
+            var rhinoStep = new RhinoTestStep
+            {
+                Action = $"{testStep["fields"]["Action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
+                Expected = $"{testStep["fields"]["Expected Result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
+            };
+
+            // 2nd cycle: action
+            var matches = Regex.Matches(rhinoStep.Action, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Action = ReplaceByMatch(rhinoStep.Action, match);
+            }
+
+            // 3rd cycle: action
+            matches = Regex.Matches(rhinoStep.Expected, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
+            }
+
+            // get
+            return rhinoStep;
+        }
+
+        private static string ReplaceByMatch(string input, Match match)
+        {
+            // setup
+            var nValue = match.Value.Replace("{{", "{").Replace("}}", "}");
+
+            // replace
+            return input.Replace(match.Value, nValue);
         }
     }
 }
