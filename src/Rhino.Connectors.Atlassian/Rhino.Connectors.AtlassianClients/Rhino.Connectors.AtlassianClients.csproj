@@ -28,11 +28,8 @@
     <PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
     <PackageReference Include="Gravity.Extensions" Version="2020.10.18.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Rhino.Api" Version="2020.11.5.1" />
 
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj" />
   </ItemGroup>
 
 </Project>
