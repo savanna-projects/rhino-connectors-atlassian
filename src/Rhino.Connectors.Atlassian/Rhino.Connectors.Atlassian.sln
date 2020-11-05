@@ -29,8 +29,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.Cloud
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.TestsGenerator", "Rhino.Connectors.TestsGenerator\Rhino.Connectors.TestsGenerator.csproj", "{8EF967A8-C684-456E-85B4-FDD55C54FEEE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Api", "..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj", "{76ACCBC5-2393-44E9-BA9D-7D917816D0A7}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,10 +55,6 @@ Global
 		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8EF967A8-C684-456E-85B4-FDD55C54FEEE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{76ACCBC5-2393-44E9-BA9D-7D917816D0A7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{76ACCBC5-2393-44E9-BA9D-7D917816D0A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{76ACCBC5-2393-44E9-BA9D-7D917816D0A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{76ACCBC5-2393-44E9-BA9D-7D917816D0A7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
