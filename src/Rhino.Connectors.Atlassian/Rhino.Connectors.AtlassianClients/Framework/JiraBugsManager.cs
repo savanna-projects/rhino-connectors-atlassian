@@ -16,7 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using RhinoUtilities = Rhino.Api.Extensions.Utilities;
+using Utilities = Rhino.Api.Extensions.Utilities;
 
 namespace Rhino.Connectors.AtlassianClients.Framework
 {
@@ -229,6 +229,8 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             var onBugsClosed = (testCase.Context[ContextEntry.BugClosed] as IEnumerable<string>).ToList();
             onBugsClosed.AddRange(closedBugs);
             testCase.Context[ContextEntry.BugClosed] = onBugsClosed;
+
+            // get
             return onBugsClosed;
         }
 

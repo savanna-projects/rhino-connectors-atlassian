@@ -6,6 +6,8 @@
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Extensions;
+
 using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.AtlassianClients.Framework;
 using Rhino.Connectors.Xray.Framework;

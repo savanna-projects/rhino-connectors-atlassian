@@ -9,11 +9,11 @@ using Gravity.Extensions;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
+using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.AtlassianClients.Framework;
-using Rhino.Connectors.Xray.Cloud.Extensions;
 using Rhino.Connectors.Xray.Cloud.Framework;
 
 using System;

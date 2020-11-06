@@ -11,6 +11,7 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 
 using Rhino.Connectors.AtlassianClients;
@@ -79,7 +80,7 @@ namespace Rhino.Connectors.Xray.Cloud
             executor = new JiraCommandsExecutor(configuration.GetJiraAuthentication());
 
             // capabilities
-            BucketSize = configuration.GetBucketSize();
+            BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
             configuration.PutDefaultCapabilities();
             capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXryCloud}:options")
                 ? configuration.Capabilities[$"{Connector.JiraXryCloud}:options"] as IDictionary<string, object>
@@ -326,13 +327,6 @@ namespace Rhino.Connectors.Xray.Cloud
         /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
         public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
-            // exit conditions
-            if (Configuration.IsDryRun())
-            {
-                testRun.Context["runtimeid"] = "-1";
-                return testRun;
-            }
-
             // create jira issue
             CreateRunOnJira(testRun);
 
@@ -422,14 +416,8 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void CompleteTestRun(RhinoTestRun testRun)
+        public override void OnCompleteTestRun(RhinoTestRun testRun)
         {
-            // exit conditions
-            if (Configuration.IsDryRun())
-            {
-                return;
-            }
-
             // get all test keys to re-assign outcome
             var testCases = testRun
                 .TestCases
@@ -502,7 +490,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Updates a single test results iteration under automation provider.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
-        public override void UpdateTestResult(RhinoTestCase testCase)
+        public override void OnUpdateTestResult(RhinoTestCase testCase)
         {
             // validate (double check on execution details)
             if (!testCase.Context.ContainsKey("executionDetails"))
@@ -699,7 +687,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to find bugs.</param>
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
-        public override IEnumerable<string> GetBugs(RhinoTestCase testCase)
+        public override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
         {
             return bugsManager.GetBugs(testCase);
         }
@@ -709,7 +697,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to assert against match bugs.</param>
         /// <returns>An open bug.</returns>
-        public override string GetOpenBug(RhinoTestCase testCase)
+        public override string OnGetOpenBug(RhinoTestCase testCase)
         {
             return bugsManager.GetOpenBug(testCase);
         }
@@ -728,7 +716,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Executes a routie of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
-        public override void PostCreateBug(RhinoTestCase testCase)
+        public override void OnPostCreateBug(RhinoTestCase testCase)
         {
             // exit conditions
             if (!testCase.Context.ContainsKey("lastBugKey"))
@@ -790,12 +778,6 @@ namespace Rhino.Connectors.Xray.Cloud
         // UTILITIES
         private void DoUpdateTestResults(RhinoTestCase testCase)
         {
-            // exit conditions
-            if (Configuration.IsDryRun())
-            {
-                return;
-            }
-
             // constants
             const string ContextKey = "executionDetails";
 
