@@ -11,6 +11,7 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Extensions;
 
 using System;
 using System.Collections.Generic;
@@ -32,32 +33,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns>Jira compliant markdown table.</returns>
         public static string ToMarkdown(this IEnumerable<IDictionary<string, object>> data)
         {
-            // exit conditions
-            if (!data.Any())
-            {
-                return string.Empty;
-            }
-
-            // get columns
-            var columns = data.First().Select(i => i.Key);
-
-            // exit conditions
-            if (!columns.Any())
-            {
-                return string.Empty;
-            }
-
-            // build header
-            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
-
-            // build rows
-            foreach (var dataRow in data)
-            {
-                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
+            return DoToMarkdown(data);
         }
 
         #region *** Bug Markdown    ***
@@ -163,7 +139,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns>Jira style table.</returns>
         public static string ToJiraMarkdown(this IEnumerable<IDictionary<string, object>> data)
         {
-            return data.ToMarkdown();
+            return DoToMarkdown(data);
         }
 
         /// <summary>
@@ -173,7 +149,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns>Jira style table.</returns>
         public static string ToJiraMarkdown(this IDictionary<string, object> data)
         {
-            return DictionaryToMarkdown(data);
+            return DoToMarkdown(data);
         }
 
         /// <summary>
@@ -268,7 +244,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
         {
             return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + testCase.DataSource.ToMarkdown().Replace(@"""", @"\""")
+                ? "*Local Data Source*\\r\\n" + DoToMarkdown(testCase.DataSource).Replace(@"""", @"\""")
                 : string.Empty;
         }
 
@@ -335,7 +311,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             if (isCapabilites && capabilitesToken != null)
             {
                 var data = JsonConvert.DeserializeObject<IDictionary<string, object>>($"{capabilitesToken}");
-                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + DictionaryToMarkdown(data);
+                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + DoToMarkdown(data);
             }
 
             // setup driver options
@@ -391,7 +367,37 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return action + string.Join("\\r\\n", markdown);
         }
 
-        private static string DictionaryToMarkdown(IDictionary<string, object> data)
+        private static string DoToMarkdown(this IEnumerable<IDictionary<string, object>> data)
+        {
+            // exit conditions
+            if (!data.Any())
+            {
+                return string.Empty;
+            }
+
+            // get columns
+            var columns = data.First().Select(i => i.Key);
+
+            // exit conditions
+            if (!columns.Any())
+            {
+                return string.Empty;
+            }
+
+            // build header
+            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
+
+            // build rows
+            foreach (var dataRow in data)
+            {
+                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
+            }
+
+            // results
+            return markdown.Trim();
+        }
+
+        private static string DoToMarkdown(IDictionary<string, object> data)
         {
             // exit conditions
             if (data.Keys.Count == 0)

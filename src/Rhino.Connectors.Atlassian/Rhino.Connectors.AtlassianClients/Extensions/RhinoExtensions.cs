@@ -88,7 +88,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static string GetFailComment(this RhinoTestCase testCase)
         {
             // setup
-            var failedSteps = testCase.Steps.Where(i => !i.Actual).Select(i => ((JToken)i.Context["testStep"])["index"]);
+            var failedSteps = testCase
+                .Steps
+                .Where(i => !i.Actual)
+                .Select(i => ((JToken)i.Context["testStep"])["index"]);
 
             // exit conditions
             if (!failedSteps.Any())
@@ -118,23 +121,23 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return header + body;
         }
 
-        /// <summary>
-        /// Gets a bucket size from RhinoConfiguration capabilities or default value if not exists.
-        /// </summary>
-        /// <param name="configuration">Configuration to get bucket size from.</param>
-        /// <returns>Bucket size.</returns>
-        public static int GetBucketSize(this RhinoConfiguration configuration)
-        {
-            return configuration.Capabilities.GetCapability(ProviderCapability.BucketSize, 15);
-        }
-
-        #region *** Put Issue Types ***
+        #region *** Put Issue Types  ***
         /// <summary>
         /// Apply issue types into RhinoConfiguration capabilities or default types if needed.
         /// </summary>
         /// <param name="configuration">RhinoConfiguration to apply issue types to</param>
         public static void PutDefaultCapabilities(this RhinoConfiguration configuration)
         {
+            // exit conditions
+            if(configuration == null || configuration.ConnectorConfiguration == null)
+            {
+                return;
+            }
+            if (string.IsNullOrEmpty(configuration.ConnectorConfiguration.Connector))
+            {
+                return;
+            }
+
             // setup
             var defaultMap = DefaultTypesMap();
             var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
@@ -439,6 +442,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         }
         #endregion
 
+        #region *** Create: Link     ***
         /// <summary>
         /// Link an issue to this test case.
         /// </summary>
@@ -464,6 +468,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         {
             jiraClient.CreateIssueLink(linkType: linkType, testCase.Key, outward, comment);
         }
+        #endregion
 
         #region *** Close: Bug       ***
         /// <summary>

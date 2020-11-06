@@ -47,19 +47,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // iterate test steps & normalize action/expected
             foreach (var testStep in testSteps.Children())
             {
-                var step = GetTestStep(testStep);
-
-                // normalize auto links (if any)
-                step.Action = NormalizeAutoLink(step.Action);
-                step.Expected = NormalizeAutoLink(step.Expected);
-
-                // normalize line breaks from XRay
-                var onExpected = step.Expected.SplitByLines();
-                step.Expected = string.Join(Environment.NewLine, onExpected);
-
-                // apply
-                step.Context[nameof(testStep)] = testStep;
-                parsedSteps.Add(step);
+                var parsedStep = ParseStep(testStep);
+                parsedSteps.Add(parsedStep);
             }
 
             // apply to connector test steps
@@ -80,6 +69,54 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
 
             // setup priority
             return $"{priorityField["id"]} - {priorityField["name"]}";
+        }
+
+        private static RhinoTestStep ParseStep(JToken testStep)
+        {
+            // setup
+            var step = GetTestStep(testStep);
+
+            // normalize auto links (if any)
+            step.Action = NormalizeAutoLink(step.Action);
+            step.Expected = NormalizeAutoLink(step.Expected);
+
+            // normalize line breaks from XRay
+            var onExpected = step.Expected.SplitByLines();
+            step.Expected = string.Join(Environment.NewLine, onExpected);
+
+            // apply
+            step.Context[nameof(testStep)] = testStep;
+            return step;
+        }
+
+        private static RhinoTestStep GetTestStep(JToken testStep)
+        {
+            // constants
+            const string Pattern = @"{{(?!\$).*?}}";
+
+            // 1st cycle
+            var rhinoStep = new RhinoTestStep
+            {
+                Action = $"{testStep["action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
+                Expected = $"{testStep["result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
+            };
+
+            // 2nd cycle: action
+            var matches = Regex.Matches(rhinoStep.Action, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Action = ReplaceByMatch(rhinoStep.Action, match);
+            }
+
+            // 3rd cycle: action
+            matches = Regex.Matches(rhinoStep.Expected, Pattern);
+            foreach (Match match in matches)
+            {
+                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
+            }
+
+            // get
+            return rhinoStep;
         }
 
         private static string NormalizeAutoLink(string input)
@@ -116,36 +153,6 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 }
             }
             return input;
-        }
-
-        private static RhinoTestStep GetTestStep(JToken testStep)
-        {
-            // constants
-            const string Pattern = @"{{(?!\$).*?}}";
-
-            // 1st cycle
-            var rhinoStep = new RhinoTestStep
-            {
-                Action = $"{testStep["action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
-                Expected = $"{testStep["result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
-            };
-
-            // 2nd cycle: action
-            var matches = Regex.Matches(rhinoStep.Action, Pattern);
-            foreach (Match match in matches)
-            {
-                rhinoStep.Action = ReplaceByMatch(rhinoStep.Action, match);
-            }
-
-            // 3rd cycle: action
-            matches = Regex.Matches(rhinoStep.Expected, Pattern);
-            foreach (Match match in matches)
-            {
-                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
-            }
-
-            // get
-            return rhinoStep;
         }
 
         private static string ReplaceByMatch(string input, Match match)
