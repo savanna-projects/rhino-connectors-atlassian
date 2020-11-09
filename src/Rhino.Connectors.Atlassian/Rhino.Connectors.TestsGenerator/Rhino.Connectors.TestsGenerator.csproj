@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.11.8.1" />
-    <PackageReference Include="Rhino.Api.Contracts" Version="2020.11.8.1" />
+    <PackageReference Include="Rhino.Api" Version="2020.11.9.1" />
+    <PackageReference Include="Rhino.Api.Contracts" Version="2020.11.9.1" />
   </ItemGroup>
 
 </Project>
