@@ -16,7 +16,6 @@ using Rhino.Connectors.Xray.Cloud.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.Cloud.Extensions
@@ -145,7 +144,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             }
 
             // get
-            var evidences = GetEvidenceData(testCase, screenshots);
+            var evidences = GetEvidenceData(testCase);
             foreach (var evidence in evidences)
             {
                 evidence["testRun"] = execution;
@@ -153,64 +152,30 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             return evidences;
         }
 
-        private static IEnumerable<IDictionary<string, object>> GetEvidenceData(
-            RhinoTestCase testCase,
-            IEnumerable<string> screenshots)
+        private static IEnumerable<IDictionary<string, object>> GetEvidenceData(RhinoTestCase testCase)
         {
             // setup
             var evidences = new List<IDictionary<string, object>>();
+            var steps = testCase.Steps.ToList();
 
             // iterate
-            foreach (var screenshot in screenshots)
+            for (int i = 0; i < steps.Count; i++)
             {
-                // setup
-                var evidence = GetEvidenceData(testCase, screenshot, evidences);
-                if (evidence.Count != 0)
+                var step = steps[i].Context.ContainsKey("runtimeid")
+                    ? $"{steps[i].Context["runtimeid"]}"
+                    : "-1";
+
+                // get
+                evidences.Add(new Dictionary<string, object>
                 {
-                    evidences.Add(evidence);
-                }
+                    ["reference"] = i,
+                    ["evidences"] = steps[i].GetScreenshots(),
+                    ["step"] = step
+                });
             }
 
             // get
             return evidences;
-        }
-
-        private static IDictionary<string, object> GetEvidenceData(
-            RhinoTestCase testCase,
-            string screenshot,
-            List<IDictionary<string, object>> evidences)
-        {
-            // setup
-            var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
-            if (!isReference)
-            {
-                return new Dictionary<string, object>();
-            }
-
-            // get attachment data
-            var reference = testCase.GetActionReference(referenceOut).Reference;
-
-            // check if exists
-            var evidence = evidences.Find(i => (int)i["reference"] == reference);
-            if (evidence != default)
-            {
-                var images = evidence["evidences"] as List<string>;
-                images.Add(screenshot);
-                evidence["evidences"] = images;
-                return new Dictionary<string, object>();
-            }
-
-            var step = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
-                ? $"{testCase.Steps.ElementAt(reference).Context["runtimeid"]}"
-                : "-1";
-
-            // get
-            return new Dictionary<string, object>
-            {
-                ["reference"] = reference,
-                ["evidences"] = new List<string>() { screenshot },
-                ["step"] = step
-            };
         }
         #endregion
 
@@ -252,7 +217,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                     return;
                 }
                 var actual = step.Exception == default
-                    ? step.ReasonPhrase
+                    ? "{noformat}" + step.ReasonPhrase + "{noformat}"
                     : "{noformat}" + $"{step.Exception}" + "{noformat}";
                 client.UpdateStepActual(idAndKey, run, ($"{step.Context["runtimeid"]}", actual));
             }

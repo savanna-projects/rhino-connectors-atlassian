@@ -2,22 +2,18 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net5</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj" />
     <ProjectReference Include="..\Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj" />
     <ProjectReference Include="..\Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Properties\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.11.9.1" />
-    <PackageReference Include="Rhino.Api.Contracts" Version="2020.11.9.1" />
   </ItemGroup>
 
 </Project>

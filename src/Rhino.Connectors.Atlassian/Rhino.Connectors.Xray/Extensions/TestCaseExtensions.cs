@@ -61,7 +61,7 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // apply test run key
-            int.TryParse($"{response["id"]}", out int idOut);
+            _ = int.TryParse($"{response["id"]}", out int idOut);
             testCase.Context["runtimeid"] = idOut;
             testCase.Context["testRunKey"] = testExecutionKey;
         }
@@ -285,7 +285,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var runOut = 0;
             if (testCase.Context.ContainsKey("runtimeid"))
             {
-                int.TryParse($"{testCase.Context["runtimeid"]}", out runOut);
+                _ = int.TryParse($"{testCase.Context["runtimeid"]}", out runOut);
             }
 
             // build
