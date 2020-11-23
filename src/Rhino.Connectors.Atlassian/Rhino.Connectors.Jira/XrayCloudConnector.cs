@@ -12,12 +12,13 @@ using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Contracts.Extensions;
-using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+
+using Utilities = Rhino.Api.Extensions.Utilities;
 
 namespace Rhino.Connectors.Xray.Cloud
 {

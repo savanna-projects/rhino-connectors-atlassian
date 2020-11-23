@@ -18,7 +18,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -153,7 +152,6 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
         #region *** Requests Factory ***
         [Description("GET")]
-        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by reflection")]
         private string Get(HttpCommand command)
         {
             // setup
@@ -167,7 +165,6 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         [Description("POST")]
-        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by reflection")]
         private string Post(HttpCommand command)
         {
             // setup
@@ -181,7 +178,6 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         [Description("PUT")]
-        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by reflection")]
         private string Put(HttpCommand command)
         {
             // setup
@@ -195,7 +191,6 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         }
 
         [Description("DELETE")]
-        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by reflection")]
         private string Delete(HttpCommand command)
         {
             // setup

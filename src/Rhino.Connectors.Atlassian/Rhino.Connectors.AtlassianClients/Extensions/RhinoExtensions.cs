@@ -88,13 +88,18 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static string GetFailComment(this RhinoTestCase testCase)
         {
             // setup
-            var failedSteps = testCase
-                .Steps
-                .Where(i => !i.Actual)
-                .Select(i => ((JToken)i.Context["testStep"])["index"]);
+            var steps = testCase.Steps.ToList();
+            var failedSteps = new List<int>();
+            for (int i = 0; i < steps.Count; i++)
+            {
+                if (!steps[i].Actual)
+                {
+                    failedSteps.Add(i + 1);
+                }
+            }
 
             // exit conditions
-            if (!failedSteps.Any())
+            if (failedSteps.Count == 0)
             {
                 return string.Empty;
             }
@@ -183,7 +188,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
             // build fields
-            int.TryParse(Regex.Match(input: onBug, pattern: @"(?<=\WOn Iteration\W+)\d+").Value, out int iteration);
+            _ = int.TryParse(Regex.Match(input: onBug, pattern: @"(?<=\WOn Iteration\W+)\d+").Value, out int iteration);
             var driver = Regex.Match(input: onBug, pattern: @"(?<=\|Driver\|)\w+(?=\|)").Value;
 
             // setup conditions
@@ -597,6 +602,177 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // get
             return !(isDoneStatus || isClosedStatus) ? $"{onBug}" : string.Empty;
+        }
+        #endregion
+
+        #region *** Aggregate        ***
+        /// <summary>
+        /// Migrate all expected results of a plugin to the plugin step index and re-evaluate the outcome.
+        /// </summary>
+        /// <param name="testCase">RhinoTestCase on which to aggregate results.</param>
+        /// <returns>Aggregated RhinoTestCase</returns>
+        public static RhinoTestCase AggregateSteps(this RhinoTestCase testCase)
+        {
+            //setup
+            var stepsMap = GetStepsMap(testCase);
+            var indexes = stepsMap.Select(i => i.Index).Distinct();
+            var stepsCount = GetOriginalTestCase(testCase).Steps.Count();
+            var onSteps = new List<RhinoTestStep>(testCase.Steps);
+
+            // build
+            for (int i = 0; i < stepsCount; i++)
+            {
+                if (!indexes.Contains(i))
+                {
+                    continue;
+                }
+
+                var steps = stepsMap.Where(x => x.Index == i).ToList();
+                onSteps[i] = GetStep(steps);
+
+                onSteps.RemoveRange(i + 1, steps.Count - 1);
+            }
+
+            // clone
+            var onTestCase = testCase.Clone();
+            onTestCase.Steps = onSteps;
+            onTestCase.Context = testCase.Context;
+
+            // get
+            return onTestCase;
+        }
+
+        private static IEnumerable<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)> GetStepsMap(RhinoTestCase testCase)
+        {
+            // constants
+            const string ParentPlugin = "parentPlugin";
+
+            //setup
+            var steps = testCase.Steps.ToList();
+            var originalTestCase = GetOriginalTestCase(testCase);
+            var aggregatedSteps = new List<(int index, RhinoPlugin plugin, RhinoTestStep step)>();
+
+            // build
+            var index = 0;
+            var plugin = string.Empty;
+            for (int i = 0; i < steps.Count; i++)
+            {
+                var isParentPlugin = steps[i].Context.ContainsKey(ParentPlugin);
+                var parentPlugin = isParentPlugin ? (RhinoPlugin)steps[i].Context[ParentPlugin] : null;
+                var isPlugin = isParentPlugin && parentPlugin != null;
+
+                if (!isPlugin)
+                {
+                    index++;
+                    continue;
+                }
+
+                var isStep = originalTestCase
+                    .Steps
+                    .Any(i => i.Action.IndexOf(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key) || !isStep)
+                {
+                    index = aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key)
+                        ? aggregatedSteps.Where(i => i.plugin.Key == parentPlugin.Key).OrderBy(i => i.index).First().index
+                        : aggregatedSteps.OrderBy(i => i.index).Last().index;
+                }
+
+                if (plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep)
+                {
+                    index++;
+                }
+                plugin = isStep ? parentPlugin.Key : plugin;
+                aggregatedSteps.Add((index, (RhinoPlugin)steps[i].Context[ParentPlugin], steps[i]));
+            }
+
+            // get
+            return aggregatedSteps;
+        }
+
+        private static RhinoTestStep GetStep(IEnumerable<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)> stepsMap)
+        {
+            // exit conditions
+            if (!stepsMap.Any())
+            {
+                return default;
+            }
+
+            // setup
+            var failedOn = new List<int>();
+            var reasons = new List<string>();
+            var expected = new List<string>();
+            var screenshots = new List<string>();
+            var step = new RhinoTestStep
+            {
+                Action = stepsMap.First().Plugin.Key.PascalToSpaceCase().ToLower()
+            };
+
+            // build
+            foreach (var (Index, plugin, Step) in stepsMap)
+            {
+                var onExpected = Step.Expected.Split('\n');
+                if (onExpected.Length == 0)
+                {
+                    continue;
+                }
+
+                expected.AddRange(onExpected);
+                var contextFailedOn = IsFailedOn(Step) ? (List<int>)Step.Context[ContextEntry.FailedOn] : new List<int>();
+                var on = contextFailedOn.Select(i => expected.Count - i);
+                if (on.Any())
+                {
+                    var range = on.Select(i => $"Failed on assertion [{expected[i - 1]}]");
+                    reasons.AddRange(range);
+                    failedOn.AddRange(on);
+                }
+
+                screenshots.AddRange(GetScreenshots(Step));
+            }
+
+            // assign
+            step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
+            step.Context[ContextEntry.FailedOn] = failedOn;
+            step.Context[ContextEntry.Screenshots] = screenshots;
+            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
+            step.Actual = stepsMap.All(i => i.Step.Actual);
+            step.Expected = string.Join("\n", expected).Trim();
+            step.ReasonPhrase = string.Join("\n", reasons).Trim();
+
+            // get
+            return step;
+        }
+
+        private static bool IsFailedOn(RhinoTestStep step)
+        {
+            // setup
+            var isKey = step.Context.ContainsKey(ContextEntry.FailedOn);
+
+            // get
+            return isKey && step.Context[ContextEntry.FailedOn] is IList<int>;
+        }
+
+        private static RhinoTestCase GetOriginalTestCase(RhinoTestCase testCase)
+        {
+            // setup
+            var isKey = testCase.Context.ContainsKey(ContextEntry.OriginalTestCase);
+            var isType = isKey && testCase.Context[ContextEntry.OriginalTestCase] is RhinoTestCase;
+            var isValue = isType && testCase.Context[ContextEntry.OriginalTestCase] != null;
+
+            // get
+            return isValue ? (RhinoTestCase)testCase.Context[ContextEntry.OriginalTestCase] : new RhinoTestCase();
+        }
+
+        private static IEnumerable<string> GetScreenshots(RhinoTestStep step)
+        {
+            // setup
+            var isKey = step.Context.ContainsKey(ContextEntry.Screenshots);
+            var isType = isKey && step.Context[ContextEntry.Screenshots] is IEnumerable<string>;
+
+            // get
+            return isType
+                ? (IEnumerable<string>)step.Context[ContextEntry.Screenshots]
+                : Array.Empty<string>();
         }
         #endregion
     }

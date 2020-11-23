@@ -424,6 +424,7 @@ namespace Rhino.Connectors.Xray
             {
                 DoUpdateTestResult(testCase, inline: false);
             }
+
             // iterate: align all runs
             var dataTests = testRun.TestCases.Where(i => i.Iteration > 0).Select(i => i.Key).Distinct();
             var options = new ParallelOptions { MaxDegreeOfParallelism = 1 };
@@ -437,6 +438,7 @@ namespace Rhino.Connectors.Xray
                 }
                 testRun.TestCases.FirstOrDefault(i => i.Actual && i.Key.Equals(testCase))?.SetOutcomeByRun(outcome);
             });
+
             // iterate: inconclusive
             foreach (var testCase in testRun.TestCases.Where(i => i.Inconclusive))
             {
@@ -581,14 +583,19 @@ namespace Rhino.Connectors.Xray
         // UTILITIES
         private void DoUpdateTestResult(RhinoTestCase testCase, bool inline)
         {
+            // constants
+            const string Aggregated = "aggregated";
+
             try
             {
                 // setup
                 var forUploadOutcomes = new[] { "PASS", "FAIL" };
+                var onTestCase = testCase.AggregateSteps();
+                onTestCase.Context.AddRange(testCase.Context, exclude: new[] { Aggregated });
 
                 // exit conditions
                 var outcome = "TODO";
-                if (testCase.Context.ContainsKey("outcome"))
+                if (onTestCase.Context.ContainsKey("outcome"))
                 {
                     outcome = $"{testCase.Context["outcome"]}";
                 }
@@ -601,11 +608,12 @@ namespace Rhino.Connectors.Xray
                     return;
                 }
                 testCase.SetOutcomeBySteps();
+                onTestCase = testCase.AggregateSteps();
 
                 // attachments
                 if (forUploadOutcomes.Contains(outcome.ToUpper()))
                 {
-                    testCase.UploadEvidences();
+                    onTestCase.UploadEvidences();
                 }
 
                 // fail message
@@ -614,6 +622,9 @@ namespace Rhino.Connectors.Xray
                     var comment = testCase.GetFailComment();
                     testCase.UpdateResultComment(comment);
                 }
+
+                // put
+                testCase.Context[Aggregated] = onTestCase;
             }
             catch (Exception e) when (e != null)
             {

@@ -21,7 +21,6 @@ using Rhino.Connectors.AtlassianClients.Framework;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -340,8 +339,7 @@ namespace Rhino.Connectors.AtlassianClients
         /// </summary>
         /// <param name="issue">Issue token by which to fetch data.</param>
         /// <returns>The issue type as returned by Jira server.</returns>
-        [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Designed to be an instance public method.")]
-        public string GetIssueType(JToken issue)
+        public static string GetIssueType(JToken issue)
         {
             return ExtractIssueType(issue);
         }
@@ -554,7 +552,7 @@ namespace Rhino.Connectors.AtlassianClients
             var response = command.Send(executor).AsJToken();
 
             // setup conditions
-            int.TryParse($"{response.SelectToken("code")}", out int codeOut);
+            _ = int.TryParse($"{response.SelectToken("code")}", out int codeOut);
             var isCode = codeOut != 0 && codeOut < 400;
             var isFail = $"{response["id"]}" == "-1";
 

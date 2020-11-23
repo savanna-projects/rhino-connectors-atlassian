@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net5.0</TargetFrameworks>
     <PackageId>Rhino.Connectors.Xray</PackageId>
     <LangVersion>latest</LangVersion>
     <Title>Rhino XRay Connector - Connector for Atlassian XRay - Test Manager.</Title>
@@ -15,11 +15,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\create_test_execution_xray.txt" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Rhino.Api" Version="2020.11.9.1" />
-    <PackageReference Include="Rhino.Api.Contracts" Version="2020.11.9.1" />
   </ItemGroup>
 
   <ItemGroup>

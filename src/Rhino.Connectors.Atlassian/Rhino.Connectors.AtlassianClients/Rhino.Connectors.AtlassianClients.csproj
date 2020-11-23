@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net5.0</TargetFrameworks>
     <PackageId>Rhino.Connectors.AtlassianClients</PackageId>
     <LangVersion>latest</LangVersion>
     <Title>Rhino Atlassian Clients - Base component for Atlassian based connectors.</Title>
@@ -28,9 +28,7 @@
     <PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
     <PackageReference Include="Gravity.Extensions" Version="2020.10.18.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="Rhino.Api" Version="2020.11.9.1" />
-    <PackageReference Include="Rhino.Api.Contracts" Version="2020.11.9.1" />
-
+    <PackageReference Include="Rhino.Api" Version="2020.11.23.1" />
   </ItemGroup>
 
 </Project>

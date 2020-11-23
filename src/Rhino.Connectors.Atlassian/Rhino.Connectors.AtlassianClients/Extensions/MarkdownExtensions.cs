@@ -411,7 +411,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             // append rows
             foreach (var item in data)
             {
-                markdown += $"|{item.Key}|{item.Value}|\\r\\n";
+                var value = string.IsNullOrEmpty($"{item.Value}") ? " " : $"{item.Value}";
+                markdown += $"|{item.Key}|{value}|\\r\\n";
             }
 
             // results

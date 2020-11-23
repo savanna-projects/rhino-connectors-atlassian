@@ -390,13 +390,16 @@ namespace Rhino.Connectors.Xray.Cloud
             }
         }
 
-        private void Put(RhinoTestRun testRun, RhinoTestCase testCase, JToken details)
+        private static void Put(RhinoTestRun testRun, RhinoTestCase testCase, JToken details)
         {
             testCase.Context["executionDetails"] = details;
             testCase.Context["testRun"] = testRun.Context["testRun"];
+            var aggregated = testCase.AggregateSteps();
 
+            var steps = aggregated.Steps.ToList();
             var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject()).ToArray();
-            for (int i = 0; i < testCase.Steps.Count(); i++)
+
+            for (int i = 0; i < steps.Count; i++)
             {
                 if (i > onSteps.Length - 1)
                 {
@@ -405,13 +408,26 @@ namespace Rhino.Connectors.Xray.Cloud
                 var jobject = JObject.Parse($"{onSteps[i]}");
                 jobject.Add("index", i);
 
-                testCase.Steps.ElementAt(i).Context["testStep"] = jobject;
-                testCase.Steps.ElementAt(i).Context["runtimeid"] = $"{onSteps[i].SelectToken("id")}";
+                steps[i].Context["testStep"] = jobject;
+                steps[i].Context["runtimeid"] = $"{onSteps[i].SelectToken("id")}";
+
+                var isKey = steps[i].Context.ContainsKey(ContextEntry.ChildSteps);
+                var isType = isKey && steps[i].Context[ContextEntry.ChildSteps] is IEnumerable<RhinoTestStep>;
+                if (isType)
+                {
+                    foreach (var _step in (IEnumerable<RhinoTestStep>)steps[i].Context[ContextEntry.ChildSteps])
+                    {
+                        _step.Context["runtimeid"] = steps[i].Context["runtimeid"];
+                    }
+                }
             }
+
+            aggregated.Steps = steps;
+            testCase.Context["aggregated"] = aggregated;
         }
         #endregion
 
-        #region *** Update: Test Run  ***     
+        #region *** Update: Test Run  ***
         /// <summary>
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
@@ -735,7 +751,7 @@ namespace Rhino.Connectors.Xray.Cloud
             xpandClient.AddDefectToExecution((id, key), execution);
         }
 
-        private string GetExecution(RhinoTestCase testCase)
+        private static string GetExecution(RhinoTestCase testCase)
         {
             // exit conditions
             if (!testCase.Context.ContainsKey("executionDetails"))
@@ -781,9 +797,16 @@ namespace Rhino.Connectors.Xray.Cloud
             // constants
             const string ContextKey = "executionDetails";
 
+            // aggregate
+            var onTestCase = testCase.AggregateSteps();
+
+            onTestCase.TestRunKey = testCase.TestRunKey;
+            onTestCase.Context.AddRange(testCase.Context.Where(i => i.Key != "aggregated"));
+            testCase.Context["aggregated"] = onTestCase;
+
             // setup
-            var executionDetails = testCase.Context.ContainsKey(ContextKey) && testCase.Context[ContextKey] != default
-                ? (JToken)testCase.Context[ContextKey]
+            var executionDetails = onTestCase.Context.ContainsKey(ContextKey) && onTestCase.Context[ContextKey] != default
+                ? (JToken)onTestCase.Context[ContextKey]
                 : JToken.Parse("{}");
             var run = $"{executionDetails.SelectToken("_id")}";
             var execution = $"{executionDetails.SelectToken("testExecIssueId")}";
@@ -793,7 +816,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // update
             try
             {
-                DoUpdateTestResults(testCase, project, execution, run, steps);
+                DoUpdateTestResults(onTestCase, project, execution, run, steps);
             }
             catch (Exception e) when (e != null)
             {

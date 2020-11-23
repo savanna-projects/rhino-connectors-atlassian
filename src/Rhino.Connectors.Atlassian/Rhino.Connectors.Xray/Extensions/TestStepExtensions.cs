@@ -34,7 +34,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 Id = $"{testStep.Context["runtimeid"]}",
                 Status = onOutcome,
                 Comment = testStep.Exception == null ? null : $"{{noformat}}{testStep?.Exception}{{noformat}}",
-                ActualResult = testStep.ReasonPhrase
+                ActualResult = $"{{noformat}}{testStep.ReasonPhrase}{{noformat}}"
             };
         }
     }
