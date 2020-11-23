@@ -19,7 +19,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -51,19 +50,32 @@ namespace Rhino.Connectors.Xray.Extensions
             // setup
             var jsonToken = response["steps"];
             var stepsToken = JArray.Parse($"{jsonToken}");
-            var stepsCount = testCase.Steps.Count();
+            var aggregated = testCase.AggregateSteps();
+            var steps = aggregated.Steps.ToList();
 
             // apply runtime id to test-step context
-            for (int i = 0; i < stepsCount; i++)
+            for (int i = 0; i < steps.Count; i++)
             {
-                testCase.Steps.ElementAt(i).Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
-                testCase.Steps.ElementAt(i).Context["testStep"] = JToken.Parse($"{stepsToken[i]}");
+                steps[i].Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
+                steps[i].Context["testStep"] = JToken.Parse($"{stepsToken[i]}");
+
+                var isKey = steps[i].Context.ContainsKey(ContextEntry.ChildSteps);
+                var isType = isKey && steps[i].Context[ContextEntry.ChildSteps] is IEnumerable<RhinoTestStep>;
+                if (isType)
+                {
+                    foreach (var _step in (IEnumerable<RhinoTestStep>)steps[i].Context[ContextEntry.ChildSteps])
+                    {
+                        _step.Context["runtimeid"] = steps[i].Context["runtimeid"];
+                    }
+                }
             }
 
             // apply test run key
             _ = int.TryParse($"{response["id"]}", out int idOut);
             testCase.Context["runtimeid"] = idOut;
             testCase.Context["testRunKey"] = testExecutionKey;
+            testCase.Context["aggregated"] = aggregated;
+            aggregated.Steps = steps;
         }
 
         /// <summary>
@@ -202,23 +214,20 @@ namespace Rhino.Connectors.Xray.Extensions
         public static void SetOutcomeBySteps(this RhinoTestCase testCase)
         {
             // get steps
-            // add exceptions images - if exists or relevant
-            if (testCase.Context.ContainsKey(ContextEntry.OrbitResponse))
-            {
-                testCase.AddExceptionsScreenshot();
-            }
+            var onTestCase = testCase.AggregateSteps();
+            onTestCase.Context.AddRange(testCase.Context, new[] { "aggregated" });
 
             // collect steps
             var steps = new List<object>();
-            foreach (var testStep in testCase.Steps)
+            foreach (var testStep in onTestCase.Steps)
             {
-                steps.Add(testStep.GetUpdateRequest(outcome: $"{testCase.Context["outcome"]}"));
+                steps.Add(testStep.GetUpdateRequest(outcome: $"{onTestCase.Context["outcome"]}"));
             }
 
             // setup
-            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
+            var executor = new JiraCommandsExecutor(onTestCase.GetAuthentication());
             var command = RavenCommandsRepository.UpdateTestRun(
-                testRun: $"{testCase.Context["runtimeid"]}",
+                testRun: $"{onTestCase.Context["runtimeid"]}",
                 data: new { Steps = steps });
 
             // send
@@ -300,43 +309,26 @@ namespace Rhino.Connectors.Xray.Extensions
 
         private static IEnumerable<(long Id, IDictionary<string, object> Data)> GetEvidence(RhinoTestCase testCase)
         {
-            // get screenshots
-            var screenshots = testCase.GetScreenshots();
-            var automation = testCase.GetWebAutomation();
-
-            // exit conditions
-            if (!screenshots.Any() || automation == default)
-            {
-                return Array.Empty<(long, IDictionary<string, object>)>();
-            }
-
             // get for step
             var evidences = new ConcurrentBag<(long, IDictionary<string, object>)>();
-            foreach (var screenshot in screenshots)
+            foreach (var step in testCase.Steps)
             {
-                // setup
-                var isReference = int.TryParse(Regex.Match(screenshot, @"(?<=-)\d+(?=-)").Value, out int referenceOut);
-                if (!isReference)
-                {
-                    continue;
-                }
+                var isRuntime = long.TryParse($"{step.Context["runtimeid"]}", out long runtimeOut);
+                var runtimeid = isRuntime ? runtimeOut : -1;
 
-                // get attachment requests for test case
-                var reference = testCase.GetActionReference(referenceOut).Reference;
-                var evidence = GetEvidenceBody(screenshot);
-                var runtimeid = testCase.Steps.ElementAt(reference).Context.ContainsKey("runtimeid")
-                    ? (long)testCase.Steps.ElementAt(reference).Context["runtimeid"]
-                    : -1;
-                evidences.Add((runtimeid, evidence));
+                foreach (var screenshot in step.GetScreenshots())
+                {
+                    var evidence = GetEvidenceBody(screenshot);
+                    evidences.Add((runtimeid, evidence));
+                }
             }
 
-            // results
+            // get
             return evidences;
         }
 
         private static IDictionary<string, object> GetEvidenceBody(string screenshot)
         {
-            // standalone
             return new Dictionary<string, object>
             {
                 ["filename"] = Path.GetFileName(screenshot),

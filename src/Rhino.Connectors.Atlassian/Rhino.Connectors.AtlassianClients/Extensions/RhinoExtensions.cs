@@ -88,13 +88,18 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static string GetFailComment(this RhinoTestCase testCase)
         {
             // setup
-            var failedSteps = testCase
-                .Steps
-                .Where(i => !i.Actual)
-                .Select(i => ((JToken)i.Context["testStep"])["index"]);
+            var steps = testCase.Steps.ToList();
+            var failedSteps = new List<int>();
+            for (int i = 0; i < steps.Count; i++)
+            {
+                if (!steps[i].Actual)
+                {
+                    failedSteps.Add(i + 1);
+                }
+            }
 
             // exit conditions
-            if (!failedSteps.Any())
+            if (failedSteps.Count == 0)
             {
                 return string.Empty;
             }
@@ -729,7 +734,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
             step.Context[ContextEntry.FailedOn] = failedOn;
             step.Context[ContextEntry.Screenshots] = screenshots;
-            step.Context["runtimeid"] = stepsMap.First().Step.Context.GetCapability("runtimeid", "-1");
+            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
             step.Actual = stepsMap.All(i => i.Step.Actual);
             step.Expected = string.Join("\n", expected).Trim();
             step.ReasonPhrase = string.Join("\n", reasons).Trim();
