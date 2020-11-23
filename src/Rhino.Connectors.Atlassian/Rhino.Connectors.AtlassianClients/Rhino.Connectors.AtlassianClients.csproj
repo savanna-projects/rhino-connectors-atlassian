@@ -30,9 +30,4 @@
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api.Exensions\Rhino.Api.Extensions.csproj" />
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj" />
-  </ItemGroup>
-
 </Project>

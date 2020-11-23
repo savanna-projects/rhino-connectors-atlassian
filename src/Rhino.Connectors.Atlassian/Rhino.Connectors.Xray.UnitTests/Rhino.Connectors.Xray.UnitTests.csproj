@@ -17,8 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api.Exensions\Rhino.Api.Extensions.csproj" />
-    <ProjectReference Include="..\..\..\..\rhino-api\src\csharp\Rhino.Api\Rhino.Api\Rhino.Api.csproj" />
     <ProjectReference Include="..\Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj" />
     <ProjectReference Include="..\Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj" />
   </ItemGroup>
