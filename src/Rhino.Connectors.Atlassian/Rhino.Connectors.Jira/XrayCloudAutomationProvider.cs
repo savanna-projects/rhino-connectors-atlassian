@@ -39,9 +39,9 @@ namespace Rhino.Connectors.Xray.Cloud
 
         // state: global parameters
         private readonly ILogger logger;
+        private readonly IDictionary<string, object> capabilities;
         private readonly JiraClient jiraClient;
         private readonly XpandClient xpandClient;
-        private readonly IDictionary<string, object> capabilities;
         private readonly JiraCommandsExecutor executor;
         private readonly ParallelOptions options;
         private readonly JiraBugsManager bugsManager;
