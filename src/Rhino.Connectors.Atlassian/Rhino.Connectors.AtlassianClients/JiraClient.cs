@@ -199,7 +199,7 @@ namespace Rhino.Connectors.AtlassianClients
                     || $"{i.SelectToken("displayName")}".Equals(nameOrAddress, Compare));
 
             // get
-            return user == default ? JObject.Parse("{}") : user;
+            return user ?? JObject.Parse("{}");
         }
         #endregion
 
@@ -604,6 +604,7 @@ namespace Rhino.Connectors.AtlassianClients
             var transitions = JiraCommandsRepository
                 .GetTransitions(idOrKey)
                 .Send(executor)
+                .AsJToken()
                 .AsJObject()
                 .SelectToken("transitions");
 

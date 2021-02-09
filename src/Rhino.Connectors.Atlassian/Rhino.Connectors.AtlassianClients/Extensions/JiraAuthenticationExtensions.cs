@@ -4,7 +4,7 @@
  * RESOURCES
  */
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Contracts.Extensions;
+using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;

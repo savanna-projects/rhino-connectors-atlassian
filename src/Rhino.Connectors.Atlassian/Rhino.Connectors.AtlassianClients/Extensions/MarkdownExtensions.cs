@@ -11,7 +11,6 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Extensions;
 
 using System;
 using System.Collections.Generic;
