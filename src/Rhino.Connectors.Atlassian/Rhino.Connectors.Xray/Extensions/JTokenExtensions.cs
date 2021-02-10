@@ -8,7 +8,7 @@ using Gravity.Extensions;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
-using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients.Extensions;
 
 using System;
 using System.Collections.Generic;

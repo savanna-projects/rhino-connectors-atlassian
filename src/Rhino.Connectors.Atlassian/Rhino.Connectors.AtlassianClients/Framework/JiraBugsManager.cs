@@ -7,7 +7,6 @@ using Gravity.Abstraction.Logging;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
-using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -21,7 +20,7 @@ using Utilities = Rhino.Api.Extensions.Utilities;
 namespace Rhino.Connectors.AtlassianClients.Framework
 {
     /// <summary>
-    /// Bugs manager componenet common to all Jira connectors.
+    /// Bugs manager component common to all Jira connectors.
     /// </summary>
     public class JiraBugsManager
     {

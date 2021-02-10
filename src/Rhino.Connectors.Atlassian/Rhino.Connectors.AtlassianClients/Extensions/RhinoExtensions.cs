@@ -9,7 +9,6 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -147,7 +146,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var defaultMap = DefaultTypesMap();
             var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
             var capabilities = configuration.Capabilities.ContainsKey(options)
-                ? configuration.Capabilities[options] as IDictionary<string, object>
+                ? configuration.Capabilities[options] as IDictionary<string, object> ?? new Dictionary<string, object>()
                 : new Dictionary<string, object>();
 
             // factor
@@ -483,7 +482,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="bugIssueKey">The bug issue key to close.</param>
         /// <param name="status">The status which will make the bug closed (i.e. Done or Closed).</param>
         /// <param name="resolution">The resolution of the closure.</param>
-        /// <param name="labels">A collecction of labels to apply when closing the bug.</param>
+        /// <param name="labels">A collection of labels to apply when closing the bug.</param>
         /// <param name="jiraClient">JiraClient instance to use when closing bug.</param>
         /// <returns><see cref="true"/> if close was successful, <see cref="false"/> if not.</returns>
         public static bool CloseBug(
@@ -634,7 +633,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // clone
-            var onTestCase = testCase.Clone();
+            var onTestCase = DoClone(testCase);
             onTestCase.Steps = onSteps;
             onTestCase.Context = testCase.Context;
 
@@ -664,12 +663,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (!isPlugin)
                 {
                     index++;
+                    aggregatedSteps.Add((index, default, steps[i]));
                     continue;
                 }
 
                 var isStep = originalTestCase
                     .Steps
-                    .Any(i => i.Action.IndexOf(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase) >= 0);
+                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
 
                 if (aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key) || !isStep)
                 {
@@ -775,5 +775,11 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 : Array.Empty<string>();
         }
         #endregion
+
+        private static T DoClone<T>(T obj)
+        {
+            var json = JsonConvert.SerializeObject(obj);
+            return JsonConvert.DeserializeObject<T>(json);
+        }
     }
 }

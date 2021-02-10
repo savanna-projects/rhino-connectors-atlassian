@@ -149,11 +149,12 @@ namespace Rhino.Connectors.Xray.Cloud
             var testSets = JiraCommandsRepository
                 .Search(jql: $"key in ({string.Join(",", idsOrKeys)})")
                 .Send(executor)
+                .AsJToken()
                 .AsJObject()
                 .SelectToken("issues");
 
             // exit conditions
-            if (testSets == default || !testSets.Any())
+            if (testSets?.Any() != true)
             {
                 logger?.Warn($"Get-ByPlanOrSet -Keys [{string.Join(",", idsOrKeys)}] = false");
                 return Array.Empty<JToken>();
@@ -207,6 +208,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var response = XpandCommandsRepository
                 .GetSteps(($"{testCase.SelectToken("id")}", $"{testCase.SelectToken("key")}"))
                 .Send(executor)
+                .AsJToken()
                 .AsJObject();
 
             // setup

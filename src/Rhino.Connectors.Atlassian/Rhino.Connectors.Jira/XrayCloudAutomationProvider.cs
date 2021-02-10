@@ -11,7 +11,6 @@ using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Contracts.Extensions;
 using Rhino.Api.Extensions;
 
 using Rhino.Connectors.AtlassianClients;
@@ -245,7 +244,7 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // setup request body
             var issue = jiraClient.Create(testCase.ToJiraCreateRequest()).AsJObject();
-            if (issue == default || !issue.ContainsKey("id"))
+            if (issue?.ContainsKey("id") != true)
             {
                 logger?.Fatal("Was not able to create a test case.");
                 return default;
@@ -302,7 +301,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var issue = jiraClient.Create(data).AsJObject();
 
             // exit conditions
-            if (issue == default || !issue.ContainsKey("id"))
+            if (issue?.ContainsKey("id") != true)
             {
                 logger?.Fatal($"Was not able to create preconditions for [{issueKey}]");
                 return default;
