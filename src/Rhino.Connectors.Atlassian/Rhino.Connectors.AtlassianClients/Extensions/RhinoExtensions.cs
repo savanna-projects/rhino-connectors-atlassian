@@ -146,7 +146,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var defaultMap = DefaultTypesMap();
             var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
             var capabilities = configuration.Capabilities.ContainsKey(options)
-                ? configuration.Capabilities[options] as IDictionary<string, object>
+                ? configuration.Capabilities[options] as IDictionary<string, object> ?? new Dictionary<string, object>()
                 : new Dictionary<string, object>();
 
             // factor
@@ -663,12 +663,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (!isPlugin)
                 {
                     index++;
+                    aggregatedSteps.Add((index, default, steps[i]));
                     continue;
                 }
 
                 var isStep = originalTestCase
                     .Steps
-                    .Any(i => i.Action.IndexOf(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase) >= 0);
+                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
 
                 if (aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key) || !isStep)
                 {
@@ -775,8 +776,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         }
         #endregion
 
-        // TODO: remove after migration to Text.Json
-        [Obsolete("Bridge method will be removed after migration to Text.Json")]
         private static T DoClone<T>(T obj)
         {
             var json = JsonConvert.SerializeObject(obj);
