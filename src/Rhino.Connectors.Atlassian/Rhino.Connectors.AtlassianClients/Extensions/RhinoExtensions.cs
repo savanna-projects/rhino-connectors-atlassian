@@ -649,7 +649,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             //setup
             var steps = testCase.Steps.ToList();
             var originalTestCase = GetOriginalTestCase(testCase);
-            var aggregatedSteps = new List<(int index, RhinoPlugin plugin, RhinoTestStep step)>();
+            var aggregatedSteps = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
 
             // build
             var index = 0;
@@ -663,7 +663,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (!isPlugin)
                 {
                     index++;
-                    aggregatedSteps.Add((index, new RhinoPlugin(), steps[i]));
+                    aggregatedSteps.Add((index, default, steps[i]));
                     continue;
                 }
 
@@ -671,11 +671,14 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     .Steps
                     .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
 
-                if (aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key) || !isStep)
+                if (aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key) || !isStep)
                 {
-                    index = aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key)
-                        ? aggregatedSteps.Where(i => i.plugin.Key == parentPlugin.Key).OrderBy(i => i.index).First().index
-                        : aggregatedSteps.OrderBy(i => i.index).Last().index;
+                    var isListed = aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key);
+                    var isContinuous = isListed && aggregatedSteps.Last().Plugin.Key == parentPlugin.Key;
+
+                    index = isContinuous
+                        ? aggregatedSteps.Where(i => i.Plugin != default && i.Plugin.Key == parentPlugin.Key).OrderBy(i => i.Index).First().Index
+                        : aggregatedSteps.OrderBy(i => i.Index).Last().Index;
                 }
 
                 if (plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep)
