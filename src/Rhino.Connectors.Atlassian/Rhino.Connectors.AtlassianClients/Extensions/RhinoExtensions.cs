@@ -673,7 +673,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var isListed = aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key);
                 var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
 
-                if (aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key) || !isStep)
+                if (aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
                 {
                     index = isContinuous
                         ? aggregatedSteps.Where(i => i.Plugin != default && i.Plugin.Key == parentPlugin.Key).OrderBy(i => i.Index).Last().Index
