@@ -680,7 +680,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                         : aggregatedSteps.OrderBy(i => i.Index).Last().Index;
                 }
 
-                if (plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep && !isContinuous)
+                if ((plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep) || (isStep && !isContinuous))
                 {
                     index++;
                 }
