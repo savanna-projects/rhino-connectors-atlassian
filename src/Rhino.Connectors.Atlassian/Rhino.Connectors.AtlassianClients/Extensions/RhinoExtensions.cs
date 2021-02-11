@@ -670,18 +670,17 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var isStep = originalTestCase
                     .Steps
                     .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
+                var isListed = aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key);
+                var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
 
                 if (aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key) || !isStep)
                 {
-                    var isListed = aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key);
-                    var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
-
                     index = isContinuous
                         ? aggregatedSteps.Where(i => i.Plugin != default && i.Plugin.Key == parentPlugin.Key).OrderBy(i => i.Index).First().Index
                         : aggregatedSteps.OrderBy(i => i.Index).Last().Index;
                 }
 
-                if (plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep)
+                if ((plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep) || !isContinuous)
                 {
                     index++;
                 }
