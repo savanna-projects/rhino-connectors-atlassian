@@ -663,7 +663,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (!isPlugin)
                 {
                     index++;
-                    aggregatedSteps.Add((index, default, steps[i]));
+                    aggregatedSteps.Add((index, new RhinoPlugin(), steps[i]));
                     continue;
                 }
 
@@ -674,7 +674,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key) || !isStep)
                 {
                     index = aggregatedSteps.Any(i => i.plugin.Key == parentPlugin.Key)
-                        ? aggregatedSteps.Where(i => i.plugin != null && i.plugin.Key == parentPlugin.Key).OrderBy(i => i.index).First().index
+                        ? aggregatedSteps.Where(i => i.plugin.Key == parentPlugin.Key).OrderBy(i => i.index).First().index
                         : aggregatedSteps.OrderBy(i => i.index).Last().index;
                 }
 
