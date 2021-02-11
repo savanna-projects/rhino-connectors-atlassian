@@ -670,7 +670,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var isStep = originalTestCase
                     .Steps
                     .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
-                var isListed = aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key);
+                var isListed = aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key);
                 var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
 
                 if (aggregatedSteps.Any(i => i.Plugin.Key == parentPlugin.Key) || !isStep)
