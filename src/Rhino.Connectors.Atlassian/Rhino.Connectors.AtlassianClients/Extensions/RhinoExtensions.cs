@@ -671,7 +671,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 // handle last step scenario (same plugin, multiple times in a row with different parameters)
                 lastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
                 var onLastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
-                var isLastStepMatch = onLastStep?.Equals(lastStep, Compare) == true;
+                var isLastStepMatch = onLastStep?.Sort().Equals(lastStep.Sort(), Compare) == true;
 
                 if (!isLastStepMatch)
                 {
