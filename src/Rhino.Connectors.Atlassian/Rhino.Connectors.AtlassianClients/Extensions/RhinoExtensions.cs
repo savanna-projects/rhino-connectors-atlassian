@@ -650,6 +650,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var steps = testCase.Steps.ToList();
             var originalTestCase = GetOriginalTestCase(testCase);
             var aggregatedSteps = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
+            var lastStep = string.Empty;
 
             // build
             var index = 0;
@@ -667,11 +668,26 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     continue;
                 }
 
+                // handle last step scenario (same plugin, multiple times in a row with different parameters)
+                var onLastStep = originalTestCase
+                    .Steps
+                    .LastOrDefault(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare))?
+                    .Action
+                    .ToLower();
+                var isLastStepMatch = onLastStep?.Equals(lastStep, Compare) == true;
+
+                if (!isLastStepMatch)
+                {
+                    lastStep = onLastStep;
+                }
+
+                // handle plugin scenario (same plugin, multiple times not in a row)
                 var isStep = originalTestCase
                     .Steps
-                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
+                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare));
+
                 var isListed = aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key);
-                var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
+                var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key && isLastStepMatch;
 
                 if (aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
                 {
