@@ -649,7 +649,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             //setup
             var steps = testCase.Steps.ToList();
             var originalTestCase = GetOriginalTestCase(testCase);
-            var aggregatedSteps = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
+            var aggregated = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
             var lastStep = string.Empty;
 
             // build
@@ -664,16 +664,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 if (!isPlugin)
                 {
                     index++;
-                    aggregatedSteps.Add((index, default, steps[i]));
+                    aggregated.Add((index, default, steps[i]));
                     continue;
                 }
 
                 // handle last step scenario (same plugin, multiple times in a row with different parameters)
-                var onLastStep = originalTestCase
-                    .Steps
-                    .LastOrDefault(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare))?
-                    .Action
-                    .ToLower();
+                lastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
+                var onLastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
                 var isLastStepMatch = onLastStep?.Equals(lastStep, Compare) == true;
 
                 if (!isLastStepMatch)
@@ -686,26 +683,26 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     .Steps
                     .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare));
 
-                var isListed = aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key);
-                var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key && isLastStepMatch;
+                var isListed = aggregated.Any(i => i.Plugin?.Key == parentPlugin.Key);
+                var isContinuous = isListed && aggregated.Last().Plugin?.Key == parentPlugin.Key && isLastStepMatch;
 
-                if (aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
+                if (aggregated.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
                 {
                     index = isContinuous
-                        ? aggregatedSteps.Where(i => i.Plugin != default && i.Plugin?.Key == parentPlugin.Key).OrderBy(i => i.Index).Last().Index
-                        : aggregatedSteps.OrderBy(i => i.Index).Last().Index;
+                        ? aggregated.Where(i => i.Plugin != default && i.Plugin?.Key == parentPlugin.Key).OrderBy(i => i.Index).Last().Index
+                        : aggregated.OrderBy(i => i.Index).Last().Index;
                 }
 
-                if ((plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep) || (isStep && !isContinuous && aggregatedSteps.Count > 1))
+                if ((plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep) || (isStep && !isContinuous && aggregated.Count > 1))
                 {
                     index++;
                 }
                 plugin = isStep ? parentPlugin.Key : plugin;
-                aggregatedSteps.Add((index, (RhinoPlugin)steps[i].Context[ParentPlugin], steps[i]));
+                aggregated.Add((index, (RhinoPlugin)steps[i].Context[ParentPlugin], steps[i]));
             }
 
             // get
-            return aggregatedSteps;
+            return aggregated;
         }
 
         private static RhinoTestStep GetStep(IEnumerable<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)> stepsMap)
