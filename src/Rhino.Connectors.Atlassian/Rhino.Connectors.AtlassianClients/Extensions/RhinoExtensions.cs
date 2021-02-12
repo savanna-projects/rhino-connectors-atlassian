@@ -667,11 +667,14 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     continue;
                 }
 
-                var isStep = originalTestCase
+                var onStep = originalTestCase
                     .Steps
-                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), StringComparison.OrdinalIgnoreCase));
+                    .LastOrDefault(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare));
+                var isStep = onStep != default;
                 var isListed = aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key);
-                var isContinuous = isListed && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key;
+                var isContinuous = isListed
+                    && aggregatedSteps.Last().Plugin?.Key == parentPlugin.Key
+                    && !onStep.Action.Equals(aggregatedSteps.Last().Step.Action, Compare);
 
                 if (aggregatedSteps.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
                 {
