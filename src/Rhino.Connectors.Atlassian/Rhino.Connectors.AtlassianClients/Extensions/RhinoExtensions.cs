@@ -629,7 +629,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var steps = stepsMap.Where(x => x.Index == i).ToList();
                 onSteps[i] = GetStep(steps);
 
-                onSteps.RemoveRange(i + 1, steps.Count - 1);
+                if (steps.Count > 1)
+                {
+                    onSteps.RemoveRange(i + 1, steps.Count - 1);
+                }
             }
 
             // clone
@@ -647,58 +650,20 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             const string ParentPlugin = "parentPlugin";
 
             //setup
-            var steps = testCase.Steps.ToList();
-            var originalTestCase = GetOriginalTestCase(testCase);
+            var runtimeKeys = GetOriginalTestCase(testCase).Steps.Select(i => i.RuntimeKey);
             var aggregated = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
-            var lastStep = string.Empty;
 
             // build
             var index = 0;
-            var plugin = string.Empty;
-            for (int i = 0; i < steps.Count; i++)
+            for (int i = 0; i < runtimeKeys.Count(); i++)
             {
-                var isParentPlugin = steps[i].Context.ContainsKey(ParentPlugin);
-                var parentPlugin = isParentPlugin ? (RhinoPlugin)steps[i].Context[ParentPlugin] : null;
-                var isPlugin = isParentPlugin && parentPlugin != null;
-
-                if (!isPlugin)
+                foreach (var step in testCase.Steps.Where(x => x.RuntimeKey.Equals(runtimeKeys.ElementAt(i), Compare)))
                 {
-                    index++;
-                    aggregated.Add((index, default, steps[i]));
-                    continue;
+                    var isParentPlugin = step.Context.ContainsKey(ParentPlugin);
+                    var parentPlugin = isParentPlugin ? (RhinoPlugin)step.Context[ParentPlugin] : null;
+                    aggregated.Add((index, parentPlugin, step));
                 }
-
-                // handle last step scenario (same plugin, multiple times in a row with different parameters)
-                lastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
-                var onLastStep = aggregated.LastOrDefault(i => i.Step.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare)).Step?.Action.ToLower();
-                var isLastStepMatch = onLastStep?.Sort().Equals(lastStep.Sort(), Compare) == true;
-
-                if (!isLastStepMatch)
-                {
-                    lastStep = onLastStep;
-                }
-
-                // handle plugin scenario (same plugin, multiple times not in a row)
-                var isStep = originalTestCase
-                    .Steps
-                    .Any(i => i.Action.Contains(parentPlugin.Key.PascalToSpaceCase(), Compare));
-
-                var isListed = aggregated.Any(i => i.Plugin?.Key == parentPlugin.Key);
-                var isContinuous = isListed && aggregated.Last().Plugin?.Key == parentPlugin.Key && isLastStepMatch;
-
-                if (aggregated.Any(i => i.Plugin?.Key == parentPlugin.Key) || !isStep)
-                {
-                    index = isContinuous
-                        ? aggregated.Where(i => i.Plugin != default && i.Plugin?.Key == parentPlugin.Key).OrderBy(i => i.Index).Last().Index
-                        : aggregated.OrderBy(i => i.Index).Last().Index;
-                }
-
-                if ((plugin != parentPlugin.Key && !string.IsNullOrEmpty(plugin) && isStep) || (isStep && !isContinuous && aggregated.Count > 1))
-                {
-                    index++;
-                }
-                plugin = isStep ? parentPlugin.Key : plugin;
-                aggregated.Add((index, (RhinoPlugin)steps[i].Context[ParentPlugin], steps[i]));
+                index++;
             }
 
             // get
@@ -718,9 +683,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var reasons = new List<string>();
             var expected = new List<string>();
             var screenshots = new List<string>();
+            var action = stepsMap.First().Plugin == null
+                ? stepsMap.First().Step.Action
+                : stepsMap.First().Plugin.Key.PascalToSpaceCase().ToLower();
             var step = new RhinoTestStep
             {
-                Action = stepsMap.First().Plugin.Key.PascalToSpaceCase().ToLower()
+                Action = action
             };
 
             // build
@@ -793,7 +761,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
         private static T DoClone<T>(T obj)
         {
+            // setup
             var json = JsonConvert.SerializeObject(obj);
+
+            // get
             return JsonConvert.DeserializeObject<T>(json);
         }
     }

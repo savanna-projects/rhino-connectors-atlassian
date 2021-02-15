@@ -272,7 +272,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 : $"{Utilities.GetUrl(client.Authentication.Collection)}/browse/{response["key"]}";
         }
 
-        private string GetOpenBug(RhinoTestCase testCase, string bugIssueKey)
+        private static string GetOpenBug(RhinoTestCase testCase, string bugIssueKey)
         {
             // exit conditions
             if (string.IsNullOrEmpty(bugIssueKey))
