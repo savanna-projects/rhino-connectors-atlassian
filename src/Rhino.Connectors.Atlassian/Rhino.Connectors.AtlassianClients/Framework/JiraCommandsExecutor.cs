@@ -225,6 +225,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 return message;
             }
 
+            // TODO: handle "too many requests" exception code 429
             // extract
             var response = JiraCommandsRepository.GetToken(authentication.Project, command.Headers[Xacpt]).Send(this).AsJToken();
             var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
