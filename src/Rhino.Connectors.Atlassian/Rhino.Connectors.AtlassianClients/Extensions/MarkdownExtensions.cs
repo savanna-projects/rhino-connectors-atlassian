@@ -220,7 +220,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             try
             {
                 // setup
-                var driverParams = JObject.Parse(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams]));
+                var driverParams = JObject.Parse(System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]));
 
                 // setup conditions
                 var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
@@ -277,7 +277,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             const string Capabilities = "capabilities";
             const string Options = "options";
             const string AppPath = "capabilities.app";
-            var driverParams = JObject.Parse(JsonConvert.SerializeObject(testCase.Context[ContextEntry.DriverParams]));
+            var driverParams = JObject.Parse(System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]));
 
             // set header
             var header =
