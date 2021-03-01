@@ -438,7 +438,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             testCase.Context["lastBugKey"] = $"{response["key"]}";
             testCase.Context["lastBugId"] = $"{response["id"]}";
 
-            // assing
+            // assign
             jiraClient.Assign($"{response.SelectToken("key")}");
 
             // results
