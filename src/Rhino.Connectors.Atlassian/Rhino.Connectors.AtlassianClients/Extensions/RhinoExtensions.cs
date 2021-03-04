@@ -4,6 +4,7 @@
  * RESOURCES
  */
 using Gravity.Extensions;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -180,7 +181,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="bug">Bug JSON token to match by.</param>
         /// <param name="assertDataSource"><see cref="true"/> to match also RhinoTestCase.DataSource</param>
         /// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
-        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource)
+        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource, bool includeIteration = true)
         {
             // setup
             var onBug = $"{bug}";
@@ -198,9 +199,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var isOptions = AssertOptions(testCase, onBug);
 
             // assert
-            return assertDataSource
-                ? isDataSource && isCapabilities && isDriver && isIteration && isOptions
-                : isCapabilities && isDriver && isIteration && isOptions;
+            var isMatch = assertDataSource
+                ? isDataSource && isCapabilities && isDriver && isOptions
+                : isCapabilities && isDriver && isOptions;
+            return includeIteration ? isMatch && isIteration : isMatch;
         }
 
         private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
@@ -214,9 +216,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
                 // extract test capabilities
-                var tstCapabilities = driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null
-                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>(JsonConvert.SerializeObject(driverParams[Capabliites])).ToJiraMarkdown()
-                    : string.Empty;
+                var tstCapabilities = string.Empty;
+                if(driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null)
+                {
+                    var jsonCapabilities = System.Text.Json.JsonSerializer.Serialize(driverParams[Capabliites]);
+                    var objCapabilities = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(jsonCapabilities);
+                    tstCapabilities = objCapabilities.ToJiraMarkdown();
+                }
 
                 // normalize to markdown
                 var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
@@ -264,7 +270,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             {
                 // extract test capabilities
                 var compareableTstData = testCase.DataSource?.Any() == true
-                    ? testCase.DataSource.ToJson().ToUpper().Sort()
+                    ? System.Text.Json.JsonSerializer.Serialize(testCase.DataSource).ToUpper().Sort()
                     : string.Empty;
 
                 // extract bug capabilities
@@ -288,10 +294,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable()
+                var compareableBugCapabilites = System.Text.Json.JsonSerializer.Serialize(new DataTable()
                     .FromMarkDown(bugData)
-                    .ToDictionary()
-                    .ToJson()
+                    .ToDictionary())
                     .ToUpper()
                     .Sort();
 
@@ -311,7 +316,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // extract test capabilities
             var tstOptions = driverParams.ContainsKey("options")
-                ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
+                ? System.Text.Json.JsonSerializer.Serialize(driverParams["options"]).ToUpper().Sort()
                 : string.Empty;
             if (tstOptions.Equals("{}"))
             {
