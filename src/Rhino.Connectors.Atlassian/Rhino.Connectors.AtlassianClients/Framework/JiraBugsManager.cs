@@ -101,18 +101,20 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         public string OnUpdateBug(RhinoTestCase testCase, string status, string resolution)
         {
             // get existing bugs
-            var bugs = DoGetBugs(testCase);
-            var issues = bugs.Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false));
+            var isBugs = testCase.Context.ContainsKey("bugs") && testCase.Context["bugs"] != default;
+            var bugs = isBugs ? (IEnumerable<string>)testCase.Context["bugs"] : Array.Empty<string>();
 
             // exit conditions
-            if (!bugs.Any())
+            if (bugs.All(i => string.IsNullOrEmpty(i)))
             {
                 return "-1";
             }
 
             // possible duplicates
-            if (issues.Count() > 1)
+            if (bugs.Count() > 1)
             {
+                var issues = client.Get(idsOrKeys: bugs).Where(i => testCase.IsBugMatch(bug: i, assertDataSource: true));
+
                 var onBugs = issues
                     .OrderBy(i => $"{i["key"]}")
                     .Skip(1)
@@ -125,7 +127,14 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             }
 
             // update
-            testCase.UpdateBug(idOrKey: bugs.Select(i => $"{i.SelectToken("key")}").FirstOrDefault(), client);
+            bugs = client
+                .Get(idsOrKeys: bugs)
+                .Select(i => i.AsJObject())
+                .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false))
+                .Select(i => $"{i.SelectToken("key")}")
+                .Where(i => !string.IsNullOrEmpty(i));
+
+            testCase.UpdateBug(idOrKey: bugs.FirstOrDefault(), client);
 
             // get
             return $"{Utilities.GetUrl(client.Authentication.Collection)}/browse/{bugs.FirstOrDefault()}";
