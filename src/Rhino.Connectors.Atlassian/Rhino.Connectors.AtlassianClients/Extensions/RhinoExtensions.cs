@@ -620,7 +620,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             //setup
             var stepsMap = GetStepsMap(testCase);
             var indexes = stepsMap.Select(i => i.Index).Distinct();
-            var stepsCount = GetOriginalTestCase(testCase).Steps.Count();
+            var originalTestCase = GetOriginalTestCase(testCase);
+            var stepsCount = originalTestCase.Steps.Count();
             var onSteps = new List<RhinoTestStep>(testCase.Steps);
 
             // build
@@ -644,6 +645,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var onTestCase = DoClone(testCase);
             onTestCase.Steps = onSteps;
             onTestCase.Context = testCase.Context;
+            onTestCase.Context["decomposedTestCase"] = testCase;
 
             // get
             return onTestCase;
@@ -722,10 +724,20 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
             step.Context[ContextEntry.FailedOn] = failedOn;
             step.Context[ContextEntry.Screenshots] = screenshots;
-            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
+            //step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
             step.Actual = stepsMap.All(i => i.Step.Actual);
             step.Expected = string.Join("\n", expected).Trim();
             step.ReasonPhrase = string.Join("\n", reasons).Trim();
+            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get("runtimeid", "-1");
+
+            if ($"{step.Context["runtimeid"]}" == "-1")
+            {
+                var onStepToken = stepsMap.Where(i => i.Step.Context.ContainsKey("testStep"));
+                var stepToken = onStepToken.Any()
+                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>($"{onStepToken.First().Step.Context["testStep"]}")
+                    : JsonConvert.DeserializeObject<IDictionary<string, object>>("{}");
+                step.Context["runtimeid"] = stepToken.Get("id", "-1");
+            }
 
             // get
             return step;
@@ -767,10 +779,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         private static T DoClone<T>(T obj)
         {
             // setup
-            var json = JsonConvert.SerializeObject(obj);
+            var json = System.Text.Json.JsonSerializer.Serialize(obj);
 
             // get
-            return JsonConvert.DeserializeObject<T>(json);
+            return System.Text.Json.JsonSerializer.Deserialize<T>(json);
         }
     }
 }
