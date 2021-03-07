@@ -16,6 +16,7 @@ using Rhino.Connectors.Xray.Cloud.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.Cloud.Extensions
@@ -77,7 +78,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // build
             for (int i = 0; i < steps.Length; i++)
             {
-                var requset = XpandCommandsRepository.CreateTestStep((id, key), steps[i].Action, steps[i].Expected, i);
+                var action = Regex.Replace(input: steps[i].Action, pattern: @"^\d+\.\s+", replacement: string.Empty);
+                var requset = XpandCommandsRepository.CreateTestStep((id, key), action, steps[i].Expected, i);
                 requests.Add(requset);
             }
 

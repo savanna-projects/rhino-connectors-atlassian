@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
@@ -230,9 +231,14 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     && driverParams.SelectToken("capabilities.app") != null;
 
                 // get application
+                var onTestCase = testCase.Context.ContainsKey("decomposedTestCase")
+                    ? (RhinoTestCase)testCase.Context["decomposedTestCase"]
+                    : testCase;
+
+                // get application
                 return isMobApp
                     ? $"{driverParams.SelectToken("capabilities.app")}"
-                    : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument.Replace(@"""", @"\""");
+                    : ((ActionRule)onTestCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument.Replace(@"""", @"\""");
             }
             catch (Exception e) when (e != null)
             {
@@ -286,15 +292,19 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 "----\r\n";
 
             // setup conditions
-            var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
+            var isWebApp = IsWebAppAction(testCase.Steps.First());
             var isCapabilites = driverParams.ContainsKey(Capabilities);
             var isMobApp = !isWebApp && isCapabilites && driverParams.SelectToken(AppPath) != null;
             var isOptions = driverParams.ContainsKey(Options) && driverParams.SelectToken(Options) != null;
 
             // get application
+            var onTestCase = testCase.Context.ContainsKey("decomposedTestCase")
+                ? (RhinoTestCase)testCase.Context["decomposedTestCase"]
+                : testCase;
+
             var application = isMobApp
                 ? $"{driverParams.SelectToken(AppPath)}"
-                : ((ActionRule)testCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument;
+                : ((ActionRule)onTestCase.Steps.First(IsWebAppAction).Context[ContextEntry.StepAction]).Argument;
 
             // setup environment
             var environment =
@@ -331,6 +341,11 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 .Split(header + environment + capabilites + options, @"((\r)+)?(\n)+((\r)+)?")
                 .Where(i => !i.StartsWith("\r") && !i.StartsWith("\n"));
             return string.Join("\\r\\n", lines).Replace(@"""", @"\""");
+        }
+
+        private static bool IsWebAppAction(RhinoTestStep testStep)
+        {
+            return Regex.IsMatch(input: testStep.Action, pattern: "(?i)(go to url|navigate to|open|go to)");
         }
 
         private static string StepToBugMarkdown(RhinoTestStep testStep)
@@ -383,6 +398,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 return string.Empty;
             }
 
+            // convert data
+            var jsonData = data.Select(i => System.Text.Json.JsonSerializer.Serialize(i));
+            data = jsonData.Select(i => JsonConvert.DeserializeObject<IDictionary<string, object>>(i));
+
             // build header
             var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
 
@@ -403,6 +422,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             {
                 return string.Empty;
             }
+
+            // convert data
+            var jsonData = System.Text.Json.JsonSerializer.Serialize(data);
+            data = JsonConvert.DeserializeObject<IDictionary<string, object>>(jsonData);
 
             // build header
             var markdown = "||Key||Value||\\r\\n";

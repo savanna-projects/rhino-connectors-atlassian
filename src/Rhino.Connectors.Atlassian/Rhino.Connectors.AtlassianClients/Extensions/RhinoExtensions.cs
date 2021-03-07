@@ -4,6 +4,7 @@
  * RESOURCES
  */
 using Gravity.Extensions;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -180,7 +181,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="bug">Bug JSON token to match by.</param>
         /// <param name="assertDataSource"><see cref="true"/> to match also RhinoTestCase.DataSource</param>
         /// <returns><see cref="true"/> if match, <see cref="false"/> if not.</returns>
-        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource)
+        public static bool IsBugMatch(this RhinoTestCase testCase, JToken bug, bool assertDataSource, bool includeIteration = true)
         {
             // setup
             var onBug = $"{bug}";
@@ -198,9 +199,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var isOptions = AssertOptions(testCase, onBug);
 
             // assert
-            return assertDataSource
-                ? isDataSource && isCapabilities && isDriver && isIteration && isOptions
-                : isCapabilities && isDriver && isIteration && isOptions;
+            var isMatch = assertDataSource
+                ? isDataSource && isCapabilities && isDriver && isOptions
+                : isCapabilities && isDriver && isOptions;
+            return includeIteration ? isMatch && isIteration : isMatch;
         }
 
         private static bool AssertCapabilities(RhinoTestCase testCase, string onBug)
@@ -214,9 +216,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var driverParams = (IDictionary<string, object>)testCase.Context[ContextEntry.DriverParams];
 
                 // extract test capabilities
-                var tstCapabilities = driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null
-                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>(JsonConvert.SerializeObject(driverParams[Capabliites])).ToJiraMarkdown()
-                    : string.Empty;
+                var tstCapabilities = string.Empty;
+                if(driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null)
+                {
+                    var jsonCapabilities = System.Text.Json.JsonSerializer.Serialize(driverParams[Capabliites]);
+                    var objCapabilities = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(jsonCapabilities);
+                    tstCapabilities = objCapabilities.ToJiraMarkdown();
+                }
 
                 // normalize to markdown
                 var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
@@ -264,7 +270,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             {
                 // extract test capabilities
                 var compareableTstData = testCase.DataSource?.Any() == true
-                    ? testCase.DataSource.ToJson().ToUpper().Sort()
+                    ? System.Text.Json.JsonSerializer.Serialize(testCase.DataSource).ToUpper().Sort()
                     : string.Empty;
 
                 // extract bug capabilities
@@ -288,10 +294,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable()
+                var compareableBugCapabilites = System.Text.Json.JsonSerializer.Serialize(new DataTable()
                     .FromMarkDown(bugData)
-                    .ToDictionary()
-                    .ToJson()
+                    .ToDictionary())
                     .ToUpper()
                     .Sort();
 
@@ -311,7 +316,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // extract test capabilities
             var tstOptions = driverParams.ContainsKey("options")
-                ? JsonConvert.SerializeObject(driverParams["options"], Formatting.None).ToUpper().Sort()
+                ? System.Text.Json.JsonSerializer.Serialize(driverParams["options"]).ToUpper().Sort()
                 : string.Empty;
             if (tstOptions.Equals("{}"))
             {
@@ -615,7 +620,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             //setup
             var stepsMap = GetStepsMap(testCase);
             var indexes = stepsMap.Select(i => i.Index).Distinct();
-            var stepsCount = GetOriginalTestCase(testCase).Steps.Count();
+            var originalTestCase = GetOriginalTestCase(testCase);
+            var stepsCount = originalTestCase.Steps.Count();
             var onSteps = new List<RhinoTestStep>(testCase.Steps);
 
             // build
@@ -639,6 +645,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var onTestCase = DoClone(testCase);
             onTestCase.Steps = onSteps;
             onTestCase.Context = testCase.Context;
+            onTestCase.Context["decomposedTestCase"] = testCase;
 
             // get
             return onTestCase;
@@ -717,10 +724,20 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
             step.Context[ContextEntry.FailedOn] = failedOn;
             step.Context[ContextEntry.Screenshots] = screenshots;
-            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
+            //step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
             step.Actual = stepsMap.All(i => i.Step.Actual);
             step.Expected = string.Join("\n", expected).Trim();
             step.ReasonPhrase = string.Join("\n", reasons).Trim();
+            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get("runtimeid", "-1");
+
+            if ($"{step.Context["runtimeid"]}" == "-1")
+            {
+                var onStepToken = stepsMap.Where(i => i.Step.Context.ContainsKey("testStep"));
+                var stepToken = onStepToken.Any()
+                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>($"{onStepToken.First().Step.Context["testStep"]}")
+                    : JsonConvert.DeserializeObject<IDictionary<string, object>>("{}");
+                step.Context["runtimeid"] = stepToken.Get("id", "-1");
+            }
 
             // get
             return step;
@@ -762,10 +779,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         private static T DoClone<T>(T obj)
         {
             // setup
-            var json = JsonConvert.SerializeObject(obj);
+            var json = System.Text.Json.JsonSerializer.Serialize(obj);
 
             // get
-            return JsonConvert.DeserializeObject<T>(json);
+            return System.Text.Json.JsonSerializer.Deserialize<T>(json);
         }
     }
 }
