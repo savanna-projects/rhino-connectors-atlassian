@@ -27,7 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
     <PackageReference Include="Gravity.Extensions" Version="2020.10.18.1" />
-    <PackageReference Include="Rhino.Api" Version="2021.3.21.3" />
+    <PackageReference Include="Rhino.Api" Version="2021.5.4.1" />
   </ItemGroup>
 
 </Project>
