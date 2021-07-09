@@ -296,6 +296,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
 
                 // setup
                 var execution = $"{DoGetExecutionDetails(testCase).SelectToken("testExecIssueId")}";
+                var a = testCase.GetAuthentication();
                 var jiraClient = new JiraClient(testCase.GetAuthentication());
 
                 // set

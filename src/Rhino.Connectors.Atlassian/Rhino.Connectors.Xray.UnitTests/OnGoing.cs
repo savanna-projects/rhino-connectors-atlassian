@@ -2,8 +2,6 @@
 using Gravity.Services.DataContracts;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
@@ -19,6 +17,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 
 namespace Rhino.Connectors.Xray.UnitTests
 {

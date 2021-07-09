@@ -68,12 +68,12 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         /// <summary>
         /// Gets the HttpClient client used by this JiraClient.
         /// </summary>
-        public static readonly HttpClient HttpClient = new HttpClient();
+        public static readonly HttpClient HttpClient = new();
 
         /// <summary>
         /// Gets the JSON serialization settings used by this JiraClient.
         /// </summary>
-        public static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        public static readonly JsonSerializerSettings JsonSettings = new()
         {
             Formatting = Formatting.Indented,
             ContractResolver = new CamelCasePropertyNamesContractResolver()
