@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
+using Rhino.Api.Converters;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -26,6 +27,20 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 {
     public static class RhinoExtensions
     {
+        // members: properties
+        private static System.Text.Json.JsonSerializerOptions JsonOptions
+        {
+            get
+            {
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                };
+                options.Converters.Add(new ExceptionConverter());
+                return options;
+            }
+        }
+
         // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
@@ -59,7 +74,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // get
-            var configuration = context[ContextEntry.Configuration] as RhinoConfiguration;
+            var c = context[ContextEntry.Configuration];
+            var json = System.Text.Json.JsonSerializer.Serialize(c);
+            var configuration = System
+                .Text
+                .Json
+                .JsonSerializer.Deserialize<RhinoConfiguration>(json);
 
             // exit conditions
             if (configuration == default)

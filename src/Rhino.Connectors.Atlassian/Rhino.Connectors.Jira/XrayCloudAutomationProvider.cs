@@ -25,6 +25,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -462,7 +463,10 @@ namespace Rhino.Connectors.Xray.Cloud
         private void AttachToTestPlan(RhinoTestRun testRun)
         {
             // attach to plan (if any)
-            var contextPlans = testRun.TestCases.SelectMany(i => (List<string>)i.Context["testPlans"]).Distinct();
+            var contextPlans = testRun
+                .TestCases
+                .SelectMany(i => JsonSerializer.Deserialize<IEnumerable<string>>($"{i.Context["testPlans"]}"))
+                .Distinct();
 
             // exit conditions
             if (!contextPlans.Any())
