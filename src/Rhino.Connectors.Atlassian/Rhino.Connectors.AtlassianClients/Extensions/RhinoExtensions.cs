@@ -776,11 +776,18 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         {
             // setup
             var isKey = testCase.Context.ContainsKey(ContextEntry.OriginalTestCase);
-            var isType = isKey && testCase.Context[ContextEntry.OriginalTestCase] is RhinoTestCase;
-            var isValue = isType && testCase.Context[ContextEntry.OriginalTestCase] != null;
+            var isValue = isKey && testCase.Context[ContextEntry.OriginalTestCase] != null;
+
+            // build
+            var _testCaseJson = isValue
+                ? System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.OriginalTestCase])
+                : System.Text.Json.JsonSerializer.Serialize(new RhinoTestCase());
+
+            var _testCase = System.Text.Json.JsonSerializer.Deserialize<RhinoTestCase>(_testCaseJson);
+            _testCase.Context = testCase.Context;
 
             // get
-            return isValue ? (RhinoTestCase)testCase.Context[ContextEntry.OriginalTestCase] : new RhinoTestCase();
+            return testCase;
         }
 
         private static IEnumerable<string> GetScreenshots(RhinoTestStep step)
