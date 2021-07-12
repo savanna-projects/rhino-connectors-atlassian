@@ -677,7 +677,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             const string ParentPlugin = "parentPlugin";
 
             //setup
-            var runtimeKeys = GetOriginalTestCase(testCase).Steps.Select(i => i.RuntimeKey);
+            var runtimeKeys = GetOriginalTestCase(testCase).Steps.Select(i => i.RuntimeKey).Distinct();
             var aggregated = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
 
             // build
@@ -687,7 +687,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 foreach (var step in testCase.Steps.Where(x => x.RuntimeKey.Equals(runtimeKeys.ElementAt(i), Compare)))
                 {
                     var isParentPlugin = step.Context.ContainsKey(ParentPlugin);
-                    var parentPlugin = isParentPlugin ? (RhinoPlugin)step.Context[ParentPlugin] : null;
+                    RhinoPlugin parentPlugin = null;
+                    if (isParentPlugin)
+                    {
+                        var json = System.Text.Json.JsonSerializer.Serialize(step.Context[ParentPlugin]);
+                        parentPlugin = System.Text.Json.JsonSerializer.Deserialize<RhinoPlugin>(json);
+                    }
                     aggregated.Add((index, parentPlugin, step));
                 }
                 index++;
@@ -728,7 +733,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 expected.AddRange(onExpected);
-                var contextFailedOn = IsFailedOn(Step) ? (List<int>)Step.Context[ContextEntry.FailedOn] : new List<int>();
+                List<int> contextFailedOn = new List<int>();
+                if (IsFailedOn(Step))
+                {
+                    var json = System.Text.Json.JsonSerializer.Serialize(Step.Context[ContextEntry.FailedOn]);
+                    contextFailedOn = System.Text.Json.JsonSerializer.Deserialize<List<int>>(json);
+                }
                 var on = contextFailedOn.Select(i => expected.Count - i);
                 if (on.Any())
                 {
