@@ -29,7 +29,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
 
             // apply context
             onTestCase.Context ??= new Dictionary<string, object>();
-            onTestCase.Context[nameof(testCase)] = testCase;
+            onTestCase.Context[nameof(testCase)] = $"{testCase}";
 
             // fields: setup
             var priority = GetPriority(testCase);

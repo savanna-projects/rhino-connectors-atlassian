@@ -465,6 +465,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // attach to plan (if any)
             var contextPlans = testRun
                 .TestCases
+                .Where(i => i.Context.ContainsKey("testPlans"))
                 .SelectMany(i => JsonSerializer.Deserialize<IEnumerable<string>>($"{i.Context["testPlans"]}"))
                 .Distinct();
 
@@ -631,7 +632,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
+            var onTestCase = JToken.Parse($"{testCase.Context[nameof(testCase)]}");
 
             // put
             testCase.Context["testPlans"] = xpandClient.GetPlansByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
