@@ -587,7 +587,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup conditions
             var isContext = testCase.Context.ContainsKey(nameof(testCase));
-            var isToken = isContext && testCase.Context[nameof(testCase)] is JToken;
+            var isJson = $"{testCase.Context[nameof(testCase)]}".IsJson();
+            var isToken = isContext && isJson;
 
             // exit conditions
             if (!isToken)
@@ -597,7 +598,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
+            var onTestCase = JObject.Parse($"{testCase.Context[nameof(testCase)]}");
 
             // put
             testCase.TestSuites = xpandClient.GetSetsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
@@ -622,7 +623,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup conditions
             var isContext = testCase.Context.ContainsKey(nameof(testCase));
-            var isToken = isContext && testCase.Context[nameof(testCase)] is JToken;
+            var isJson = $"{testCase.Context[nameof(testCase)]}".IsJson();
+            var isToken = isContext && isJson;
 
             // exit conditions
             if (!isToken)
@@ -657,7 +659,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup conditions
             var isContext = testCase.Context.ContainsKey(nameof(testCase));
-            var isToken = isContext && testCase.Context[nameof(testCase)] is JToken;
+            var isJson = $"{testCase.Context[nameof(testCase)]}".IsJson();
+            var isToken = isContext && isJson;
 
             // exit conditions
             if (!isToken)
@@ -667,7 +670,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get
-            var onTestCase = ((JToken)testCase.Context[nameof(testCase)]).AsJObject();
+            var onTestCase = JObject.Parse($"{testCase.Context[nameof(testCase)]}");
             var preconditions = xpandClient.GetPreconditionsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
 
             // exit conditions
