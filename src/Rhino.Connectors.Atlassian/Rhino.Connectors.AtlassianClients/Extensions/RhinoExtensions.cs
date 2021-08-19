@@ -754,10 +754,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
             step.Context[ContextEntry.FailedOn] = failedOn;
             step.Context[ContextEntry.Screenshots] = screenshots;
-            //step.Context["runtimeid"] = stepsMap.First().Step.Context.Get<long>("runtimeid", -1);
             step.Actual = stepsMap.All(i => i.Step.Actual);
             step.Expected = string.Join("\n", expected).Trim();
             step.ReasonPhrase = string.Join("\n", reasons).Trim();
+            //step.RuntimeKey = stepsMap.First().Step.RuntimeKey;
             step.Context["runtimeid"] = stepsMap.First().Step.Context.Get("runtimeid", "-1");
 
             if ($"{step.Context["runtimeid"]}" == "-1")
@@ -766,7 +766,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var stepToken = onStepToken.Any()
                     ? JsonConvert.DeserializeObject<IDictionary<string, object>>($"{onStepToken.First().Step.Context["testStep"]}")
                     : JsonConvert.DeserializeObject<IDictionary<string, object>>("{}");
-                step.Context["runtimeid"] = stepToken.Get("id", "-1");
+                step.Context["runtimeid"] = stepToken.ContainsKey("id") ? $"{stepToken["id"]}" : "-1";
             }
 
             // get

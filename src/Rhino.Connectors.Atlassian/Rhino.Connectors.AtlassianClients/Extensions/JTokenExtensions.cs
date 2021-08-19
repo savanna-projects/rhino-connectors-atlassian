@@ -2,10 +2,22 @@
 
 using Newtonsoft.Json.Linq;
 
+using System.Collections;
+using System.Collections.Generic;
+
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
     public static class JTokenExtensions
     {
+        public static T GetOrDefault<T>(this IDictionary<string, object> data, string key, T defaultValue)
+        {
+            if (!data.ContainsKey(key))
+            {
+                return defaultValue;
+            }
+            return data[key] == default ? default : (T)data[key];
+        }
+
         public static JObject AsJObject(this JToken token)
         {
             var json = token == default ? "{}" : $"{token}";

@@ -24,6 +24,36 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-
+        [TestMethod]
+        public void Test()
+        {
+            var configuration = new RhinoConfiguration
+            {
+                DriverParameters = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["driver"] = "ChromeDriver",
+                        ["driverBinaries"] = @"C:\AutomationEnv\WebDrivers"
+                    }
+                },
+                Authentication = new Authentication
+                {
+                    UserName = "automation@rhino.api",
+                    Password = "Aa123456!"
+                },
+                TestsRepository = new[] { "RP-1" },
+                ConnectorConfiguration = new RhinoConnectorConfiguration
+                {
+                    Collection = "http://localhost:8080",
+                    UserName = "admin",
+                    Password = "admin",
+                    Project = "RP",
+                    Connector = Connector.JiraXRay,
+                    DryRun = false
+                }
+            };
+            configuration.Execute(Utilities.Types);
+        }
     }
 }
