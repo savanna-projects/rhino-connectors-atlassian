@@ -18,6 +18,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
@@ -25,6 +26,10 @@ namespace Rhino.Connectors.Xray.Extensions
     {
         // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
+        private static readonly JsonSerializerOptions jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
 
         /// <summary>
         /// Set XRay runtime ids on all steps under this RhinoTestCase.
@@ -55,16 +60,14 @@ namespace Rhino.Connectors.Xray.Extensions
             // apply runtime id to test-step context
             for (int i = 0; i < steps.Count; i++)
             {
-                steps[i].Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
-                steps[i].Context["testStep"] = JToken.Parse($"{stepsToken[i]}");
-
                 var isKey = steps[i].Context.ContainsKey(ContextEntry.ChildSteps);
                 var isType = isKey && steps[i].Context[ContextEntry.ChildSteps] is IEnumerable<RhinoTestStep>;
                 if (isType)
                 {
                     foreach (var _step in (IEnumerable<RhinoTestStep>)steps[i].Context[ContextEntry.ChildSteps])
                     {
-                        _step.Context["runtimeid"] = steps[i].Context["runtimeid"];
+                        _step.Context["testStep"] = $"{stepsToken[i]}";
+                        _step.Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
                     }
                 }
             }
@@ -91,6 +94,22 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // send
             executor.SendCommand(command);
+        }
+
+        public static IEnumerable<string> GetTestPlans(this RhinoTestCase testCase)
+        {
+            // setup
+            const string key = "testPlans";
+
+            // not found
+            if (!testCase.Context.ContainsKey(key))
+            {
+                return Array.Empty<string>();
+            }
+
+            // get
+            return System.Text.Json.JsonSerializer
+                .Deserialize<IEnumerable<string>>($"{testCase.Context[key]}", jsonOptions);
         }
 
         #region *** To Issue Request ***
@@ -212,9 +231,11 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <remarks>Must contain runtimeid field in the context.</remarks>
         public static void SetOutcomeBySteps(this RhinoTestCase testCase)
         {
+            const string Aggregated = "aggregated";
+
             // get steps
             var onTestCase = testCase.AggregateSteps();
-            onTestCase.Context.AddRange(testCase.Context, new[] { "aggregated" });
+            onTestCase.Context.AddRange(testCase.Context, new[] { Aggregated });
 
             // collect steps
             var steps = new List<object>();
@@ -300,7 +321,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
 
             // send
-            foreach (var (Id, Data) in GetEvidence(testCase))
+            foreach (var (Id, Data) in GetEvidence(testCase).Reverse())
             {
                 RavenCommandsRepository.CreateAttachment($"{runOut}", $"{Id}", Data).Send(executor);
             }

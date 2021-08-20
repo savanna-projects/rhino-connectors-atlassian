@@ -542,6 +542,9 @@ namespace Rhino.Connectors.AtlassianClients
         {
             // setup conditions
             var isUpdate = !string.IsNullOrEmpty(idOrKey);
+            data = data is string && $"{data}".IsJson()
+                ? Newtonsoft.Json.JsonConvert.DeserializeObject<IDictionary<string, object>>($"{data}")
+                : data;
 
             // setup
             var command = isUpdate

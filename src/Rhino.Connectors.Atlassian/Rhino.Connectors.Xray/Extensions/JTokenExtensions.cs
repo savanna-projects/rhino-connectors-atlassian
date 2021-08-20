@@ -31,7 +31,7 @@ namespace Rhino.Connectors.Xray.Extensions
 
             // apply context
             onTestCase.Context ??= new Dictionary<string, object>();
-            onTestCase.Context[nameof(testCase)] = testCaseObject;
+            onTestCase.Context[nameof(testCase)] = $"{testCaseObject}";
 
             // fields: setup
             var priority = GetPriority(testCaseObject);
@@ -60,7 +60,7 @@ namespace Rhino.Connectors.Xray.Extensions
                 step.Expected = string.Join(Environment.NewLine, onExpected);
 
                 // apply
-                step.Context[nameof(testStep)] = testStep;
+                step.Context[nameof(testStep)] = $"{testStep}";
                 parsedSteps.Add(step);
             }
 

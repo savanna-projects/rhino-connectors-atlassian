@@ -6,8 +6,6 @@
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
-using Newtonsoft.Json;
-
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
@@ -26,6 +24,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -376,7 +375,7 @@ namespace Rhino.Connectors.Xray
         {
             // setup: request body
             var customField = jiraClient.GetCustomField(TestExecutionSchema);
-            var testCases = JsonConvert.SerializeObject(testRun.TestCases.Select(i => i.Key));
+            var testCases = JsonSerializer.Serialize(testRun.TestCases.Select(i => i.Key));
 
             // load JSON body
             var comment = Utilities.GetActionSignature("created");
@@ -396,10 +395,13 @@ namespace Rhino.Connectors.Xray
             testRun.Context[ContextEntry.Configuration] = Configuration;
 
             // test steps handler
+            var _testCases = new List<RhinoTestCase>();
             foreach (var testCase in TestRun.TestCases)
             {
                 testCase.SetRuntimeKeys(testRun.Key);
             }
+
+            // get
             return testRun;
         }
 
@@ -455,7 +457,7 @@ namespace Rhino.Connectors.Xray
         private void AttachToTestPlan(RhinoTestRun testRun)
         {
             // attach to plan (if any)
-            var plans = testRun.TestCases.SelectMany(i => (List<string>)i.Context["testPlans"]).Distinct();
+            var plans = testRun.TestCases.SelectMany(i => i.GetTestPlans()).Distinct();
 
             // exit conditions
             if (!plans.Any())
@@ -539,7 +541,7 @@ namespace Rhino.Connectors.Xray
             jiraExecutor.SendCommand(command);
         }
 
-        private string GetExecution(RhinoTestCase testCase)
+        private static string GetExecution(RhinoTestCase testCase)
         {
             // exit conditions
             if (!testCase.Context.ContainsKey("runtimeid"))
@@ -607,7 +609,6 @@ namespace Rhino.Connectors.Xray
                     return;
                 }
                 testCase.SetOutcomeBySteps();
-                onTestCase = testCase.AggregateSteps();
 
                 // attachments
                 if (forUploadOutcomes.Contains(outcome.ToUpper()))
