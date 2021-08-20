@@ -24,6 +24,16 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-
+        [TestMethod]
+        public void Test()
+        {
+            var settings = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var json = File.ReadAllText(@"D:\garbage\xray-cloud.txt");
+            var configuration = JsonSerializer.Deserialize<RhinoConfiguration>(json, settings);
+            configuration.Execute(Utilities.Types);
+        }
     }
 }
