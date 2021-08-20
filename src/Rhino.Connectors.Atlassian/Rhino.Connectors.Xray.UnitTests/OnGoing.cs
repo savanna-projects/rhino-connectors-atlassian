@@ -27,12 +27,32 @@ namespace Rhino.Connectors.Xray.UnitTests
         [TestMethod]
         public void Test()
         {
-            var settings = new JsonSerializerOptions
+            var configuration = new RhinoConfiguration
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                DriverParameters = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["driver"] = "ChromeDriver",
+                        ["driverBinaries"] = @"C:\AutomationEnv\WebDrivers"
+                    }
+                },
+                Authentication = new Authentication
+                {
+                    UserName = "automation@rhino.api",
+                    Password = "Aa123456!"
+                },
+                TestsRepository = new[] { "RP-1" },
+                ConnectorConfiguration = new RhinoConnectorConfiguration
+                {
+                    Collection = "http://localhost:8080",
+                    UserName = "admin",
+                    Password = "admin",
+                    Project = "RP",
+                    Connector = Connector.JiraXRay,
+                    DryRun = false
+                }
             };
-            var json = File.ReadAllText(@"D:\garbage\xray-cloud.txt");
-            var configuration = JsonSerializer.Deserialize<RhinoConfiguration>(json, settings);
             configuration.Execute(Utilities.Types);
         }
     }
