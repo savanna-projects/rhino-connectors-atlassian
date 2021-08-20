@@ -395,10 +395,13 @@ namespace Rhino.Connectors.Xray
             testRun.Context[ContextEntry.Configuration] = Configuration;
 
             // test steps handler
+            var _testCases = new List<RhinoTestCase>();
             foreach (var testCase in TestRun.TestCases)
             {
                 testCase.SetRuntimeKeys(testRun.Key);
             }
+
+            // get
             return testRun;
         }
 

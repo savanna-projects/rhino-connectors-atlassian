@@ -60,16 +60,14 @@ namespace Rhino.Connectors.Xray.Extensions
             // apply runtime id to test-step context
             for (int i = 0; i < steps.Count; i++)
             {
-                steps[i].Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
-                steps[i].Context["testStep"] = $"{stepsToken[i]}";
-
                 var isKey = steps[i].Context.ContainsKey(ContextEntry.ChildSteps);
                 var isType = isKey && steps[i].Context[ContextEntry.ChildSteps] is IEnumerable<RhinoTestStep>;
                 if (isType)
                 {
                     foreach (var _step in (IEnumerable<RhinoTestStep>)steps[i].Context[ContextEntry.ChildSteps])
                     {
-                        _step.Context["runtimeid"] = steps[i].Context["runtimeid"];
+                        _step.Context["testStep"] = $"{stepsToken[i]}";
+                        _step.Context["runtimeid"] = stepsToken[i]["id"].ToObject<long>();
                     }
                 }
             }
@@ -236,9 +234,7 @@ namespace Rhino.Connectors.Xray.Extensions
             const string Aggregated = "aggregated";
 
             // get steps
-            var onTestCase = testCase.Context.ContainsKey(Aggregated) && testCase.Context[Aggregated] is RhinoTestCase
-                    ? (RhinoTestCase)testCase.Context[Aggregated]
-                    : testCase.AggregateSteps();
+            var onTestCase = testCase.AggregateSteps();
             onTestCase.Context.AddRange(testCase.Context, new[] { Aggregated });
 
             // collect steps
@@ -325,7 +321,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
 
             // send
-            foreach (var (Id, Data) in GetEvidence(testCase))
+            foreach (var (Id, Data) in GetEvidence(testCase).Reverse())
             {
                 RavenCommandsRepository.CreateAttachment($"{runOut}", $"{Id}", Data).Send(executor);
             }
