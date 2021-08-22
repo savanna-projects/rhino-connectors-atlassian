@@ -682,7 +682,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // get all preconditions as data tables
             var dataTables = jiraClient
                 .Get(preconditions)
-                .Select(i => new DataTable().FromMarkDown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim(), default));
+                .Select(i => new DataTable().FromJiraMarkdown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim()));
 
             // put
             testCase.DataSource = dataTables.First().Apply(dataTables.Skip(1)).ToArray();

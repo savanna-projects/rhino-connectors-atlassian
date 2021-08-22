@@ -146,6 +146,74 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return header + body;
         }
 
+        public static DataTable FromJiraMarkdown(this DataTable dataTable, string markdown)
+        {
+            // if source is a file, load from file
+            if (string.IsNullOrEmpty(markdown))
+            {
+                return dataTable;
+            }
+
+            // split into lines            
+            var lines = markdown
+                .SplitByLines()
+                .Where(i => !Regex.IsMatch(input: i, pattern: @"^(\|-+)+\|?$") && !string.IsNullOrEmpty(i))
+                .ToArray();
+
+            // exit conditions
+            if (lines.Length == 1)
+            {
+                return new DataTable();
+            }
+
+            // get headers
+            var headers = lines[0].Split("|").Where(i => !string.IsNullOrEmpty(i));
+
+            // get lines
+            var rows = new List<IEnumerable<string>> { headers };
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var row = SplitMarkdownTable(lines[i]);
+                rows.Add(row);
+            }
+
+            // table
+            return ToTable(rows);
+        }
+
+        private static IEnumerable<string> SplitMarkdownTable(string line)
+        {
+            // build
+            line = line.Trim()[1..line.LastIndexOf("|")];
+
+            // get
+            return Regex
+                .Split(line, @"\|+(:)?")
+                .Select(i => string.IsNullOrWhiteSpace(i) ? string.Empty : i.Trim());
+        }
+
+        private static DataTable ToTable(IEnumerable<IEnumerable<string>> rows)
+        {
+            var dataTable = new DataTable();
+
+            // add headers
+            foreach (var header in rows.ElementAt(0))
+            {
+                dataTable.Columns.Add(header);
+            }
+            // add rows
+            for (int i = 1; i < rows.Count(); i++)
+            {
+                var dataRow = dataTable.NewRow();
+                for (int j = 0; j < rows.ElementAt(i).Count(); j++)
+                {
+                    dataRow[j] = rows.ElementAt(i).ElementAt(j);
+                }
+                dataTable.Rows.Add(dataRow);
+            }
+            return dataTable;
+        }
+
         #region *** Put Issue Types  ***
         /// <summary>
         /// Apply issue types into RhinoConfiguration capabilities or default types if needed.
@@ -272,8 +340,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable().FromMarkDown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
-                var compareableTstCapabilites = new DataTable().FromMarkDown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+                var compareableBugCapabilites = new DataTable().FromJiraMarkdown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+                var compareableTstCapabilites = new DataTable().FromJiraMarkdown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
 
                 // assert
                 return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);
@@ -315,7 +383,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
                 // convert to data table and than to dictionary collection
                 var compareableBugCapabilites = System.Text.Json.JsonSerializer.Serialize(new DataTable()
-                    .FromMarkDown(bugData)
+                    .FromJiraMarkdown(bugData)
                     .ToDictionary())
                     .ToUpper()
                     .Sort();
