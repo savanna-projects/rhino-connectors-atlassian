@@ -54,7 +54,7 @@ namespace Rhino.Connectors.TestsGenerator
             var connecotrConfiguration = new RhinoConnectorConfiguration
             {
                 Collection = collection,
-                Connector = false /*App.Default.ForCloud*/ ? Connector.JiraXryCloud : Connector.JiraXRay,
+                Connector = false /*App.Default.ForCloud*/ ? RhinoConnectors.JiraXryCloud : RhinoConnectors.JiraXRay,
                 Password = password,
                 UserName = user,
                 Project = project
@@ -68,7 +68,7 @@ namespace Rhino.Connectors.TestsGenerator
             };
         }
 
-        private static RhinoTestCase GetTestTemplate() => new RhinoTestCase
+        private static RhinoTestCase GetTestTemplate() => new()
         {
             TestSuites = new[] { testSetKey },
             Steps = new[]

@@ -524,7 +524,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // add attachments
             var files = testCase.GetScreenshots();
-            jiraClient.AddAttachments($"{response["key"]}", files.ToArray());
+            jiraClient.AddAttachments($"{response["key"]}", files.Reverse().ToArray());
 
             // add to context
             testCase.Context["bugOpenedResponse"] = response;
@@ -801,7 +801,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 expected.AddRange(onExpected);
-                List<int> contextFailedOn = new List<int>();
+                List<int> contextFailedOn = new();
                 if (IsFailedOn(Step))
                 {
                     var json = System.Text.Json.JsonSerializer.Serialize(Step.Context[ContextEntry.FailedOn]);

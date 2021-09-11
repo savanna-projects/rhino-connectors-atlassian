@@ -304,7 +304,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // assert: status
             var isDoneStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Done", Compare);
-            var isClosedStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Done", Compare);
+            var isClosedStatus = $"{onBug.SelectToken("fields.status.name")}".Equals("Closed", Compare);
 
             // get
             return !(isDoneStatus || isClosedStatus) ? $"{onBug}" : string.Empty;

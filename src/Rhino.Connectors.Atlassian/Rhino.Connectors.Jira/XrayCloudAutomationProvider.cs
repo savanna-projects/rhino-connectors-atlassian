@@ -82,8 +82,8 @@ namespace Rhino.Connectors.Xray.Cloud
             // capabilities
             BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
             configuration.PutDefaultCapabilities();
-            capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXryCloud}:options")
-                ? configuration.Capabilities[$"{Connector.JiraXryCloud}:options"] as IDictionary<string, object>
+            capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXryCloud}:options")
+                ? configuration.Capabilities[$"{RhinoConnectors.JiraXryCloud}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
 
             // misc
@@ -192,7 +192,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string CreateTestCase(RhinoTestCase testCase)
+        public override string OnCreateTestCase(RhinoTestCase testCase)
         {
             // constants: logging
             const string M = "Create-Test -Project [{0}] -Set [{1}] = true";
@@ -432,7 +432,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void OnCompleteTestRun(RhinoTestRun testRun)
+        public override void OnRunTeardown(RhinoTestRun testRun)
         {
             // get all test keys to re-assign outcome
             var testCases = testRun
@@ -739,7 +739,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Executes a routie of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
-        public override void OnPostCreateBug(RhinoTestCase testCase)
+        public override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
             // exit conditions
             if (!testCase.Context.ContainsKey("lastBugKey"))
