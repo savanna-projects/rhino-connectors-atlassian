@@ -16,7 +16,6 @@ using Rhino.Connectors.AtlassianClients.Contracts;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Rhino.Connectors.Xray
 {
@@ -24,7 +23,7 @@ namespace Rhino.Connectors.Xray
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
     [Connector(
-        value: Connector.JiraXRay,
+        value: RhinoConnectors.JiraXRay,
         Name = "Connector - Atlassian XRay, On-Premise",
         Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
     public class XrayConnector : RhinoConnector
@@ -70,7 +69,7 @@ namespace Rhino.Connectors.Xray
         {
             // setup connector type (double check)
             configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
-            configuration.ConnectorConfiguration.Connector = Connector.JiraXRay;
+            configuration.ConnectorConfiguration.Connector = RhinoConnectors.JiraXRay;
 
             // setup provider manager
             ProviderManager = new XrayAutomationProvider(configuration, types, logger);
@@ -88,7 +87,7 @@ namespace Rhino.Connectors.Xray
         /// Performed just before each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which is being executed.</param>
-        public override RhinoTestCase OnPreTestExecute(RhinoTestCase testCase)
+        public override RhinoTestCase OnTestSetup(RhinoTestCase testCase)
         {
             // setup
             testCase.Context["outcome"] = "EXECUTING";
@@ -106,7 +105,7 @@ namespace Rhino.Connectors.Xray
         /// Performed just after each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
-        public override RhinoTestCase OnPostTestExecute(RhinoTestCase testCase)
+        public override RhinoTestCase OnTestTeardown(RhinoTestCase testCase)
         {
             // setup
             var outcome = testCase.Actual ? "PASS" : "FAIL";

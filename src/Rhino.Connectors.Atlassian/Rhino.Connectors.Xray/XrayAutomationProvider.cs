@@ -94,8 +94,8 @@ namespace Rhino.Connectors.Xray
             // capabilities
             BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
             configuration.PutDefaultCapabilities();
-            capabilities = configuration.Capabilities.ContainsKey($"{Connector.JiraXRay}:options")
-                ? configuration.Capabilities[$"{Connector.JiraXRay}:options"] as IDictionary<string, object>
+            capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXRay}:options")
+                ? configuration.Capabilities[$"{RhinoConnectors.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
 
             // integration
@@ -334,7 +334,7 @@ namespace Rhino.Connectors.Xray
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string CreateTestCase(RhinoTestCase testCase)
+        public override string OnCreateTestCase(RhinoTestCase testCase)
         {
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
@@ -409,7 +409,7 @@ namespace Rhino.Connectors.Xray
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void OnCompleteTestRun(RhinoTestRun testRun)
+        public override void OnRunTeardown(RhinoTestRun testRun)
         {
             // setup: failed to update
             var inStatus = new[] { "TODO", "EXECUTING" };
@@ -520,8 +520,9 @@ namespace Rhino.Connectors.Xray
         /// Executes a routie of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
-        public override void OnPostCreateBug(RhinoTestCase testCase)
+        public override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
+
             // exit conditions
             if (!testCase.Context.ContainsKey("lastBugKey"))
             {

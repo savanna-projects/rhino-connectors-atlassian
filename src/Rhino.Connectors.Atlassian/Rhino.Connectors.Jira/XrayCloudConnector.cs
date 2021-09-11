@@ -26,7 +26,7 @@ namespace Rhino.Connectors.Xray.Cloud
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
     [Connector(
-        value: Connector.JiraXryCloud,
+        value: RhinoConnectors.JiraXryCloud,
         Name = "Connector - Atlassian XRay, On-Cloud",
         Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
     public class XrayCloudConnector : RhinoConnector
@@ -72,7 +72,7 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup connector type (double check)
             configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
-            configuration.ConnectorConfiguration.Connector = Connector.JiraXryCloud;
+            configuration.ConnectorConfiguration.Connector = RhinoConnectors.JiraXryCloud;
 
             // setup provider manager
             ProviderManager = new XrayCloudAutomationProvider(configuration, types, logger);
@@ -90,7 +90,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Performed just before each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which is being executed.</param>
-        public override RhinoTestCase OnPreTestExecute(RhinoTestCase testCase)
+        public override RhinoTestCase OnTestSetup(RhinoTestCase testCase)
         {
             // setup
             testCase.Context["outcome"] = "EXECUTING";
@@ -108,7 +108,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Performed just after each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
-        public override RhinoTestCase OnPostTestExecute(RhinoTestCase testCase)
+        public override RhinoTestCase OnTestTeardown(RhinoTestCase testCase)
         {
             // constants
             const string Updated = "runUpdated";
