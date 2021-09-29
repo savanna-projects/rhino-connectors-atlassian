@@ -93,7 +93,7 @@ namespace Rhino.Connectors.Xray
 
             // capabilities
             BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
-            configuration.PutDefaultCapabilities();
+            configuration.PutDefaultCapabilities(connector: RhinoConnectors.JiraXRay);
             capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXRay}:options")
                 ? configuration.Capabilities[$"{RhinoConnectors.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
@@ -364,6 +364,59 @@ namespace Rhino.Connectors.Xray
         }
         #endregion
 
+        #region *** Update: Test Case ***
+        /// <summary>
+        /// Creates a new test case under the specified automation provider.
+        /// </summary>
+        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
+        /// <returns>The ID of the newly created entity.</returns>
+        public override void OnUpdateTestCase(RhinoTestCase testCase)
+        {
+            // shortcuts
+            var onProject = Configuration.ConnectorConfiguration.Project;
+            testCase.Context[ContextEntry.Configuration] = Configuration;
+            var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
+
+            // setup context
+            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
+            testCase.Context["project-key"] = onProject;
+            testCase.Context["test-sets-custom-field"] = jiraClient.GetCustomField(schema: TestSetSchema);
+            testCase.Context["manual-test-steps-custom-field"] = jiraClient.GetCustomField(schema: ManualTestStepSchema);
+            testCase.Context["test-plan-custom-field"] = jiraClient.GetCustomField(schema: AssociatedPlanSchema);
+
+            // setup request body
+            var requestBody = testCase.ToJiraXrayIssue(includeSteps: false);
+            var isUpdate = jiraClient.UpdateIssue(testCase.Key, requestBody);
+
+            // failover
+            if (!isUpdate)
+            {
+                Logger?.InfoFormat($"Update-Test " +
+                    $"-Project [{onProject}] " +
+                    $"-Set [{string.Join(",", testCase?.TestSuites)}] = InternalServerError");
+                return;
+            }
+
+            // create steps
+            var responseBody = jiraClient.Get(idOrKey: testCase.Key);
+            var testId = JsonSerializer.Deserialize < IDictionary<string, object>>($"{responseBody}")["id"];
+            var steps = testCase.Steps.ToArray();
+            for (int i = 0; i < steps.Length; i++)
+            {
+                var stepRequest = steps[i].ToJiraXrayIssue($"{jiraClient.ProjectMeta["id"]}", i + 1);
+                var command = RavenCommandsRepository.CreateStep($"{testId}", data: stepRequest);
+                jiraExecutor.SendCommand(command);
+            }
+
+            // comment
+            var comment = Utilities.GetActionSignature(action: "synced");
+            jiraClient.AddComment(idOrKey: testCase.Key, comment);
+
+            // success
+            Logger?.InfoFormat($"Update-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = Ok");
+        }
+        #endregion
+
         #region *** Create: Test Run  ***
         /// <summary>
         /// Creates an automation provider test run entity. Use this method to implement the automation
@@ -381,7 +434,7 @@ namespace Rhino.Connectors.Xray
             var comment = Utilities.GetActionSignature("created");
             var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
                 .Replace("[project-key]", Configuration.ConnectorConfiguration.Project)
-                .Replace("[run-title]", TestRun.Title)
+                .Replace("[run-title]", testRun.Title)
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
@@ -395,8 +448,7 @@ namespace Rhino.Connectors.Xray
             testRun.Context[ContextEntry.Configuration] = Configuration;
 
             // test steps handler
-            var _testCases = new List<RhinoTestCase>();
-            foreach (var testCase in TestRun.TestCases)
+            foreach (var testCase in testRun.TestCases)
             {
                 testCase.SetRuntimeKeys(testRun.Key);
             }
