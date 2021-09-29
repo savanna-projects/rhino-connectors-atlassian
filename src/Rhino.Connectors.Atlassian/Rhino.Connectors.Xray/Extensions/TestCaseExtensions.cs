@@ -16,14 +16,14 @@ using Rhino.Connectors.Xray.Framework;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
-    internal static class TestCaseExtensions
+    public static class TestCaseExtensions
     {
         // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
@@ -115,11 +115,88 @@ namespace Rhino.Connectors.Xray.Extensions
 
         #region *** To Issue Request ***
         /// <summary>
+        /// Converts connector test step interface into a test management test step.
+        /// </summary>
+        /// <param name="testStep">Test step to convert.</param>
+        /// <param name="projectRuntimeKey">The test runtime key to apply steps to.</param>
+        /// <param name="rank">The rank of the test step (location order).</param>
+        /// <returns>Test management test step.</returns>
+        public static string ToJiraXrayIssue(this RhinoTestStep testStep, string projectRuntimeKey, int rank)
+        {
+            // setup
+            var action = Regex
+                .Replace(input: testStep.Action.Replace("{", "{{").Replace("}", "}}"), pattern: @"^(\s+)?(\d+)\.", replacement: string.Empty)
+                .Trim();
+            var expected = string.IsNullOrEmpty(testStep.Expected)
+                ? string.Empty
+                : testStep.Expected.Replace("{", "{{").Replace("}", "}}").Trim();
+            
+            // build
+            var payload = new Dictionary<string, object>
+            {
+                ["rank"] = rank,
+                ["fields"] = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["@type"] = "nativeValue",
+                        ["customField"] = new Dictionary<string, object>
+                        {
+                            ["id"] = $"STEP_NATIVE_{projectRuntimeKey}",
+                            ["rank"] = 1,
+                            ["projectId"] = "",
+                            ["type"] = "NATIVE",
+                            ["entity"] = "TEST_STEP"
+                        },
+                        ["wikiField"] = new Dictionary<string, object>
+                        {
+                            ["raw"] = action
+                        }
+                    },
+                    new Dictionary<string, object>
+                    {
+                        ["@type"] = "nativeValue",
+                        ["customField"] = new Dictionary<string, object>
+                        {
+                            ["id"] = $"RESULT_NATIVE_{projectRuntimeKey}",
+                            ["rank"] = 3,
+                            ["projectId"] = "",
+                            ["type"] = "NATIVE",
+                            ["entity"] = "TEST_STEP"
+                        },
+                        ["wikiField"] = new Dictionary<string, object>
+                        {
+                            ["raw"] = expected
+                        }
+                    },
+                }
+            };
+
+            // get
+            return JsonConvert.SerializeObject(payload);
+        }
+
+        /// <summary>
         /// Converts connector test case interface into a test management test case.
         /// </summary>
         /// <param name="testCase">Test case to convert</param>
         /// <returns>Test management test case</returns>
         public static string ToJiraXrayIssue(this RhinoTestCase testCase)
+        {
+            return InvokeToJiraXrayIssue(testCase, includeSteps: true);
+        }
+
+        /// <summary>
+        /// Converts connector test case interface into a test management test case.
+        /// </summary>
+        /// <param name="testCase">Test case to convert</param>
+        /// <returns>Test management test case</returns>
+        public static string ToJiraXrayIssue(this RhinoTestCase testCase, bool includeSteps)
+        {
+            return InvokeToJiraXrayIssue(testCase, includeSteps);
+        }
+
+        private static string InvokeToJiraXrayIssue(RhinoTestCase testCase, bool includeSteps)
         {
             // exit conditions
             ValidationXray(testCase);
@@ -143,10 +220,9 @@ namespace Rhino.Connectors.Xray.Extensions
                 {
                     ["key"] = $"{testCase.Context["project-key"]}"
                 },
-                [$"{testCase.Context["manual-test-steps-custom-field"]}"] = new Dictionary<string, object>
-                {
-                    ["steps"] = steps
-                }
+                [$"{testCase.Context["manual-test-steps-custom-field"]}"] = includeSteps
+                    ? new Dictionary<string, object> { ["steps"] = steps }
+                    : new Dictionary<string, object>()
             };
 
             // test suite

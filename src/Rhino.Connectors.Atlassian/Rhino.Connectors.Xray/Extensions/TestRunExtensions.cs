@@ -14,7 +14,7 @@ using Rhino.Connectors.Xray.Framework;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
-    internal static class TestRunExtensions
+    public static class TestRunExtensions
     {
         /// <summary>
         /// Gets all tests under this RhinoTestRun execution.

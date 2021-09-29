@@ -10,7 +10,7 @@ using System.Net.Http;
 
 namespace Rhino.Connectors.Xray.Framework
 {
-    internal static class RavenCommandsRepository
+    public static class RavenCommandsRepository
     {
         // constants
         private const string ApiVersion = "2.0";
@@ -171,6 +171,20 @@ namespace Rhino.Connectors.Xray.Framework
                 Data = new[] { keyBug },
                 Method = HttpMethod.Post,
                 Route = string.Format(Format, idExecution)
+            };
+        }
+
+        public static HttpCommand CreateStep(string testId, object data)
+        {
+            // setup
+            const string Format = "/rest/raven/1.0/customFields/createStep?testId={0}";
+
+            // get
+            return new HttpCommand
+            {
+                Data = data,
+                Method = HttpMethod.Post,
+                Route = string.Format(Format, testId)
             };
         }
         #endregion

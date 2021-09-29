@@ -16,7 +16,7 @@ using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
 {
-    internal static class JTokenExtensions
+    public static class JTokenExtensions
     {
         /// <summary>
         /// Converts test management test case interface into a RhinoTestCase.

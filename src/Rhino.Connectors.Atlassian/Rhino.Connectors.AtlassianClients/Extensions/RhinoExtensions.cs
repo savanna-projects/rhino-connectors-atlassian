@@ -27,20 +27,6 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 {
     public static class RhinoExtensions
     {
-        // members: properties
-        private static System.Text.Json.JsonSerializerOptions JsonOptions
-        {
-            get
-            {
-                var options = new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-                };
-                options.Converters.Add(new ExceptionConverter());
-                return options;
-            }
-        }
-
         // members: constants
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
@@ -221,8 +207,22 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <param name="configuration">RhinoConfiguration to apply issue types to</param>
         public static void PutDefaultCapabilities(this RhinoConfiguration configuration)
         {
+            InvokePutDefaultCapabilities(configuration, configuration?.ConnectorConfiguration?.Connector);
+        }
+
+        /// <summary>
+        /// Apply issue types into RhinoConfiguration capabilities or default types if needed.
+        /// </summary>
+        /// <param name="configuration">RhinoConfiguration to apply issue types to</param>
+        public static void PutDefaultCapabilities(this RhinoConfiguration configuration, string connector)
+        {
+            InvokePutDefaultCapabilities(configuration, connector);
+        }
+
+        private static void InvokePutDefaultCapabilities(RhinoConfiguration configuration, string connector)
+        {
             // exit conditions
-            if(configuration == null || configuration.ConnectorConfiguration == null)
+            if (configuration == null || configuration.ConnectorConfiguration == null)
             {
                 return;
             }
@@ -233,7 +233,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
             // setup
             var defaultMap = DefaultTypesMap();
-            var options = $"{configuration?.ConnectorConfiguration.Connector}:options";
+            var options = $"{connector}:options";
             var capabilities = configuration.Capabilities.ContainsKey(options)
                 ? configuration.Capabilities[options] as IDictionary<string, object> ?? new Dictionary<string, object>()
                 : new Dictionary<string, object>();
