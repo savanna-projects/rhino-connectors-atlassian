@@ -17,7 +17,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
     internal static class XpandCommandsRepository
     {
         // constants
-        public const string XpandPath = "https://xray.cloud.xpand-it.com";
+        public const string XpandBaseUrl = "https://xray.cloud.xpand-it.com";
 
         #region *** Get  ***
         /// <summary>

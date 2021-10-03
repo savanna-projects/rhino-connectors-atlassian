@@ -325,7 +325,9 @@ namespace Rhino.Connectors.Xray.Cloud
                 .SelectToken("url");
 
             // get
-            return $"{response}".Replace("https://xray.cloud.xpand-it.com", string.Empty);
+            return $"{response}"
+                .Replace(XpandCommandsRepository.XpandBaseUrl, string.Empty)
+                .Replace("https://xray.cloud.getxray.app", string.Empty);
         }
 
         /// <summary>
@@ -560,7 +562,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private HttpRequestMessage CreateAttachmentRequest(string testRun, string key, string file)
         {
             // setup
-            var urlPath = $"{XpandCommandsRepository.XpandPath}/api/internal/attachments?testRunId={testRun}";
+            var urlPath = $"{XpandCommandsRepository.XpandBaseUrl}/api/internal/attachments?testRunId={testRun}";
 
             // build request
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
@@ -590,8 +592,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             var endpoint = string.IsNullOrEmpty(testStep)
-                ? $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/evidence"
-                : $"{XpandCommandsRepository.XpandPath}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
+                ? $"{XpandCommandsRepository.XpandBaseUrl}/api/internal/testrun/{testRun}/evidence"
+                : $"{XpandCommandsRepository.XpandBaseUrl}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
             var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
             var jwt = jiraClient.GetJwt(key);
 
