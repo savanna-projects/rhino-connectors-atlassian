@@ -17,8 +17,8 @@ namespace Rhino.Connectors.Xray.Text
     /// </summary>
     [Connector(
         value: "ConnectorXrayText",
-        Name = "Connector - Atlassian XRay, On-Premise",
-        Description = "Allows to execute Rhino Specs from XRay Test issues and report back as Test Execution issue.")]
+        Name = "Connector - Atlassian XRay and Text Connector, On-Premise",
+        Description = "Allows to execute Rhino Specs from XRay Test issues using Postmand or Text Connector and report back as Test Execution issue.")]
     public class XrayConnector : RhinoConnector
     {
         #region *** Constructors   ***
