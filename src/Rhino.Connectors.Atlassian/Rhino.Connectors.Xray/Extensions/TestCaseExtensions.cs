@@ -225,6 +225,15 @@ namespace Rhino.Connectors.Xray.Extensions
                     : new Dictionary<string, object>()
             };
 
+            // priority
+            if (testCase.Context.ContainsKey("test-priority"))
+            {
+                payload["priority"] = new Dictionary<string, object>
+                {
+                    ["id"] = $"{testCase.Context["test-priority"]}"
+                };
+            }
+
             // test suite
             if (testCase.TestSuites.Any())
             {

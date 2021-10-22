@@ -298,6 +298,12 @@ namespace Rhino.Connectors.AtlassianClients
         #endregion
 
         #region *** Get: MetaData  ***
+        public string GetFieldAndValues()
+        {
+            var a = ProjectMeta.ToString();
+            return a;
+        }
+
         /// <summary>
         /// Gets a custom field name (e.g. customfield_11) by it's schema.
         /// </summary>
@@ -345,37 +351,14 @@ namespace Rhino.Connectors.AtlassianClients
         }
 
         /// <summary>
-        /// Gets available field and values of an issue type.
+        /// Gets available fields and values of an issue type.
         /// </summary>
         /// <param name="idOrKey">The issue type for which to get fields and values.</param>
         /// <param name="path">A <see cref="string"/> that contains a JSONPath expression.</param>
         /// <returns>Serialized field token.</returns>
         public string GetIssueTypeFields(string idOrKey, string path)
         {
-            // exit conditions
-            if (ProjectMeta == default)
-            {
-                return string.Empty;
-            }
-
-            // issue type
-            var issueTypeToken = ProjectMeta["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
-
-            // exit conditions
-            if (issueTypeToken == default)
-            {
-                return string.Empty;
-            }
-            else if (string.IsNullOrEmpty(path))
-            {
-                return $"{issueTypeToken}";
-            }
-
-            // field token
-            var issueFieldToken = issueTypeToken.SelectTokens(path).First();
-
-            // exit conditions
-            return issueFieldToken == null ? string.Empty : $"{issueFieldToken}";
+            return DoGetIssueTypeFields(idOrKey, path);
         }
 
         /// <summary>
@@ -386,6 +369,39 @@ namespace Rhino.Connectors.AtlassianClients
         public IEnumerable<IDictionary<string, string>> GetTransitions(string idOrKey)
         {
             return DoGetTransitions(idOrKey);
+        }
+
+        /// <summary>
+        /// Gets available allows value id.
+        /// </summary>
+        /// <param name="idOrKey">The issue type for which to get fields and values.</param>
+        /// <param name="path">The field for which to find allowed value id.</param>
+        /// <param name="value">The value for which to find the id.</param>
+        public string GetAllowedValueId(string idOrKey, string path, string value)
+        {
+            // setup
+            var onField = DoGetIssueTypeFields(idOrKey, path);
+
+            // not found
+            if (string.IsNullOrEmpty(onField))
+            {
+                return string.Empty;
+            }
+
+            // setup
+            var allowedValues = JObject.Parse(onField).SelectToken("..allowedValues");
+
+            // not found
+            if(allowedValues == null)
+            {
+                return string.Empty;
+            }
+
+            //  build
+            var allowedValue = allowedValues.FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(value, Compare));
+
+            // get
+            return allowedValue == default ? string.Empty : $"{allowedValue.SelectToken("id")}";
         }
         #endregion
 
@@ -632,6 +648,35 @@ namespace Rhino.Connectors.AtlassianClients
 
             // results
             return onTransitions;
+        }
+
+        // get issue type fileds
+        private string DoGetIssueTypeFields(string idOrKey, string path)
+        {
+            // exit conditions
+            if (ProjectMeta == default)
+            {
+                return string.Empty;
+            }
+
+            // issue type
+            var issueTypeToken = ProjectMeta["issuetypes"].FirstOrDefault(i => $"{i["name"]}".Equals(idOrKey, Compare));
+
+            // exit conditions
+            if (issueTypeToken == default)
+            {
+                return string.Empty;
+            }
+            else if (string.IsNullOrEmpty(path))
+            {
+                return $"{issueTypeToken}";
+            }
+
+            // field token
+            var issueFieldToken = issueTypeToken.SelectTokens(path).First();
+
+            // exit conditions
+            return issueFieldToken == null ? string.Empty : $"{issueFieldToken}";
         }
         #endregion
     }

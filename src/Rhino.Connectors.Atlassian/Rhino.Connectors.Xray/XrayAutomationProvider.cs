@@ -341,6 +341,13 @@ namespace Rhino.Connectors.Xray
             testCase.Context[ContextEntry.Configuration] = Configuration;
             var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
 
+            // setup priority
+            var priority = jiraClient.GetAllowedValueId(testType, "..priority", testCase.Priority);
+            if (!string.IsNullOrEmpty(priority))
+            {
+                testCase.Context["test-priority"] = priority;
+            }
+
             // setup context
             testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
