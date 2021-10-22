@@ -247,6 +247,18 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 payload[$"{testCase.Context["test-plan-custom-field"]}"] = testPlans;
             }
+
+            // jira custom fields
+            if (testCase.Context.ContainsKey("jira-custom-fields"))
+            {
+                var jiraCustomFields = testCase.Context["jira-custom-fields"] as IDictionary<string, object>;
+                foreach (var jiraCustomField in jiraCustomFields)
+                {
+                    payload[jiraCustomField.Key] = jiraCustomField.Value;
+                }
+            }
+
+            // get
             return JsonConvert.SerializeObject(new Dictionary<string, object>
             {
                 ["fields"] = payload

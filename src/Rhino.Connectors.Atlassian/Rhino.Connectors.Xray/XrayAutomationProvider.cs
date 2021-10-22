@@ -40,11 +40,12 @@ namespace Rhino.Connectors.Xray
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
         // state: global parameters
-        private readonly ILogger logger;
-        private readonly IDictionary<string, object> capabilities;
-        private readonly JiraClient jiraClient;
-        private readonly JiraCommandsExecutor jiraExecutor;
-        private readonly JiraBugsManager bugsManager;
+        private readonly ILogger _logger;
+        private readonly IDictionary<string, object> _capabilities;
+        private readonly IDictionary<string, object> _customFields;
+        private readonly JiraClient _jiraClient;
+        private readonly JiraCommandsExecutor _jiraExecutor;
+        private readonly JiraBugsManager _bugsManager;
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
@@ -85,21 +86,26 @@ namespace Rhino.Connectors.Xray
             : base(configuration, types, logger)
         {
             // setup
-            this.logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
+            _logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
 
             var authentication = configuration.GetJiraAuthentication();
-            jiraClient = new JiraClient(authentication);
-            jiraExecutor = new JiraCommandsExecutor(authentication);
+            _jiraClient = new JiraClient(authentication);
+            _jiraExecutor = new JiraCommandsExecutor(authentication);
 
             // capabilities
             BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
             configuration.PutDefaultCapabilities(connector: RhinoConnectors.JiraXRay);
-            capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXRay}:options")
+
+            _customFields = configuration.Capabilities.ContainsKey("customFields")
+                ? configuration.Capabilities["customFields"] as IDictionary<string, object>
+                : new Dictionary<string, object>();
+
+            _capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXRay}:options")
                 ? configuration.Capabilities[$"{RhinoConnectors.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
 
             // integration
-            bugsManager = new JiraBugsManager(jiraClient);
+            _bugsManager = new JiraBugsManager(_jiraClient);
         }
         #endregion        
 
@@ -131,9 +137,9 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetTests(string issueKey)
         {
             // get issue type
-            var issueType = jiraClient.GetIssueType(issueKey);
+            var issueType = _jiraClient.GetIssueType(issueKey);
             var capability = string.Empty;
-            var typeEntry = capabilities.Where(i => $"{i.Value}".Equals(issueType, Compare));
+            var typeEntry = _capabilities.Where(i => $"{i.Value}".Equals(issueType, Compare));
             if (typeEntry.Any())
             {
                 capability = $"{typeEntry.ElementAt(0).Key}";
@@ -148,7 +154,7 @@ namespace Rhino.Connectors.Xray
             // exit conditions
             if (method == default)
             {
-                logger?.Error($"Get-Tests -By [{issueType}] = false");
+                _logger?.Error($"Get-Tests -By [{issueType}] = false");
                 return Array.Empty<RhinoTestCase>();
             }
 
@@ -161,14 +167,14 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
             }
 
             // find & validate test cases
-            var customField = jiraClient.GetCustomField(TestPlanSchema);
+            var customField = _jiraClient.GetCustomField(TestPlanSchema);
             var onTestCases = jsonObject.SelectToken($"..{customField}");
             Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.PlanType}] = {onTestCases.Count()}");
 
@@ -184,18 +190,18 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetOne(string issueKey)
         {
             // get issue & exit conditions
-            var JToken = jiraClient.Get(issueKey).AsJObject();
+            var JToken = _jiraClient.Get(issueKey).AsJObject();
             if (JToken == default)
             {
                 return Array.Empty<RhinoTestCase>();
             }
 
             // extract issue type
-            var type = jiraClient.GetIssueType(issueKey);
+            var type = _jiraClient.GetIssueType(issueKey);
 
             // setup conditions & exit conditions
-            var isTest = type.Equals($"{capabilities[AtlassianCapabilities.TestType]}", Compare);
-            var isTestSet = type.Equals($"{capabilities[AtlassianCapabilities.SetType]}", Compare);
+            var isTest = type.Equals($"{_capabilities[AtlassianCapabilities.TestType]}", Compare);
+            var isTestSet = type.Equals($"{_capabilities[AtlassianCapabilities.SetType]}", Compare);
             if (!isTest && !isTestSet)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -217,14 +223,14 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
             }
 
             // find & validate test cases
-            var customField = jiraClient.GetCustomField(TestExecutionSchema);
+            var customField = _jiraClient.GetCustomField(TestExecutionSchema);
             var onTestCases = jsonObject.SelectToken($"..{customField}");
             Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.ExecutionType}] = {onTestCases.Count()}");
 
@@ -253,14 +259,14 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> DoGetBySet(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
             }
 
             // find & validate test cases
-            var customField = jiraClient.GetCustomField(TestSetTestsSchema);
+            var customField = _jiraClient.GetCustomField(TestSetTestsSchema);
             var onTestCases = jsonObject.SelectToken($"..{customField}");
             Logger?.DebugFormat($"Get-Tests -By [{AtlassianCapabilities.SetType}] = {onTestCases.Count()}");
 
@@ -276,7 +282,7 @@ namespace Rhino.Connectors.Xray
         private RhinoTestCase DoGetByTest(string issueKey)
         {
             // parse into JToken
-            var jsonObject = jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
 
             // parse into connector test case
             var testCase = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();
@@ -289,7 +295,7 @@ namespace Rhino.Connectors.Xray
             testCase.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
 
             // load test set (if available - will take the )
-            var customField = jiraClient.GetCustomField(TestCaseSchema);
+            var customField = _jiraClient.GetCustomField(TestCaseSchema);
             var testSets = jsonObject.SelectToken($"..{customField}");
             if (testSets.Any())
             {
@@ -297,7 +303,7 @@ namespace Rhino.Connectors.Xray
             }
 
             // load test-plans if any
-            customField = jiraClient.GetCustomField(AssociatedPlanSchema);
+            customField = _jiraClient.GetCustomField(AssociatedPlanSchema);
             var testPlans = jsonObject.SelectToken($"..{customField}");
             var onTestPlans = new List<string>();
             foreach (var testPlan in testPlans)
@@ -307,7 +313,7 @@ namespace Rhino.Connectors.Xray
             testCase.Context["testPlans"] = onTestPlans.Count > 0 ? onTestPlans : new List<string>();
 
             // load data-sources (multiple preconditions data loading)
-            customField = jiraClient.GetCustomField(PreconditionSchema);
+            customField = _jiraClient.GetCustomField(PreconditionSchema);
             var preconditions = jsonObject.SelectToken($"..{customField}")?.Select(i => $"{i}");
             if (preconditions?.Any() != true)
             {
@@ -316,7 +322,7 @@ namespace Rhino.Connectors.Xray
 
             // load preconditions
             // get all preconditions as data tables
-            var dataTables = jiraClient
+            var dataTables = _jiraClient
                 .Get(preconditions)
                 .Select(i => new DataTable().FromJiraMarkdown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim()));
 
@@ -342,26 +348,27 @@ namespace Rhino.Connectors.Xray
             var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
 
             // setup priority
-            var priority = jiraClient.GetAllowedValueId(testType, "..priority", testCase.Priority);
+            var priority = _jiraClient.GetAllowedValueId(testType, "..priority", testCase.Priority);
             if (!string.IsNullOrEmpty(priority))
             {
                 testCase.Context["test-priority"] = priority;
             }
 
             // setup context
-            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
+            testCase.Context["issuetype-id"] = $"{_jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
-            testCase.Context["test-sets-custom-field"] = jiraClient.GetCustomField(schema: TestSetSchema);
-            testCase.Context["manual-test-steps-custom-field"] = jiraClient.GetCustomField(schema: ManualTestStepSchema);
-            testCase.Context["test-plan-custom-field"] = jiraClient.GetCustomField(schema: AssociatedPlanSchema);
+            testCase.Context["test-sets-custom-field"] = _jiraClient.GetCustomField(schema: TestSetSchema);
+            testCase.Context["manual-test-steps-custom-field"] = _jiraClient.GetCustomField(schema: ManualTestStepSchema);
+            testCase.Context["test-plan-custom-field"] = _jiraClient.GetCustomField(schema: AssociatedPlanSchema);
+            testCase.Context["jira-custom-fields"] = GetCustomFieldsWithValues(_jiraClient, testType, _customFields);
 
             // setup request body
             var requestBody = testCase.ToJiraXrayIssue();
-            var issue = jiraClient.Create(requestBody);
+            var issue = _jiraClient.Create(requestBody);
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            jiraClient.AddComment(idOrKey: $"{issue.SelectToken("key")}", comment);
+            _jiraClient.AddComment(idOrKey: $"{issue.SelectToken("key")}", comment);
 
             // success
             Logger?.InfoFormat($"Create-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = true");
@@ -385,15 +392,15 @@ namespace Rhino.Connectors.Xray
             var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
 
             // setup context
-            testCase.Context["issuetype-id"] = $"{jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
+            testCase.Context["issuetype-id"] = $"{_jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
-            testCase.Context["test-sets-custom-field"] = jiraClient.GetCustomField(schema: TestSetSchema);
-            testCase.Context["manual-test-steps-custom-field"] = jiraClient.GetCustomField(schema: ManualTestStepSchema);
-            testCase.Context["test-plan-custom-field"] = jiraClient.GetCustomField(schema: AssociatedPlanSchema);
+            testCase.Context["test-sets-custom-field"] = _jiraClient.GetCustomField(schema: TestSetSchema);
+            testCase.Context["manual-test-steps-custom-field"] = _jiraClient.GetCustomField(schema: ManualTestStepSchema);
+            testCase.Context["test-plan-custom-field"] = _jiraClient.GetCustomField(schema: AssociatedPlanSchema);
 
             // setup request body
             var requestBody = testCase.ToJiraXrayIssue(includeSteps: false);
-            var isUpdate = jiraClient.UpdateIssue(testCase.Key, requestBody);
+            var isUpdate = _jiraClient.UpdateIssue(testCase.Key, requestBody);
 
             // failover
             if (!isUpdate)
@@ -405,19 +412,19 @@ namespace Rhino.Connectors.Xray
             }
 
             // create steps
-            var responseBody = jiraClient.Get(idOrKey: testCase.Key);
-            var testId = JsonSerializer.Deserialize < IDictionary<string, object>>($"{responseBody}")["id"];
+            var responseBody = _jiraClient.Get(idOrKey: testCase.Key);
+            var testId = JsonSerializer.Deserialize<IDictionary<string, object>>($"{responseBody}")["id"];
             var steps = testCase.Steps.ToArray();
             for (int i = 0; i < steps.Length; i++)
             {
-                var stepRequest = steps[i].ToJiraXrayIssue($"{jiraClient.ProjectMeta["id"]}", i + 1);
+                var stepRequest = steps[i].ToJiraXrayIssue($"{_jiraClient.ProjectMeta["id"]}", i + 1);
                 var command = RavenCommandsRepository.CreateStep($"{testId}", data: stepRequest);
-                jiraExecutor.SendCommand(command);
+                _jiraExecutor.SendCommand(command);
             }
 
             // comment
             var comment = Utilities.GetActionSignature(action: "synced");
-            jiraClient.AddComment(idOrKey: testCase.Key, comment);
+            _jiraClient.AddComment(idOrKey: testCase.Key, comment);
 
             // success
             Logger?.InfoFormat($"Update-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = Ok");
@@ -434,7 +441,7 @@ namespace Rhino.Connectors.Xray
         public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
             // setup: request body
-            var customField = jiraClient.GetCustomField(TestExecutionSchema);
+            var customField = _jiraClient.GetCustomField(TestExecutionSchema);
             var testCases = JsonSerializer.Serialize(testRun.TestCases.Select(i => i.Key));
 
             // load JSON body
@@ -444,9 +451,9 @@ namespace Rhino.Connectors.Xray
                 .Replace("[run-title]", testRun.Title)
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
-                .Replace("[type-name]", $"{capabilities[AtlassianCapabilities.ExecutionType]}")
+                .Replace("[type-name]", $"{_capabilities[AtlassianCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ConnectorConfiguration.UserName);
-            var responseBody = jiraClient.Create(requestBody, comment);
+            var responseBody = _jiraClient.Create(requestBody, comment);
 
             // setup
             testRun.Key = $"{responseBody["key"]}";
@@ -510,7 +517,7 @@ namespace Rhino.Connectors.Xray
 
             // close
             var comment = Utilities.GetActionSignature("closed");
-            jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Closed", resolution: "Done", comment);
+            _jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Closed", resolution: "Done", comment);
         }
 
         private void AttachToTestPlan(RhinoTestRun testRun)
@@ -529,7 +536,7 @@ namespace Rhino.Connectors.Xray
 
             // send
             var options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
-            Parallel.ForEach(commands, options, command => jiraExecutor.SendCommand(command));
+            Parallel.ForEach(commands, options, command => _jiraExecutor.SendCommand(command));
         }
         #endregion
 
@@ -552,7 +559,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
         public override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
         {
-            return bugsManager.GetBugs(testCase);
+            return _bugsManager.GetBugs(testCase);
         }
 
         /// <summary>
@@ -562,7 +569,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>An open bug.</returns>
         public override string OnGetOpenBug(RhinoTestCase testCase)
         {
-            return bugsManager.GetOpenBug(testCase);
+            return _bugsManager.GetOpenBug(testCase);
         }
 
         /// <summary>
@@ -572,7 +579,7 @@ namespace Rhino.Connectors.Xray
         /// <returns>The ID of the newly created entity.</returns>
         public override string OnCreateBug(RhinoTestCase testCase)
         {
-            return bugsManager.OnCreateBug(testCase);
+            return _bugsManager.OnCreateBug(testCase);
         }
 
         /// <summary>
@@ -594,11 +601,11 @@ namespace Rhino.Connectors.Xray
             var id = GetExecution(testCase);
 
             // put
-            testCase.CreateInwardLink(jiraClient, key, linkType: "Blocks", string.Format(format, "created"));
+            testCase.CreateInwardLink(_jiraClient, key, linkType: "Blocks", string.Format(format, "created"));
 
             // post
             var command = RavenCommandsRepository.AddDefectToExecution(keyBug: key, idExecution: id);
-            jiraExecutor.SendCommand(command);
+            _jiraExecutor.SendCommand(command);
         }
 
         private static string GetExecution(RhinoTestCase testCase)
@@ -619,7 +626,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
         public override string OnUpdateBug(RhinoTestCase testCase)
         {
-            return bugsManager.OnUpdateBug(testCase, "Closed", "Duplicate"); // status and resolution apply here only for duplicates.
+            return _bugsManager.OnUpdateBug(testCase, "Closed", "Duplicate"); // status and resolution apply here only for duplicates.
         }
 
         /// <summary>
@@ -628,7 +635,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
-            return bugsManager.OnCloseBugs(testCase, "Closed", "Done");
+            return _bugsManager.OnCloseBugs(testCase, "Closed", "Done");
         }
 
         /// <summary>
@@ -637,7 +644,7 @@ namespace Rhino.Connectors.Xray
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override string OnCloseBug(RhinoTestCase testCase)
         {
-            return bugsManager.OnCloseBug(testCase, "Closed", "Done");
+            return _bugsManager.OnCloseBug(testCase, "Closed", "Done");
         }
         #endregion
 
@@ -688,8 +695,57 @@ namespace Rhino.Connectors.Xray
             }
             catch (Exception e) when (e != null)
             {
-                logger?.Error($"Update-TestResult -Test [{testCase.Key}] -Inline [{inline}] = false", e);
+                _logger?.Error($"Update-TestResult -Test [{testCase.Key}] -Inline [{inline}] = false", e);
             }
+        }
+
+        private static IDictionary<string, object> GetCustomFieldsWithValues(
+            JiraClient jiraClient, string type, IDictionary<string, object> customFields)
+        {
+            // setup
+            var issue = jiraClient
+                .ProjectMeta["issuetypes"]
+                .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(type, Compare));
+
+            // not found
+            if (issue == default)
+            {
+                return new Dictionary<string, object>();
+            }
+
+            // setup
+            var fields = new Dictionary<string, object>();
+
+            // iterate
+            foreach (var item in customFields)
+            {
+                var field = issue
+                    .SelectToken("fields")
+                    .Children()
+                    .SelectMany(i => i)
+                    .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(item.Key, Compare));
+                var schemaType = $"{field.SelectToken("schema.type")}";
+
+                // setup
+                var id = $"{field.SelectToken("fieldId")}";
+                var values = field.SelectToken("allowedValues");
+
+                // set value
+                if (values == null)
+                {
+                    fields[id] = schemaType.Equals("array", Compare) ? new[] { item.Value } : item.Value;
+                    continue;
+                }
+                var value = jiraClient.GetAllowedValueId(type, $"..{id}", $"{item.Value}");
+
+                // get
+                fields[id] = schemaType.Equals("array", Compare)
+                    ? new[] { new Dictionary<string, object> { ["id"] = value } }
+                    : new Dictionary<string, object> { ["id"] = value };
+            }
+
+            // get
+            return fields;
         }
     }
 }

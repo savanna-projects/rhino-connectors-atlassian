@@ -398,7 +398,8 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             //  build
-            var allowedValue = allowedValues.FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(value, Compare));
+            var allowedValue = allowedValues
+                .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(value, Compare) || $"{i.SelectToken("value")}".Equals(value, Compare));
 
             // get
             return allowedValue == default ? string.Empty : $"{allowedValue.SelectToken("id")}";
