@@ -513,10 +513,26 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static JToken CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
         {
             // setup
-            var issueBody = testCase.BugMarkdown(jiraClient);
+            var requestBody = testCase.BugMarkdown(jiraClient);
+
+            // load custom fields
+            var customFields = testCase.Context["customFieldsValues"] as IDictionary<string, object> ?? new Dictionary<string, object>();
+            var requestObject = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(requestBody);
+            var requestFields = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>($"{requestObject["fields"]}");
+            foreach (var item in customFields)
+            {
+                requestFields[item.Key] = item.Value;
+            }
+            requestObject["fields"] = requestFields;
+
+            // reset body
+            requestBody = System.Text.Json.JsonSerializer.Serialize(requestObject, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
 
             // post
-            var response = jiraClient.Create(issueBody);
+            var response = jiraClient.Create(requestBody);
             if (response == default)
             {
                 return default;

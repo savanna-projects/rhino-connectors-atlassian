@@ -298,12 +298,6 @@ namespace Rhino.Connectors.AtlassianClients
         #endregion
 
         #region *** Get: MetaData  ***
-        public string GetFieldAndValues()
-        {
-            var a = ProjectMeta.ToString();
-            return a;
-        }
-
         /// <summary>
         /// Gets a custom field name (e.g. customfield_11) by it's schema.
         /// </summary>

@@ -6,6 +6,8 @@
 using Gravity.Abstraction.Logging;
 using Gravity.Extensions;
 
+using Newtonsoft.Json.Linq;
+
 using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
@@ -25,6 +27,7 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -43,9 +46,11 @@ namespace Rhino.Connectors.Xray
         private readonly ILogger _logger;
         private readonly IDictionary<string, object> _capabilities;
         private readonly IDictionary<string, object> _customFields;
+        private readonly IEnumerable<string> _syncFields;
         private readonly JiraClient _jiraClient;
         private readonly JiraCommandsExecutor _jiraExecutor;
         private readonly JiraBugsManager _bugsManager;
+        private readonly bool _syncBugs; // if true, will sync bug custom fields by the test custom fields
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
@@ -103,6 +108,10 @@ namespace Rhino.Connectors.Xray
             _capabilities = configuration.Capabilities.ContainsKey($"{RhinoConnectors.JiraXRay}:options")
                 ? configuration.Capabilities[$"{RhinoConnectors.JiraXRay}:options"] as IDictionary<string, object>
                 : new Dictionary<string, object>();
+
+            _syncFields = configuration.Capabilities.ContainsKey("syncFields")
+                ? configuration.Capabilities["syncFields"] as IEnumerable<string>
+                : Array.Empty<string>();
 
             // integration
             _bugsManager = new JiraBugsManager(_jiraClient);
@@ -347,6 +356,9 @@ namespace Rhino.Connectors.Xray
             testCase.Context[ContextEntry.Configuration] = Configuration;
             var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
 
+            // setup severity
+            _customFields["Severity"] = testCase.Severity;
+
             // setup priority
             var priority = _jiraClient.GetAllowedValueId(testType, "..priority", testCase.Priority);
             if (!string.IsNullOrEmpty(priority))
@@ -360,7 +372,7 @@ namespace Rhino.Connectors.Xray
             testCase.Context["test-sets-custom-field"] = _jiraClient.GetCustomField(schema: TestSetSchema);
             testCase.Context["manual-test-steps-custom-field"] = _jiraClient.GetCustomField(schema: ManualTestStepSchema);
             testCase.Context["test-plan-custom-field"] = _jiraClient.GetCustomField(schema: AssociatedPlanSchema);
-            testCase.Context["jira-custom-fields"] = GetCustomFieldsWithValues(_jiraClient, testType, _customFields);
+            testCase.Context["jira-custom-fields"] = _jiraClient.GetCustomFieldsWithValues(testType, _customFields);
 
             // setup request body
             var requestBody = testCase.ToJiraXrayIssue();
@@ -443,8 +455,9 @@ namespace Rhino.Connectors.Xray
             // setup: request body
             var customField = _jiraClient.GetCustomField(TestExecutionSchema);
             var testCases = JsonSerializer.Serialize(testRun.TestCases.Select(i => i.Key));
+            var runType = _capabilities.GetCapability(AtlassianCapabilities.ExecutionType, "Test Execution");
 
-            // load JSON body
+            // load JSON body & parse basic fields
             var comment = Utilities.GetActionSignature("created");
             var requestBody = Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_test_execution_xray.txt")
                 .Replace("[project-key]", Configuration.ConnectorConfiguration.Project)
@@ -453,6 +466,24 @@ namespace Rhino.Connectors.Xray
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{_capabilities[AtlassianCapabilities.ExecutionType]}")
                 .Replace("[assignee]", Configuration.ConnectorConfiguration.UserName);
+
+            // load custom fields
+            var requestObject = JsonSerializer.Deserialize<IDictionary<string, object>>(requestBody);
+            var requestFields = JsonSerializer.Deserialize<IDictionary<string, object>>($"{requestObject["fields"]}");
+            var customFields = _jiraClient.GetCustomFieldsWithValues(runType, _customFields);
+            foreach (var item in customFields)
+            {
+                requestFields[item.Key] = item.Value;
+            }
+            requestObject["fields"] = requestFields;
+
+            // reset body
+            requestBody = JsonSerializer.Serialize(requestObject, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            // invoke
             var responseBody = _jiraClient.Create(requestBody, comment);
 
             // setup
@@ -579,6 +610,30 @@ namespace Rhino.Connectors.Xray
         /// <returns>The ID of the newly created entity.</returns>
         public override string OnCreateBug(RhinoTestCase testCase)
         {
+            // sync fields
+            var testType = $"{testCase.GetCapability(AtlassianCapabilities.TestType, "Test")}";
+            var testIssue = _jiraClient.Get(testCase.Key);
+            var testFields = JObject.Parse($"{testIssue}")["fields"];
+
+            foreach (var syncField in _syncFields)
+            {
+                var id = _jiraClient.GetFieldId(testType, syncField);
+                var value = testFields.SelectToken($"..{id}").SelectToken("value").ToString();
+                
+                _customFields[syncField] = value;
+            }
+
+            // add severity default
+            _customFields["Severity"] = testCase.Severity;
+
+            // setup
+            var bugType = _capabilities.GetCapability(AtlassianCapabilities.BugType, "Bug");
+            var customFieldsValues = _jiraClient.GetCustomFieldsWithValues(bugType, _customFields);
+
+            // setup
+            testCase.Context["customFieldsValues"] = customFieldsValues;
+            
+            // invoke
             return _bugsManager.OnCreateBug(testCase);
         }
 
@@ -697,55 +752,6 @@ namespace Rhino.Connectors.Xray
             {
                 _logger?.Error($"Update-TestResult -Test [{testCase.Key}] -Inline [{inline}] = false", e);
             }
-        }
-
-        private static IDictionary<string, object> GetCustomFieldsWithValues(
-            JiraClient jiraClient, string type, IDictionary<string, object> customFields)
-        {
-            // setup
-            var issue = jiraClient
-                .ProjectMeta["issuetypes"]
-                .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(type, Compare));
-
-            // not found
-            if (issue == default)
-            {
-                return new Dictionary<string, object>();
-            }
-
-            // setup
-            var fields = new Dictionary<string, object>();
-
-            // iterate
-            foreach (var item in customFields)
-            {
-                var field = issue
-                    .SelectToken("fields")
-                    .Children()
-                    .SelectMany(i => i)
-                    .FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(item.Key, Compare));
-                var schemaType = $"{field.SelectToken("schema.type")}";
-
-                // setup
-                var id = $"{field.SelectToken("fieldId")}";
-                var values = field.SelectToken("allowedValues");
-
-                // set value
-                if (values == null)
-                {
-                    fields[id] = schemaType.Equals("array", Compare) ? new[] { item.Value } : item.Value;
-                    continue;
-                }
-                var value = jiraClient.GetAllowedValueId(type, $"..{id}", $"{item.Value}");
-
-                // get
-                fields[id] = schemaType.Equals("array", Compare)
-                    ? new[] { new Dictionary<string, object> { ["id"] = value } }
-                    : new Dictionary<string, object> { ["id"] = value };
-            }
-
-            // get
-            return fields;
         }
     }
 }
