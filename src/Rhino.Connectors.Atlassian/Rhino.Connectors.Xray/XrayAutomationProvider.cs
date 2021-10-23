@@ -27,7 +27,6 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -50,7 +49,6 @@ namespace Rhino.Connectors.Xray
         private readonly JiraClient _jiraClient;
         private readonly JiraCommandsExecutor _jiraExecutor;
         private readonly JiraBugsManager _bugsManager;
-        private readonly bool _syncBugs; // if true, will sync bug custom fields by the test custom fields
 
         #region *** Public Constants  ***
         public const string TestPlanSchema = "com.xpandit.plugins.xray:tests-associated-with-test-plan-custom-field";
