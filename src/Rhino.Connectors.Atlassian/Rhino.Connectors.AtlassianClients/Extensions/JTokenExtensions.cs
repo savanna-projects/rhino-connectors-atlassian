@@ -2,7 +2,7 @@
 
 using Newtonsoft.Json.Linq;
 
-using System.Collections;
+using System;
 using System.Collections.Generic;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
@@ -20,8 +20,15 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
 
         public static JObject AsJObject(this JToken token)
         {
-            var json = token == default ? "{}" : $"{token}";
-            return JObject.Parse(json);
+            try
+            {
+                var json = token == default ? "{}" : $"{token}";
+                return JObject.Parse(json);
+            }
+            catch (Exception)
+            {
+                return JObject.Parse("{}");
+            }
         }
 
         public static JToken AsJToken(this string token)

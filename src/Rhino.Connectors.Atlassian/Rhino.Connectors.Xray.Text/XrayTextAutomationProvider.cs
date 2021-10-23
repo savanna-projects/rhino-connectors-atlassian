@@ -20,7 +20,7 @@ namespace Rhino.Connectors.Xray.Text
     /// <summary>
     /// XRay connector for using XRay tests as Rhino Specs.
     /// </summary>
-    public class XrayAutomationProvider : ProviderManager
+    public class XrayTextAutomationProvider : ProviderManager
     {
         // state: global parameters
         private readonly ILogger logger;
@@ -32,7 +32,7 @@ namespace Rhino.Connectors.Xray.Text
         /// Creates a new instance of this Rhino.Api.Simulator.Framework.XrayAutomationProvider.
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
-        public XrayAutomationProvider(RhinoConfiguration configuration)
+        public XrayTextAutomationProvider(RhinoConfiguration configuration)
             : this(configuration, Utilities.Types)
         { }
 
@@ -41,7 +41,7 @@ namespace Rhino.Connectors.Xray.Text
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
-        public XrayAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types)
+        public XrayTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types)
             : this(configuration, types, Utilities.CreateDefaultLogger(configuration))
         { }
 
@@ -51,10 +51,10 @@ namespace Rhino.Connectors.Xray.Text
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this provider.</param>
-        public XrayAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
+        public XrayTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : base(configuration, types, logger)
         {
-            this.logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
+            this.logger = logger?.Setup(loggerName: nameof(XrayTextAutomationProvider));
             xrayProvider = new Xray.XrayAutomationProvider(configuration, types, this.logger);
             textProvider = new TextAutomationProvider(configuration, types, this.logger);
         }

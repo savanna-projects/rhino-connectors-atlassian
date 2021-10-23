@@ -225,6 +225,15 @@ namespace Rhino.Connectors.Xray.Extensions
                     : new Dictionary<string, object>()
             };
 
+            // priority
+            if (testCase.Context.ContainsKey("test-priority"))
+            {
+                payload["priority"] = new Dictionary<string, object>
+                {
+                    ["id"] = $"{testCase.Context["test-priority"]}"
+                };
+            }
+
             // test suite
             if (testCase.TestSuites.Any())
             {
@@ -238,6 +247,18 @@ namespace Rhino.Connectors.Xray.Extensions
             {
                 payload[$"{testCase.Context["test-plan-custom-field"]}"] = testPlans;
             }
+
+            // jira custom fields
+            if (testCase.Context.ContainsKey("jira-custom-fields"))
+            {
+                var jiraCustomFields = testCase.Context["jira-custom-fields"] as IDictionary<string, object>;
+                foreach (var jiraCustomField in jiraCustomFields)
+                {
+                    payload[jiraCustomField.Key] = jiraCustomField.Value;
+                }
+            }
+
+            // get
             return JsonConvert.SerializeObject(new Dictionary<string, object>
             {
                 ["fields"] = payload
