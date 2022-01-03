@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net6.0</TargetFrameworks>
+		<PackageId>Rhino.Connectors.AtlassianClients</PackageId>
+		<LangVersion>latest</LangVersion>
+		<Title>Rhino Atlassian Clients - Base component for Atlassian based connectors.</Title>
+		<Authors>Rhino-API Community</Authors>
+		<Description>Base component for Atlassian based connectors.</Description>
+		<PackageTags>automation,crawling,crawl,selenium,appium,automation testing,automation test,qa,gravity,gravity api,scrapping,scrap</PackageTags>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/savanna-projects/rhino-connectors-gurock</PackageProjectUrl>
+		<NeutralLanguage>en-US</NeutralLanguage>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="Resources\create_bug_for_test_jira.txt" />
+		<None Remove="Resources\get_token.txt" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\create_bug_for_test_jira.txt" />
+		<EmbeddedResource Include="Resources\get_token.txt" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
+		<PackageReference Include="Gravity.Extensions" Version="2021.7.30.1" />
+		<PackageReference Include="Rhino.Api" Version="2022.1.2.1" />
+	</ItemGroup>
+
+</Project>

@@ -414,7 +414,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         private static string GetBaseAddress(JiraAuthentication authentication)
         {
             return authentication?.Collection.EndsWith("/") == true
-                ? authentication?.Collection.Substring(0, authentication.Collection.LastIndexOf('/'))
+                ? authentication?.Collection[..authentication.Collection.LastIndexOf('/')]
                 : authentication?.Collection;
         }
     }

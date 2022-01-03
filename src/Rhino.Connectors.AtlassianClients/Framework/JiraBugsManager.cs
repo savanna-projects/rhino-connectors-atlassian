@@ -221,7 +221,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             }
 
             // context
-            if (!testCase.Context.ContainsKey(ContextEntry.BugClosed) || !(testCase.Context[ContextEntry.BugClosed] is IEnumerable<string>))
+            if (!testCase.Context.ContainsKey(ContextEntry.BugClosed) || testCase.Context[ContextEntry.BugClosed] is not IEnumerable<string>)
             {
                 testCase.Context[ContextEntry.BugClosed] = new List<string>();
             }
