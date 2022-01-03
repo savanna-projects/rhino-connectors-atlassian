@@ -299,11 +299,11 @@ namespace Rhino.Connectors.Xray
             }
 
             // setup project key
-            testCase.Context["projectKey"] = $"{jsonObject.SelectToken("fields.project.key")}";
+            testCase.Context["projectKey"] = $"{jsonObject?.SelectToken("fields.project.key")}";
 
             // load test set (if available - will take the )
             var customField = _jiraClient.GetCustomField(TestCaseSchema);
-            var testSets = jsonObject.SelectToken($"..{customField}");
+            var testSets = jsonObject?.SelectToken($"..{customField}");
             if (testSets.Any())
             {
                 testCase.TestSuites = testSets.Select(i => $"{i}");
@@ -311,7 +311,7 @@ namespace Rhino.Connectors.Xray
 
             // load test-plans if any
             customField = _jiraClient.GetCustomField(AssociatedPlanSchema);
-            var testPlans = jsonObject.SelectToken($"..{customField}");
+            var testPlans = jsonObject?.SelectToken($"..{customField}") ?? JToken.Parse("{}");
             var onTestPlans = new List<string>();
             foreach (var testPlan in testPlans)
             {
@@ -321,7 +321,7 @@ namespace Rhino.Connectors.Xray
 
             // load data-sources (multiple preconditions data loading)
             customField = _jiraClient.GetCustomField(PreconditionSchema);
-            var preconditions = jsonObject.SelectToken($"..{customField}")?.Select(i => $"{i}");
+            var preconditions = jsonObject?.SelectToken($"..{customField}")?.Select(i => $"{i}");
             if (preconditions?.Any() != true)
             {
                 return testCase;
@@ -412,10 +412,10 @@ namespace Rhino.Connectors.Xray
             var requestBody = testCase.ToJiraXrayIssue(includeSteps: false);
             var isUpdate = _jiraClient.UpdateIssue(testCase.Key, requestBody);
 
-            // failover
+            // fail over
             if (!isUpdate)
             {
-                Logger?.InfoFormat($"Update-Test " +
+                Logger?.InfoFormat("Update-Test " +
                     $"-Project [{onProject}] " +
                     $"-Set [{string.Join(",", testCase?.TestSuites)}] = InternalServerError");
                 return;
@@ -616,9 +616,7 @@ namespace Rhino.Connectors.Xray
             foreach (var syncField in _syncFields)
             {
                 var id = _jiraClient.GetFieldId(testType, syncField);
-                var value = testFields.SelectToken($"..{id}").SelectToken("value").ToString();
-                
-                _customFields[syncField] = value;
+                _customFields[syncField] = testFields.SelectToken($"..{id}").SelectToken("value").ToString();
             }
 
             // add severity default
@@ -630,18 +628,17 @@ namespace Rhino.Connectors.Xray
 
             // setup
             testCase.Context["customFieldsValues"] = customFieldsValues;
-            
+
             // invoke
             return _bugsManager.OnCreateBug(testCase);
         }
 
         /// <summary>
-        /// Executes a routie of post bug creation.
+        /// Executes a routine of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
         public override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
-
             // exit conditions
             if (!testCase.Context.ContainsKey("lastBugKey"))
             {

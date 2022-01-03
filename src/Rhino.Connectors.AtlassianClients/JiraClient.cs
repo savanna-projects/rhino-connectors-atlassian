@@ -545,7 +545,7 @@ namespace Rhino.Connectors.AtlassianClients
                 .SelectToken("issues");
 
             // get
-            return issues == default || !(issues is JArray) ? JToken.Parse("[]") : issues;
+            return issues == default || issues is not JArray ? JToken.Parse("[]") : issues;
         }
 
         // creates or updates an issue by id or key
@@ -623,7 +623,7 @@ namespace Rhino.Connectors.AtlassianClients
                 .SelectToken("transitions");
 
             // exit conditions
-            if (transitions == default || !(transitions is JArray))
+            if (transitions == default || transitions is not JArray)
             {
                 return Array.Empty<IDictionary<string, string>>();
             }

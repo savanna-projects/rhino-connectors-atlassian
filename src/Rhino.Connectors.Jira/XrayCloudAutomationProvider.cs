@@ -374,7 +374,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var detailsMap = new ConcurrentBag<(string Key, JToken Details)>();
 
             // get
-            Parallel.ForEach(testRun.TestCases.DistinctBy(i => i.Key), options, testCase =>
+            Parallel.ForEach(Gravity.Extensions.CollectionExtensions.DistinctBy(testRun.TestCases, i => i.Key), testCase =>
             {
                 var details = xpandClient.GetExecutionDetails(testRun.Key, testCase.Key);
                 detailsMap.Add((testCase.Key, details));
