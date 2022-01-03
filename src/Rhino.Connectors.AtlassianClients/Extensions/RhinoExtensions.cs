@@ -10,7 +10,6 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-using Rhino.Api.Converters;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using Rhino.Connectors.AtlassianClients.Extensions;
@@ -140,9 +139,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 return dataTable;
             }
 
-            // split into lines            
-            var lines = markdown
-                .SplitByLines()
+            // split into lines
+            var lines= Gravity
+                .Extensions
+                .StringExtensions.SplitByLines(markdown)
                 .Where(i => !Regex.IsMatch(input: i, pattern: @"^(\|-+)+\|?$") && !string.IsNullOrEmpty(i))
                 .ToArray();
 
