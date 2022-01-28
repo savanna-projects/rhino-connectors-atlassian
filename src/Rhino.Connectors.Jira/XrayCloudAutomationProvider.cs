@@ -736,7 +736,7 @@ namespace Rhino.Connectors.Xray.Cloud
         }
 
         /// <summary>
-        /// Executes a routie of post bug creation.
+        /// Executes a routine of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
         public override void OnCreateBugTeardown(RhinoTestCase testCase)
