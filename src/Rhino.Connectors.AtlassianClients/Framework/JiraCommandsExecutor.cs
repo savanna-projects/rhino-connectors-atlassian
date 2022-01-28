@@ -242,7 +242,8 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // apply
             message.Headers.Add(Xacpt, token);
-            message.RequestUri = new Uri($"https://xray.cloud.xpand-it.com{command.Route}");
+            // https://xray.cloud.xpand-it.com
+            message.RequestUri = new Uri($"https://xray.cloud.getxray.app{command.Route}");
 
             // get
             return message;
