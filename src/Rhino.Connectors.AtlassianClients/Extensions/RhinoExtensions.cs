@@ -516,9 +516,11 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var requestBody = testCase.BugMarkdown(jiraClient);
 
             // load custom fields
-            var customFields = testCase.Context["customFieldsValues"] as IDictionary<string, object> ?? new Dictionary<string, object>();
             var requestObject = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(requestBody);
             var requestFields = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>($"{requestObject["fields"]}");
+            var customFields = testCase.Context.ContainsKey("customFieldsValues")
+                ? testCase.Context["customFieldsValues"] as IDictionary<string, object>
+                : new Dictionary<string, object>();
             foreach (var item in customFields)
             {
                 requestFields[item.Key] = item.Value;
