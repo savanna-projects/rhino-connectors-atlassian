@@ -305,29 +305,14 @@ namespace Rhino.Connectors.Xray.Cloud
             // setup            
             var executionKey = $"{onExecution["key"]}";
             var testKey = $"{onTest["key"]}";
-            var route = GetExecutionDetailsRoute(executionKey, testKey);
 
             // parse 
-            var response = XpandCommandsRepository.GetExecutionDetails(route).Send(executor);
-            var json = Regex.Match(input: $"{response}", pattern: "(?<=id=\"test-run\" value=\")[^\"]*").Value.Replace("&quot;", "\"");
+            var response = XpandCommandsRepository.GetLoadTestRun(executionKey, testKey).Send(executor);
 
             // results
-            return string.IsNullOrEmpty(json) ? JToken.Parse("{}") : json.AsJToken();
-        }
-
-        private string GetExecutionDetailsRoute(string executionKey, string testKey)
-        {
-            // send
-            var response = XpandCommandsRepository
-                .GetExecutionDetailsMeta(executionKey, testKey)
-                .Send(executor)
-                .AsJToken()
-                .SelectToken("url");
-
-            // get
-            return $"{response}"
-                .Replace(XpandCommandsRepository.XpandBaseUrl, string.Empty)
-                .Replace("https://xray.cloud.getxray.app", string.Empty);
+            return string.IsNullOrEmpty(response)
+                ? JToken.Parse("{}")
+                : response.AsJToken().SelectToken("testRun");
         }
 
         /// <summary>

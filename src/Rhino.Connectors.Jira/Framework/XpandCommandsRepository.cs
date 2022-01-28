@@ -154,7 +154,28 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
             return new HttpCommand
             {
                 Method = HttpMethod.Get,
-                Route = string.Format(Format, executionKey, testKey)
+                Route = string.Format(Format, testKey, executionKey)
+            };
+        }
+
+        /// <summary>
+        /// Gets metadata for execution details page. Use the response of this command to get
+        /// the execution details route.
+        /// </summary>
+        /// <param name="executionKey">The test execution key.</param>
+        /// <param name="testKey">The test issue key.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand GetLoadTestRun(string executionKey, string testKey)
+        {
+            // setup
+            const string Format = "/api/internal/load-test-run?testIssueKey={0}&testExecIssueKey={1}";
+
+            // get
+            return new HttpCommand
+            {
+                Headers = GetHeaders(issueKey: testKey),
+                Method = HttpMethod.Get,
+                Route = string.Format(Format, testKey, executionKey)
             };
         }
 
