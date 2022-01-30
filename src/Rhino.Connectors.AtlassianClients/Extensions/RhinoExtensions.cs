@@ -307,25 +307,24 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 var tstCapabilities = string.Empty;
                 if(driverParams.ContainsKey(Capabliites) && driverParams[Capabliites] != null)
                 {
-                    var jsonCapabilities = System.Text.Json.JsonSerializer.Serialize(driverParams[Capabliites]);
-                    var objCapabilities = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(jsonCapabilities);
-                    tstCapabilities = objCapabilities.ToJiraMarkdown();
+                    tstCapabilities = System.Text.Json.JsonSerializer.Serialize(driverParams[Capabliites]);
                 }
 
-                // normalize to markdown
-                var onTstCapabilities = Regex.Split(string.IsNullOrEmpty(tstCapabilities) ? string.Empty : tstCapabilities, @"\\r\\n");
-                tstCapabilities = string.Join(Environment.NewLine, onTstCapabilities);
-                tstCapabilities = tstCapabilities[..(tstCapabilities.LastIndexOf('|') + 1)];
-
                 // extract bug capabilities
-                var bugCapabilities = Regex.Match(
-                    input: onBug,
-                    pattern: @"(?<=Capabilities\W+\\r\\n\|\|).*(?=\|.*Local Data Source)|(?<=Capabilities\W+\\r\\n\|\|).*(?=\|)").Value;
+                var bugCapabilities = Regex
+                    .Match(input: onBug, pattern: @"(?<=Capabilities.*{code:json}).*(?={code}.*(Local Data Source)?)", RegexOptions.IgnoreCase)
+                    .Value
+                    .Replace("\\r", string.Empty)
+                    .Replace("\\n", string.Empty)
+                    .Replace("\\", string.Empty)
+                    .Trim();
 
-                // normalize to markdown
-                var onBugCapabilities = Regex.Split(string.IsNullOrEmpty(bugCapabilities) ? string.Empty : "||" + bugCapabilities + "|", @"\\r\\n");
-                bugCapabilities = string.Join(Environment.NewLine, onBugCapabilities);
-                bugCapabilities = bugCapabilities[..(bugCapabilities.LastIndexOf('|') + 1)];
+                bugCapabilities = System.Text.Json.JsonSerializer.Serialize(
+                    value: System.Text.Json.JsonDocument.Parse(bugCapabilities).RootElement,
+                    options: new System.Text.Json.JsonSerializerOptions
+                    {
+                        WriteIndented = false
+                    });
 
                 // exit conditions
                 var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
@@ -340,8 +339,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 // convert to data table and than to dictionary collection
-                var compareableBugCapabilites = new DataTable().FromJiraMarkdown(bugCapabilities).ToDictionary().ToJson().ToUpper().Sort();
-                var compareableTstCapabilites = new DataTable().FromJiraMarkdown(tstCapabilities).ToDictionary().ToJson().ToUpper().Sort();
+                var compareableBugCapabilites = bugCapabilities.ToUpper().Sort();
+                var compareableTstCapabilites = tstCapabilities.ToUpper().Sort();
 
                 // assert
                 return compareableBugCapabilites.Equals(compareableTstCapabilites, Compare);

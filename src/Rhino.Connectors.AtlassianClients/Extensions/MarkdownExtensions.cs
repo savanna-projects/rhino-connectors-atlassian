@@ -320,7 +320,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             if (isCapabilites && capabilitesToken != null)
             {
                 var data = JsonConvert.DeserializeObject<IDictionary<string, object>>($"{capabilitesToken}");
-                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + DoToMarkdown(data);
+                var json = JsonConvert.SerializeObject(data, Formatting.Indented);
+                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + $"\r\n{{code:json}}\r\n{json}\r\n{{code}}";
             }
 
             // setup driver options
