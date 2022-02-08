@@ -18,9 +18,34 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
     {
         // constants
         public const string XpandBaseUrl = "https://xray.cloud.getxray.app";
-        //public const string XpandBaseUrl = "https://xray.cloud.xpand-it.com";
 
-        #region *** Get  ***
+        #region *** Delete ***
+        /// <summary>
+        /// Deletes the given test step.
+        /// </summary>
+        /// <param name="idAndKey">The test issue ID and key.</param>
+        /// <param name="stepId">The step runtime id.</param>
+        /// <param name="removeFromJira"><see cref="true"/> to remove from Jira; <see cref="false"/> to keep it.</param>
+        /// <returns>HttpCommand ready for execution.</returns>
+        public static HttpCommand DeleteTestStep((string id, string key) idAndKey, string stepId, bool removeFromJira)
+        {
+            // constants
+            const string Format = "/api/internal/test/{0}/step/{1}?removeFromJira={2}";
+
+            // setup
+            var removeFromJiraValue = removeFromJira ? "true" : "false";
+
+            // get
+            return new HttpCommand
+            {
+                Headers = GetHeaders(issueKey: idAndKey.key),
+                Method = HttpMethod.Delete,
+                Route = string.Format(Format, idAndKey.id, stepId, removeFromJiraValue)
+            };
+        }
+        #endregion
+
+        #region *** Get    ***
         /// <summary>
         /// Gets all steps from a test issue.
         /// </summary>
@@ -221,11 +246,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         }
         #endregion
 
-        #region *** Put  ***
-
-        #endregion
-
-        #region *** Post ***
+        #region *** Post   ***
         /// <summary>
         /// Associate precondition issue to a test case.
         /// </summary>
@@ -448,7 +469,7 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
         /// Adds an existing defect to an existing execution.
         /// </summary>
         /// <param name="idAndKey">The ID and key of the bug issue.</param>
-        /// <param name="idExecution">The internal runtime id of the excution.</param>
+        /// <param name="idExecution">The internal runtime id of the invocation.</param>
         /// <returns>HttpCommand ready for execution.</returns>
         public static HttpCommand AddDefectToExecution((string id, string key) idAndKey, string idExecution)
         {
@@ -467,6 +488,10 @@ namespace Rhino.Connectors.Xray.Cloud.Framework
                 Route = string.Format(Format, idExecution)
             };
         }
+        #endregion
+
+        #region *** Put    ***
+
         #endregion
 
         // UTILITIES
