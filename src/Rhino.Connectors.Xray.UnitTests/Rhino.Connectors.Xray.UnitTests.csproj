@@ -9,7 +9,7 @@
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" />
 		<PackageReference Include="MSTest.TestAdapter" Version="2.2.8" />
 		<PackageReference Include="MSTest.TestFramework" Version="2.2.8" />
-		<PackageReference Include="coverlet.collector" Version="3.1.0">
+		<PackageReference Include="coverlet.collector" Version="3.1.2">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -17,6 +17,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj" />
+		<ProjectReference Include="..\Rhino.Connectors.Xray.Cloud.Text\Rhino.Connectors.Xray.Cloud.Text.csproj" />
 		<ProjectReference Include="..\Rhino.Connectors.Xray.Text\Rhino.Connectors.Xray.Text.csproj" />
 		<ProjectReference Include="..\Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj" />
 	</ItemGroup>

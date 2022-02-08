@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net6.0</TargetFrameworks>
+		<PackageId>Rhino.Connectors.Xray.Cloud.Text</PackageId>
+		<LangVersion>latest</LangVersion>
+		<Title>Rhino XRay Connector - Connector for Atlassian XRay - Test Manager.</Title>
+		<Authors>Rhino-API Community</Authors>
+		<Description>Connector for Atlassian XRay - Test Manager.</Description>
+		<PackageTags>automation,crawling,crawl,selenium,appium,automation testing,automation test,qa,gravity,gravity api,scrapping,scrap</PackageTags>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/savanna-projects</PackageProjectUrl>
+		<NeutralLanguage>en-US</NeutralLanguage>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Rhino.Connectors.Text" Version="2022.1.9.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Rhino.Connectors.AtlassianClients\Rhino.Connectors.AtlassianClients.csproj" />
+	  <ProjectReference Include="..\Rhino.Connectors.Jira\Rhino.Connectors.Xray.Cloud.csproj" />
+	</ItemGroup>
+
+</Project>

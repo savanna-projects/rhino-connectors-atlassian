@@ -392,7 +392,7 @@ namespace Rhino.Connectors.Xray
         /// <summary>
         /// Creates a new test case under the specified automation provider.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
+        /// <param name="testCase">RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
         public override void OnUpdateTestCase(RhinoTestCase testCase)
         {

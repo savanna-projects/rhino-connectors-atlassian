@@ -1,4 +1,9 @@
-﻿using Gravity.Abstraction.Logging;
+﻿/*
+ * CHANGE LOG - keep only last 5 threads
+ * 
+ * RESOURCES
+ */
+using Gravity.Abstraction.Logging;
 
 using Rhino.Api;
 using Rhino.Api.Contracts.Attributes;
@@ -10,23 +15,23 @@ using Rhino.Connectors.AtlassianClients.Contracts;
 using System;
 using System.Collections.Generic;
 
-namespace Rhino.Connectors.Xray.Text
+namespace Rhino.Connectors.Xray.Cloud.Text
 {
     /// <summary>
     /// XRay connector for running XRay tests as Rhino Automation Specs.
     /// </summary>
     [Connector(
-        value: "ConnectorXrayText",
-        Name = "Connector - Atlassian XRay and Text Connector, On-Premise",
-        Description = "Allows to execute Rhino Specs from XRay Test issues using Postman or Text Connector and report back as Test Execution issue.")]
-    public class XrayTextConnector : RhinoConnector
+        value: "ConnectorXrayCloudText",
+        Name = "Connector - Atlassian XRay-Cloud and Text Connector",
+        Description = "Allows to execute Rhino Specs from XRay-Cloud Test issues using Postman or Text Connector and report back as Test Execution issue.")]
+    public class XrayCloudTextConnector : RhinoConnector
     {
         #region *** Constructors   ***
         /// <summary>
         /// Creates a new instance of this Rhino.Api.Components.RhinoConnector.
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
-        public XrayTextConnector(RhinoConfiguration configuration)
+        public XrayCloudTextConnector(RhinoConfiguration configuration)
             : this(configuration, Utilities.Types)
         { }
 
@@ -35,7 +40,7 @@ namespace Rhino.Connectors.Xray.Text
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
-        public XrayTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types)
+        public XrayCloudTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types)
             : this(configuration, types, Utilities.CreateDefaultLogger(configuration))
         { }
 
@@ -45,7 +50,7 @@ namespace Rhino.Connectors.Xray.Text
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this connector.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
-        public XrayTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
+        public XrayCloudTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : this(configuration, types, logger, connect: true)
         { }
 
@@ -57,15 +62,15 @@ namespace Rhino.Connectors.Xray.Text
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this connector.</param>
         /// <param name="connect"><see cref="true"/> for immediately connect after construct <see cref="false"/> skip connection.</param>
         /// <remarks>If you skip connection you must explicitly call Connect method.</remarks>
-        public XrayTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
+        public XrayCloudTextConnector(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger, bool connect)
             : base(configuration, types, logger)
         {
             // setup connector type (double check)
             configuration.ConnectorConfiguration ??= new RhinoConnectorConfiguration();
-            configuration.ConnectorConfiguration.Connector = "ConnectorXrayText";
+            configuration.ConnectorConfiguration.Connector = "ConnectorXrayCloud";
 
             // setup provider manager
-            ProviderManager = new XrayTextAutomationProvider(configuration, types, logger);
+            ProviderManager = new XrayCloudTextAutomationProvider(configuration, types, logger);
 
             // connect on constructing
             if (connect)
@@ -104,7 +109,7 @@ namespace Rhino.Connectors.Xray.Text
             var outcome = testCase.Actual ? "PASS" : "FAIL";
             if (testCase.Inconclusive)
             {
-                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "ABORTED");
+                outcome = testCase.GetCapability(AtlassianCapabilities.InconclusiveStatus, "TODO");
             }
 
             // put

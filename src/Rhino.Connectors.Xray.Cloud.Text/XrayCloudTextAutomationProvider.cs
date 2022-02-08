@@ -9,22 +9,23 @@ using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.Text;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Rhino.Connectors.Xray.Text
+namespace Rhino.Connectors.Xray.Cloud.Text
 {
     /// <summary>
     /// XRay connector for using XRay tests as Rhino Specs.
     /// </summary>
-    public class XrayTextAutomationProvider : ProviderManager
+    public class XrayCloudTextAutomationProvider : ProviderManager
     {
         // state: global parameters
         private readonly ILogger logger;
-        private readonly XrayAutomationProvider xrayProvider;
+        private readonly XrayCloudAutomationProvider xrayProvider;
         private readonly TextAutomationProvider textProvider;
 
         #region *** Constructors      ***
@@ -32,7 +33,7 @@ namespace Rhino.Connectors.Xray.Text
         /// Creates a new instance of this Rhino.Api.Simulator.Framework.XrayAutomationProvider.
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
-        public XrayTextAutomationProvider(RhinoConfiguration configuration)
+        public XrayCloudTextAutomationProvider(RhinoConfiguration configuration)
             : this(configuration, Utilities.Types)
         { }
 
@@ -41,7 +42,7 @@ namespace Rhino.Connectors.Xray.Text
         /// </summary>
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
-        public XrayTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types)
+        public XrayCloudTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types)
             : this(configuration, types, Utilities.CreateDefaultLogger(configuration))
         { }
 
@@ -51,11 +52,11 @@ namespace Rhino.Connectors.Xray.Text
         /// <param name="configuration">Rhino.Api.Contracts.Configuration.RhinoConfiguration to use with this provider.</param>
         /// <param name="types">A collection of <see cref="Type"/> to load for this repository.</param>
         /// <param name="logger">Gravity.Abstraction.Logging.ILogger implementation for this provider.</param>
-        public XrayTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
+        public XrayCloudTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : base(configuration, types, logger)
         {
-            this.logger = logger?.Setup(loggerName: nameof(XrayTextAutomationProvider));
-            xrayProvider = new XrayAutomationProvider(configuration, types, this.logger);
+            this.logger = logger?.Setup(loggerName: nameof(XrayCloudTextAutomationProvider));
+            xrayProvider = new XrayCloudAutomationProvider(configuration, types, this.logger);
             textProvider = new TextAutomationProvider(configuration, types, this.logger);
         }
         #endregion        
@@ -156,7 +157,7 @@ namespace Rhino.Connectors.Xray.Text
         }
 
         /// <summary>
-        /// Executes a routie of post bug creation.
+        /// Executes a routine of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
         public override void OnCreateBugTeardown(RhinoTestCase testCase)

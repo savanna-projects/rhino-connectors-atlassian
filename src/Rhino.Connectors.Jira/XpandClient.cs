@@ -491,7 +491,28 @@ namespace Rhino.Connectors.Xray.Cloud
         }
         #endregion
 
-        #region *** Post: Test Steps   ***
+        #region ***  Test Steps        ***
+        /// <summary>
+        /// Deletes the given test step.
+        /// </summary>
+        /// <param name="idAndKey">The test issue ID and key.</param>
+        /// <param name="stepId">The step runtime id.</param>
+        public void DeleteTestStep((string id, string key) idAndKey, string stepId)
+        {
+            XpandCommandsRepository.DeleteTestStep(idAndKey, stepId, false).Send(executor);
+        }
+
+        /// <summary>
+        /// Deletes the given test step.
+        /// </summary>
+        /// <param name="idAndKey">The test issue ID and key.</param>
+        /// <param name="stepId">The step runtime id.</param>
+        /// <param name="removeFromJira"><see cref="true"/> to remove from Jira; <see cref="false"/> to keep it.</param>
+        public void DeleteTestStep((string id, string key) idAndKey, string stepId, bool removeFromJira)
+        {
+            XpandCommandsRepository.DeleteTestStep(idAndKey, stepId, removeFromJira).Send(executor);
+        }
+
         /// <summary>
         /// Adds a test step to an existing test issue.
         /// </summary>
