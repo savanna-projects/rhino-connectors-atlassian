@@ -74,7 +74,7 @@ namespace Rhino.Connectors.Xray.Cloud
             : base(configuration, types, logger)
         {
             // setup
-            this._logger = logger?.Setup(loggerName: nameof(XrayCloudAutomationProvider));
+            _logger = logger?.Setup(loggerName: nameof(XrayCloudAutomationProvider));
             _jiraClient = new JiraClient(configuration.GetJiraAuthentication());
             _xpandClient = new XpandClient(configuration.GetJiraAuthentication());
             _executor = new JiraCommandsExecutor(configuration.GetJiraAuthentication());

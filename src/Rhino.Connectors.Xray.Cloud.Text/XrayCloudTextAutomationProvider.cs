@@ -9,7 +9,6 @@ using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
-using Rhino.Connectors.AtlassianClients.Extensions;
 using Rhino.Connectors.Text;
 
 using System;
@@ -79,7 +78,9 @@ namespace Rhino.Connectors.Xray.Cloud.Text
             }
 
             // get
-            return xrayProvider.OnGetTestCases(testCases.Select(i => i.Key).ToArray());
+            return testCases.Any()
+                ? xrayProvider.OnGetTestCases(testCases.Select(i => i.Key).ToArray())
+                : xrayProvider.OnGetTestCases(ids);
         }
         #endregion
 
