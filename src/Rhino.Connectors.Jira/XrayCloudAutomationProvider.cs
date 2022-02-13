@@ -353,9 +353,10 @@ namespace Rhino.Connectors.Xray.Cloud
             });
 
             // create
-            foreach (var step in testCase.Steps)
+            var steps = testCase.Steps.ToArray();
+            for (int i = 0; i < steps.Length; i++)
             {
-                _xpandClient.CreateTestStep((id, key), step.Action, step.Expected, -1);
+                _xpandClient.CreateTestStep((id, key), steps[i].Action, steps[i].Expected, i);
             }
 
             // comment
