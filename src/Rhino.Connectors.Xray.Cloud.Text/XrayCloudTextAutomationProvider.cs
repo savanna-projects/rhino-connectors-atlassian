@@ -14,6 +14,7 @@ using Rhino.Connectors.Text;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Rhino.Connectors.Xray.Cloud.Text
 {
@@ -23,9 +24,9 @@ namespace Rhino.Connectors.Xray.Cloud.Text
     public class XrayCloudTextAutomationProvider : ProviderManager
     {
         // state: global parameters
-        private readonly ILogger logger;
-        private readonly XrayCloudAutomationProvider xrayProvider;
-        private readonly TextAutomationProvider textProvider;
+        private readonly ILogger _logger;
+        private readonly XrayCloudAutomationProvider _xrayProvider;
+        private readonly TextAutomationProvider _textProvider;
 
         #region *** Constructors      ***
         /// <summary>
@@ -54,9 +55,9 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         public XrayCloudTextAutomationProvider(RhinoConfiguration configuration, IEnumerable<Type> types, ILogger logger)
             : base(configuration, types, logger)
         {
-            this.logger = logger?.Setup(loggerName: nameof(XrayCloudTextAutomationProvider));
-            xrayProvider = new XrayCloudAutomationProvider(configuration, types, this.logger);
-            textProvider = new TextAutomationProvider(configuration, types, this.logger);
+            _logger = logger?.Setup(loggerName: nameof(XrayCloudTextAutomationProvider));
+            _xrayProvider = new XrayCloudAutomationProvider(configuration, types, _logger);
+            _textProvider = new TextAutomationProvider(configuration, types, _logger);
         }
         #endregion        
 
@@ -69,18 +70,18 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         public override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
         {
             // setup
-            var testCases = textProvider.OnGetTestCases(ids);
+            var testCases = _textProvider.OnGetTestCases(ids);
 
             // sync
             foreach (var testCase in testCases)
             {
-                xrayProvider.UpdateTestCase(testCase);
+                _xrayProvider.UpdateTestCase(testCase);
             }
 
             // get
             return testCases.Any()
-                ? xrayProvider.OnGetTestCases(testCases.Select(i => i.Key).ToArray())
-                : xrayProvider.OnGetTestCases(ids);
+                ? _xrayProvider.OnGetTestCases(testCases.Select(i => i.Key).ToArray())
+                : _xrayProvider.OnGetTestCases(ids);
         }
         #endregion
 
@@ -92,7 +93,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <returns>The ID of the newly created entity.</returns>
         public override string OnCreateTestCase(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCreateTestCase(testCase);
+            return _xrayProvider.OnCreateTestCase(testCase);
         }
         #endregion
 
@@ -105,14 +106,14 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
         public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
-            return xrayProvider.OnCreateTestRun(testRun);
+            return _xrayProvider.OnCreateTestRun(testRun);
         }
 
         /// <summary>
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void OnRunTeardown(RhinoTestRun testRun) => xrayProvider.OnRunTeardown(testRun);
+        public override void OnRunTeardown(RhinoTestRun testRun) => _xrayProvider.OnRunTeardown(testRun);
         #endregion
 
         #region *** Put: Test Results ***
@@ -122,7 +123,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
         public override void OnUpdateTestResult(RhinoTestCase testCase)
         {
-            xrayProvider.OnUpdateTestResult(testCase);
+            _xrayProvider.OnUpdateTestResult(testCase);
         }
         #endregion
 
@@ -134,7 +135,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
         public override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
         {
-            return xrayProvider.OnGetBugs(testCase);
+            return _xrayProvider.OnGetBugs(testCase);
         }
 
         /// <summary>
@@ -144,7 +145,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <returns>An open bug.</returns>
         public override string OnGetOpenBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnGetOpenBug(testCase);
+            return _xrayProvider.OnGetOpenBug(testCase);
         }
 
         /// <summary>
@@ -154,7 +155,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <returns>The ID of the newly created entity.</returns>
         public override string OnCreateBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCreateBug(testCase);
+            return _xrayProvider.OnCreateBug(testCase);
         }
 
         /// <summary>
@@ -163,7 +164,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
         public override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
-            xrayProvider.OnCreateBugTeardown(testCase);
+            _xrayProvider.OnCreateBugTeardown(testCase);
         }
 
         /// <summary>
@@ -172,7 +173,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
         public override string OnUpdateBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnUpdateBug(testCase);
+            return _xrayProvider.OnUpdateBug(testCase);
         }
 
         /// <summary>
@@ -181,7 +182,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCloseBugs(testCase);
+            return _xrayProvider.OnCloseBugs(testCase);
         }
 
         /// <summary>
@@ -190,7 +191,7 @@ namespace Rhino.Connectors.Xray.Cloud.Text
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
         public override string OnCloseBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCloseBug(testCase);
+            return _xrayProvider.OnCloseBug(testCase);
         }
         #endregion
     }
