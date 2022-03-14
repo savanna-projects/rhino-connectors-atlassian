@@ -461,7 +461,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             jiraClient.DeleteAttachments(idOrKey: $"{onBug["key"]}");
 
             // upload new attachments
-            var files = testCase.GetScreenshots();
+            var files = testCase.Steps.SelectMany(i => i.GetScreenshots());
             jiraClient.AddAttachments($"{onBug["key"]}", files.ToArray());
 
             // results
@@ -540,7 +540,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // add attachments
-            var files = testCase.GetScreenshots();
+            var files = testCase.Steps.SelectMany(i => i.GetScreenshots());
             jiraClient.AddAttachments($"{response["key"]}", files.Reverse().ToArray());
 
             // add to context
@@ -713,197 +713,5 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return !(isDoneStatus || isClosedStatus) ? $"{onBug}" : string.Empty;
         }
         #endregion
-
-        #region *** Aggregate        ***
-        /// <summary>
-        /// Migrate all expected results of a plugin to the plugin step index and re-evaluate the outcome.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase on which to aggregate results.</param>
-        /// <returns>Aggregated RhinoTestCase</returns>
-        public static RhinoTestCase AggregateSteps(this RhinoTestCase testCase)
-        {
-            //setup
-            var stepsMap = GetStepsMap(testCase);
-            var indexes = stepsMap.Select(i => i.Index).Distinct();
-            var originalTestCase = GetOriginalTestCase(testCase);
-            var stepsCount = originalTestCase.Steps.Count();
-            var onSteps = new List<RhinoTestStep>(testCase.Steps);
-
-            // build
-            for (int i = 0; i < stepsCount; i++)
-            {
-                if (!indexes.Contains(i))
-                {
-                    continue;
-                }
-
-                var steps = stepsMap.Where(x => x.Index == i).ToList();
-                onSteps[i] = GetStep(steps);
-
-                if (steps.Count > 1)
-                {
-                    onSteps.RemoveRange(i + 1, steps.Count - 1);
-                }
-            }
-
-            // clone
-            var onTestCase = DoClone(testCase);
-            onTestCase.Steps = onSteps;
-            onTestCase.Context = testCase.Context;
-            onTestCase.Context["decomposedTestCase"] = testCase;
-
-            // get
-            return onTestCase;
-        }
-
-        private static IEnumerable<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)> GetStepsMap(RhinoTestCase testCase)
-        {
-            // constants
-            const string ParentPlugin = "parentPlugin";
-
-            //setup
-            var runtimeKeys = GetOriginalTestCase(testCase).Steps.Select(i => i.RuntimeKey).Distinct();
-            var aggregated = new List<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)>();
-
-            // build
-            var index = 0;
-            for (int i = 0; i < runtimeKeys.Count(); i++)
-            {
-                foreach (var step in testCase.Steps.Where(x => x.RuntimeKey.Equals(runtimeKeys.ElementAt(i), Compare)))
-                {
-                    var isParentPlugin = step.Context.ContainsKey(ParentPlugin);
-                    RhinoPlugin parentPlugin = null;
-                    if (isParentPlugin)
-                    {
-                        var json = System.Text.Json.JsonSerializer.Serialize(step.Context[ParentPlugin]);
-                        parentPlugin = System.Text.Json.JsonSerializer.Deserialize<RhinoPlugin>(json);
-                    }
-                    aggregated.Add((index, parentPlugin, step));
-                }
-                index++;
-            }
-
-            // get
-            return aggregated;
-        }
-
-        private static RhinoTestStep GetStep(IEnumerable<(int Index, RhinoPlugin Plugin, RhinoTestStep Step)> stepsMap)
-        {
-            // exit conditions
-            if (!stepsMap.Any())
-            {
-                return default;
-            }
-
-            // setup
-            var failedOn = new List<int>();
-            var reasons = new List<string>();
-            var expected = new List<string>();
-            var screenshots = new List<string>();
-            var action = stepsMap.First().Plugin == null
-                ? stepsMap.First().Step.Action
-                : stepsMap.First().Plugin.Key.PascalToSpaceCase().ToLower();
-            var step = new RhinoTestStep
-            {
-                Action = action
-            };
-
-            // build
-            foreach (var (Index, plugin, Step) in stepsMap)
-            {
-                var onExpected = Step.Expected.Split('\n');
-                if (onExpected.Length == 0)
-                {
-                    continue;
-                }
-
-                expected.AddRange(onExpected);
-                List<int> contextFailedOn = new();
-                if (IsFailedOn(Step))
-                {
-                    var json = System.Text.Json.JsonSerializer.Serialize(Step.Context[ContextEntry.FailedOn]);
-                    contextFailedOn = System.Text.Json.JsonSerializer.Deserialize<List<int>>(json);
-                }
-                var on = contextFailedOn.Select(i => expected.Count - i);
-                if (on.Any())
-                {
-                    var range = on.Select(i => $"Failed on assertion [{expected[i - 1]}]");
-                    reasons.AddRange(range);
-                    failedOn.AddRange(on);
-                }
-
-                screenshots.AddRange(GetScreenshots(Step));
-            }
-
-            // assign
-            step.Context[ContextEntry.ChildSteps] = stepsMap.Select(i => i.Step).ToList();
-            step.Context[ContextEntry.FailedOn] = failedOn;
-            step.Context[ContextEntry.Screenshots] = screenshots;
-            step.Actual = stepsMap.All(i => i.Step.Actual);
-            step.Expected = string.Join("\n", expected).Trim();
-            step.ReasonPhrase = string.Join("\n", reasons).Trim();
-            step.Context["runtimeid"] = stepsMap.First().Step.Context.Get("runtimeid", "-1");
-
-            if ($"{step.Context["runtimeid"]}" == "-1")
-            {
-                var onStepToken = stepsMap.Where(i => i.Step.Context.ContainsKey("testStep"));
-                var stepToken = onStepToken.Any()
-                    ? JsonConvert.DeserializeObject<IDictionary<string, object>>($"{onStepToken.First().Step.Context["testStep"]}")
-                    : JsonConvert.DeserializeObject<IDictionary<string, object>>("{}");
-                step.Context["runtimeid"] = stepToken.ContainsKey("id") ? $"{stepToken["id"]}" : "-1";
-            }
-
-            // get
-            return step;
-        }
-
-        private static bool IsFailedOn(RhinoTestStep step)
-        {
-            // setup
-            var isKey = step.Context.ContainsKey(ContextEntry.FailedOn);
-
-            // get
-            return isKey && step.Context[ContextEntry.FailedOn] is IList<int>;
-        }
-
-        private static RhinoTestCase GetOriginalTestCase(RhinoTestCase testCase)
-        {
-            // setup
-            var isKey = testCase.Context.ContainsKey(ContextEntry.OriginalTestCase);
-            var isValue = isKey && testCase.Context[ContextEntry.OriginalTestCase] != null;
-
-            // build
-            var _testCaseJson = isValue
-                ? System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.OriginalTestCase])
-                : System.Text.Json.JsonSerializer.Serialize(new RhinoTestCase());
-
-            var _testCase = System.Text.Json.JsonSerializer.Deserialize<RhinoTestCase>(_testCaseJson);
-            _testCase.Context = testCase.Context;
-
-            // get
-            return testCase;
-        }
-
-        private static IEnumerable<string> GetScreenshots(RhinoTestStep step)
-        {
-            // setup
-            var isKey = step.Context.ContainsKey(ContextEntry.Screenshots);
-            var isType = isKey && step.Context[ContextEntry.Screenshots] is IEnumerable<string>;
-
-            // get
-            return isType
-                ? (IEnumerable<string>)step.Context[ContextEntry.Screenshots]
-                : Array.Empty<string>();
-        }
-        #endregion
-
-        private static T DoClone<T>(T obj)
-        {
-            // setup
-            var json = System.Text.Json.JsonSerializer.Serialize(obj);
-
-            // get
-            return System.Text.Json.JsonSerializer.Deserialize<T>(json);
-        }
     }
 }

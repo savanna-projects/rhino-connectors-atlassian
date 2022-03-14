@@ -11,12 +11,11 @@ using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
-
+using Rhino.Api.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
@@ -69,9 +68,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// </summary>
         /// <param name="testStep">RhinoTestStep to convert.</param>
         /// <returns>XRay compatible markdown representation of this RhinoTestStep.</returns>
-        public static string BugMarkdown(this RhinoTestStep testStep)
+        public static string BugMarkdown(this RhinoTestStep testStep, string index)
         {
-            return StepToBugMarkdown(testStep);
+            return StepToBugMarkdown(testStep, index);
         }
 
         /// <summary>
@@ -266,7 +265,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     "----\\r\\n";
 
                 // set steps
-                var steps = string.Join("\\r\\n\\r\\n", testCase.Steps.Select(StepToBugMarkdown));
+                var markdown = new List<string>();
+                for (int i = 0; i < testCase.Steps.Count(); i++)
+                {
+                    var md = StepToBugMarkdown(testCase.Steps.ElementAt(i), $"{i + 1}");
+                    markdown.Add(md);
+                }
+                var steps = string.Join("\\r\\n\\r\\n", markdown);
 
                 // results
                 return header.Replace(@"""", @"\""") + steps;
@@ -349,37 +354,57 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return Regex.IsMatch(input: testStep.Action, pattern: "(?i)(go to url|navigate to|open|go to)");
         }
 
-        private static string StepToBugMarkdown(RhinoTestStep testStep)
+        private static string StepToBugMarkdown(RhinoTestStep testStep, string index)
         {
-            // setup action
-            var action = "*" + testStep.Action.Replace("{", "\\\\{") + "*\\r\\n";
-
-            // setup
-            var expectedResults = Regex
-                .Split(testStep.Expected, "(\r\n|\r|\n)")
-                .Where(i => !string.IsNullOrEmpty(i) && !Regex.IsMatch(i, "(\r\n|\r|\n)"))
-                .ToArray();
-
-            var failedOn = testStep.Context.ContainsKey(ContextEntry.FailedOn)
-                ? (IEnumerable<int>)testStep.Context[ContextEntry.FailedOn]
-                : Array.Empty<int>();
-
-            // exit conditions
-            if (!failedOn.Any())
+            // local
+            static string GetStepMarkdown(RhinoTestStep testStep, string index)
             {
-                return action;
+                // setup
+                var action = $"*{index}. " + testStep.Action.Replace("{", "\\\\{") + "*";
+                var expected = testStep.HaveExpectedResults()
+                    ? testStep.ExpectedResults.ToArray()
+                    : Array.Empty<RhinoExpectedResult>();
+
+                // root
+                if (!testStep.HaveNestedSteps())
+                {
+                    if (!testStep.Actual && expected.Length > 0)
+                    {
+                        var markdown = new List<string>
+                        {
+                            action
+                        };
+                        for (int i = 0; i < expected.Length; i++)
+                        {
+                            var outcome = !expected[i].Actual ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
+                            markdown.Add(outcome + expected[i].ExpectedResult.Replace("{", "\\\\{") + "{panel}");
+                        }
+                        return string.Join("\\r\\n", markdown);
+                    }
+                    if (!testStep.Actual && expected.Length == 0)
+                    {
+                        return "{panel:bgColor=#ffebe6}" + action + "{panel}";
+                    }
+                    return action;
+                }
+
+                // nested
+                var markdowns = new List<string>
+                {
+                    $"*{index}. " + Regex.Match(action, @"(?<=\{).*(?=\})").Value.Trim() + "*"
+                };
+                for (int i = 0; i < testStep.Steps.Count(); i++)
+                {
+                    var markdown = GetStepMarkdown(testStep.Steps.ElementAt(i), index + $".{i + 1}");
+                    markdowns.Add(markdown);
+                }
+
+                // get
+                return string.Join("\\r\\n\\r\\n", markdowns);
             }
 
-            // build
-            var markdown = new List<string>();
-            for (int i = 0; i < expectedResults.Length; i++)
-            {
-                var outcome = failedOn.Contains(i) ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
-                markdown.Add(outcome + expectedResults[i].Replace("{", "\\\\{") + "{panel}");
-            }
-
-            // results
-            return action + string.Join("\\r\\n", markdown);
+            // iterate
+            return GetStepMarkdown(testStep, index);
         }
 
         private static string DoToMarkdown(this IEnumerable<IDictionary<string, object>> data)

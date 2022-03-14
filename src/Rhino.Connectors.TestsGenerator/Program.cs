@@ -84,9 +84,11 @@ namespace Rhino.Connectors.TestsGenerator
                 new RhinoTestStep
                 {
                     Action = "click on {SearchButton} using {id}",
-                    Expected =
-                    "verify that {text} of {student_last_name_1} using {id} match {Alexander}\n" +
-                    "verify that {text} of {student_first_name_1} using {id} match {Carson}"
+                    ExpectedResults = new[]
+                    {
+                        new RhinoExpectedResult{ ExpectedResult = "verify that {text} of {student_last_name_1} using {id} match {Alexander}" },
+                        new RhinoExpectedResult{ ExpectedResult = "verify that {text} of {student_first_name_1} using {id} match {Carson}" }
+                    }
                 },
                 new RhinoTestStep
                 {

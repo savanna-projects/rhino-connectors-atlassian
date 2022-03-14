@@ -37,7 +37,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Git", "Git", "{89F9419D-AC0
 		..\LICENSE = ..\LICENSE
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rhino.Connectors.Xray.Cloud.Text", "Rhino.Connectors.Xray.Cloud.Text\Rhino.Connectors.Xray.Cloud.Text.csproj", "{18065F0D-BFF3-48FC-89D8-2D8B8BC8C2FB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.Cloud.Text", "Rhino.Connectors.Xray.Cloud.Text\Rhino.Connectors.Xray.Cloud.Text.csproj", "{18065F0D-BFF3-48FC-89D8-2D8B8BC8C2FB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

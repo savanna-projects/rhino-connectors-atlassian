@@ -55,8 +55,7 @@ namespace Rhino.Connectors.Xray.Extensions
             // setup
             var jsonToken = response["steps"];
             var stepsToken = JArray.Parse($"{jsonToken}");
-            var aggregated = testCase.AggregateSteps();
-            var steps = aggregated.Steps.ToList();
+            var steps = testCase.Steps.ToList();
 
             // apply runtime id to test-step context
             for (int i = 0; i < steps.Count; i++)
@@ -77,8 +76,6 @@ namespace Rhino.Connectors.Xray.Extensions
             _ = int.TryParse($"{response["id"]}", out int idOut);
             testCase.Context["runtimeid"] = idOut;
             testCase.Context["testRunKey"] = testExecutionKey;
-            testCase.Context["aggregated"] = aggregated;
-            aggregated.Steps = steps;
         }
 
         /// <summary>
@@ -127,9 +124,9 @@ namespace Rhino.Connectors.Xray.Extensions
             var action = Regex
                 .Replace(input: testStep.Action.Replace("{", "{{").Replace("}", "}}"), pattern: @"^(\s+)?(\d+)\.", replacement: string.Empty)
                 .Trim();
-            var expected = string.IsNullOrEmpty(testStep.Expected)
+            var expected = !testStep.ExpectedResults.Any()
                 ? string.Empty
-                : testStep.Expected.Replace("{", "{{").Replace("}", "}}").Trim();
+                : string.Join('\n', testStep.ExpectedResults.Select(i => i.ExpectedResult)).Replace("{", "{{").Replace("}", "}}").Trim();
             
             // build
             var payload = new Dictionary<string, object>
@@ -303,6 +300,9 @@ namespace Rhino.Connectors.Xray.Extensions
                 }
 
                 var onStep = testCase.Steps.ElementAt(i);
+                var expectedResults = !onStep.ExpectedResults.Any()
+                    ? string.Empty
+                    : string.Join('\n', onStep.ExpectedResults.Select(i => i.ExpectedResult));
                 var step = new Dictionary<string, object>
                 {
                     ["id"] = i + 1,
@@ -310,7 +310,7 @@ namespace Rhino.Connectors.Xray.Extensions
                     ["fields"] = new Dictionary<string, object>
                     {
                         ["Action"] = onStep.Action.Replace("{", "{{").Replace("}", "}}"),
-                        ["Expected Result"] = string.IsNullOrEmpty(onStep.Expected) ? string.Empty : onStep.Expected.Replace("{", "{{").Replace("}", "}}")
+                        ["Expected Result"] = expectedResults.Replace("{", "{{").Replace("}", "}}")
                     }
                 };
                 // add to steps list
@@ -329,23 +329,17 @@ namespace Rhino.Connectors.Xray.Extensions
         /// <remarks>Must contain runtimeid field in the context.</remarks>
         public static void SetOutcomeBySteps(this RhinoTestCase testCase)
         {
-            const string Aggregated = "aggregated";
-
-            // get steps
-            var onTestCase = testCase.AggregateSteps();
-            onTestCase.Context.AddRange(testCase.Context, new[] { Aggregated });
-
             // collect steps
             var steps = new List<object>();
-            foreach (var testStep in onTestCase.Steps)
+            foreach (var testStep in testCase.Steps)
             {
-                steps.Add(testStep.GetUpdateRequest(outcome: $"{onTestCase.Context["outcome"]}"));
+                steps.Add(testStep.GetUpdateRequest(outcome: $"{testCase.Context["outcome"]}"));
             }
 
             // setup
-            var executor = new JiraCommandsExecutor(onTestCase.GetAuthentication());
+            var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
             var command = RavenCommandsRepository.UpdateTestRun(
-                testRun: $"{onTestCase.Context["runtimeid"]}",
+                testRun: $"{testCase.Context["runtimeid"]}",
                 data: new { Steps = steps });
 
             // send

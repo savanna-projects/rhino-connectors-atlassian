@@ -356,7 +356,8 @@ namespace Rhino.Connectors.Xray.Cloud
             var steps = testCase.Steps.ToArray();
             for (int i = 0; i < steps.Length; i++)
             {
-                _xpandClient.CreateTestStep((id, key), steps[i].Action, steps[i].Expected, i);
+                var expected = string.Join(Environment.NewLine, steps[i].ExpectedResults.Select(i => i.ExpectedResult));
+                _xpandClient.CreateTestStep((id, key), steps[i].Action, expected, i);
             }
 
             // comment
@@ -444,9 +445,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             testCase.Context["executionDetails"] = details;
             testCase.Context["testRun"] = testRun.Context["testRun"];
-            var aggregated = testCase.AggregateSteps();
 
-            var steps = aggregated.Steps.ToList();
+            var steps = testCase.Steps.ToList();
             var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject()).ToArray();
 
             for (int i = 0; i < steps.Count; i++)
@@ -471,9 +471,6 @@ namespace Rhino.Connectors.Xray.Cloud
                     }
                 }
             }
-
-            aggregated.Steps = steps;
-            testCase.Context["aggregated"] = aggregated;
         }
         #endregion
 
@@ -854,16 +851,9 @@ namespace Rhino.Connectors.Xray.Cloud
             // constants
             const string ContextKey = "executionDetails";
 
-            // aggregate
-            var onTestCase = testCase.AggregateSteps();
-
-            onTestCase.TestRunKey = testCase.TestRunKey;
-            onTestCase.Context.AddRange(testCase.Context.Where(i => i.Key != "aggregated"));
-            testCase.Context["aggregated"] = onTestCase;
-
             // setup
-            var executionDetails = onTestCase.Context.ContainsKey(ContextKey) && onTestCase.Context[ContextKey] != default
-                ? (JToken)onTestCase.Context[ContextKey]
+            var executionDetails = testCase.Context.ContainsKey(ContextKey) && testCase.Context[ContextKey] != default
+                ? (JToken)testCase.Context[ContextKey]
                 : JToken.Parse("{}");
             var run = $"{executionDetails.SelectToken("_id")}";
             var execution = $"{executionDetails.SelectToken("testExecIssueId")}";
@@ -873,7 +863,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // update
             try
             {
-                DoUpdateTestResults(onTestCase, project, execution, run, steps);
+                DoUpdateTestResults(testCase, project, execution, run, steps);
             }
             catch (Exception e) when (e != null)
             {

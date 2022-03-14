@@ -1,0 +1,23 @@
+[test-id]        SearchStudent
+[test-scenario]  Verify student last name when searching by first name (Students Page).
+
+[test-parameters]
+|Parameter |Description                                            |
+|----------|-------------------------------------------------------|
+|first_name|Student first name. Will be used for searching student.|
+|last_name |Student last name. Will be used asserting results.     |
+
+[test-actions]
+1. send keys {@first_name} into {#SearchString} using {css selector}
+2. click on {#SearchButton} using {css selector}
+3. do nothing {1}
+
+[test-expected-results]
+[2] verify that {url} match {(?i)student}
+[2] verify that {attribute} of {#SearchString} using {css selector} from {value} match {@first_name}
+[2] verify that {text} of {//TD[contains(@id,'student_last_name_')]} match {@last_name}
+
+[test-examples]
+|Example                                                       |Description                                                   |
+|--------------------------------------------------------------|--------------------------------------------------------------|
+|search student {{$ --first_name:Carson --last_name:Alexander}}|Performs student search by first name and validated last name.|

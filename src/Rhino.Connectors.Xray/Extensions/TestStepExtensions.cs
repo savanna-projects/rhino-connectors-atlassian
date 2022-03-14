@@ -7,6 +7,8 @@ using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 
+using System.Linq;
+
 namespace Rhino.Connectors.Xray.Extensions
 {
     public static class TestStepExtensions
@@ -29,11 +31,20 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // set request object
+            var format =
+                "Class:   {0}  \n" +
+                "Message: {1}  \n" +
+                "Method:  {2}  \n" +
+                "Type:    {3}";
+            var comments = testStep?.Exceptions.Select(i => string.Format(format, i.Class, i.Message, i.Method, i.Type));
+            var comment = !testStep.HaveExceptions()
+                ? string.Empty
+                : string.Join("  \n  \n", comments);
             return new
             {
                 Id = $"{testStep.Context["runtimeid"]}",
                 Status = onOutcome,
-                Comment = testStep.Exception == null ? null : $"{{noformat}}{testStep?.Exception}{{noformat}}",
+                Comment = string.IsNullOrEmpty(comment) ? null : $"{{noformat}}{comment}{{noformat}}",
                 ActualResult = string.IsNullOrEmpty(testStep.ReasonPhrase) ? null : $"{{noformat}}{testStep.ReasonPhrase}{{noformat}}"
             };
         }
