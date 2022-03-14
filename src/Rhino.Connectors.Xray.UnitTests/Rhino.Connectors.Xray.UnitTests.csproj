@@ -26,6 +26,9 @@
 	  <None Update="Plugins\Rhino\DoNothing\PluginSpec.rhino">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
+	  <None Update="Plugins\Rhino\GoogleSearch\PluginSpec.rhino">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	  <None Update="Plugins\Rhino\SearchStudent\PluginSpec.rhino">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
