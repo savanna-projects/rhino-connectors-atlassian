@@ -26,6 +26,7 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Utilities = Rhino.Api.Extensions.Utilities;
@@ -356,7 +357,11 @@ namespace Rhino.Connectors.Xray.Cloud
             var steps = testCase.Steps.ToArray();
             for (int i = 0; i < steps.Length; i++)
             {
+                var input = steps[i].Action.Trim();
+                steps[i].Action = Regex.Replace(input, @"^\d+(\W+)?(\s+)?", string.Empty).Replace("{", "\\{");
+                
                 var expected = string.Join(Environment.NewLine, steps[i].ExpectedResults.Select(i => i.ExpectedResult));
+                
                 _xpandClient.CreateTestStep((id, key), steps[i].Action, expected, i);
             }
 

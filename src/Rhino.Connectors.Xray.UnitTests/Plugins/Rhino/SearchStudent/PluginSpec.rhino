@@ -15,7 +15,7 @@
 [test-expected-results]
 [2] verify that {url} match {(?i)student}
 [2] verify that {attribute} of {#SearchString} using {css selector} from {value} match {@first_name}
-[2] verify that {text} of {//TD[contains(@id,'student_last_name_')]} match {@last_name}
+[2] verify that {text} of {//TD[contains(@id,'student_last_name_')]} match {@last_name 1}
 
 [test-examples]
 |Example                                                       |Description                                                   |
