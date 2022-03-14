@@ -79,7 +79,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             for (int i = 0; i < steps.Length; i++)
             {
                 var action = Regex.Replace(input: steps[i].Action, pattern: @"^\d+\.\s+", replacement: string.Empty);
-                var requset = XpandCommandsRepository.CreateTestStep((id, key), action, steps[i].Expected, i);
+                var expected = string.Join(Environment.NewLine, steps[i].ExpectedResults.Select(i => i.ExpectedResult));
+                var requset = XpandCommandsRepository.CreateTestStep((id, key), action, expected, i);
                 requests.Add(requset);
             }
 
@@ -116,7 +117,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 var client = new XpandClient(testCase.GetAuthentication());
                 Parallel.ForEach(GetEvidence(testCase), options, evidenceData =>
                 {
-                    var evidences = evidenceData["evidences"] as List<string>;
+                    var evidences = evidenceData["evidences"] as IEnumerable<string>;
                     evidences ??= new List<string>();
 
                     Parallel.ForEach(evidences, options, evidence
@@ -135,7 +136,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
         private static IEnumerable<IDictionary<string, object>> GetEvidence(RhinoTestCase testCase)
         {
             // get screenshots
-            var screenshots = testCase.GetScreenshots();
+            var screenshots = testCase.Steps.SelectMany(i => i.GetScreenshots());
             var automation = testCase.GetWebAutomation();
             var execution = $"{DoGetExecutionDetails(testCase).AsJObject().SelectToken("_id")}";
 
@@ -218,9 +219,19 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 {
                     return;
                 }
-                var actual = step.Exception == default
+                var format =
+                    "Class:   {0}  \n" +
+                    "Message: {1}  \n" +
+                    "Method:  {2}  \n" +
+                    "Type:    {3}";
+                var comments = step?.Exceptions.Select(i => string.Format(format, i.Class, i.Message, i.Method, i.Type));
+                var comment = !step.HaveExceptions()
+                    ? string.Empty
+                    : string.Join("  \n  \n", comments);
+
+                var actual = !step.HaveExceptions()
                     ? "{noformat}" + step.ReasonPhrase + "{noformat}"
-                    : "{noformat}" + $"{step.Exception}" + "{noformat}";
+                    : "{noformat}" + $"{comment}" + "{noformat}";
                 client.UpdateStepActual(idAndKey, run, ($"{step.Context["runtimeid"]}", actual));
             }
             catch (Exception e) when (e != null)

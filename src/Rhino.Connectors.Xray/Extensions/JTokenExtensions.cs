@@ -10,8 +10,8 @@ using Newtonsoft.Json.Linq;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Connectors.AtlassianClients.Extensions;
 
-using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Extensions
@@ -53,11 +53,10 @@ namespace Rhino.Connectors.Xray.Extensions
 
                 // normalize auto links (if any)
                 step.Action = NormalizeAutoLink(step.Action);
-                step.Expected = NormalizeAutoLink(step.Expected);
-
-                // normalize line breaks from XRay
-                var onExpected = step.Expected.SplitByLines();
-                step.Expected = string.Join(Environment.NewLine, onExpected);
+                foreach (var result in step.ExpectedResults)
+                {
+                    result.ExpectedResult = NormalizeAutoLink(result.ExpectedResult);
+                }
 
                 // apply
                 step.Context[nameof(testStep)] = $"{testStep}";
@@ -126,10 +125,15 @@ namespace Rhino.Connectors.Xray.Extensions
             const string Pattern = @"{{(?!\$).*?}}";
 
             // 1st cycle
+            var action = $"{testStep["fields"]["Action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}");
+            var expected = $"{testStep["fields"]["Expected Result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}");
             var rhinoStep = new RhinoTestStep
             {
-                Action = $"{testStep["fields"]["Action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
-                Expected = $"{testStep["fields"]["Expected Result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
+                Action = action,
+                ExpectedResults = expected
+                    .SplitByLines()
+                    .Where(i => !string.IsNullOrEmpty(i))
+                    .Select(i => new RhinoExpectedResult { ExpectedResult = i.Trim() })
             };
 
             // 2nd cycle: action
@@ -140,11 +144,15 @@ namespace Rhino.Connectors.Xray.Extensions
             }
 
             // 3rd cycle: action
-            matches = Regex.Matches(rhinoStep.Expected, Pattern);
-            foreach (Match match in matches)
+            foreach (var result in rhinoStep.ExpectedResults)
             {
-                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
+                matches = Regex.Matches(result.ExpectedResult, Pattern);
+                foreach (Match match in matches)
+                {
+                    result.ExpectedResult = ReplaceByMatch(result.ExpectedResult, match);
+                }
             }
+
 
             // get
             return rhinoStep;

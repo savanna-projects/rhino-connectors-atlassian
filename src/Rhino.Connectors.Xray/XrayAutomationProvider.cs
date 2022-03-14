@@ -701,19 +701,14 @@ namespace Rhino.Connectors.Xray
         // UTILITIES
         private void DoUpdateTestResult(RhinoTestCase testCase, bool inline)
         {
-            // constants
-            const string Aggregated = "aggregated";
-
             try
             {
                 // setup
                 var forUploadOutcomes = new[] { "PASS", "FAIL" };
-                var onTestCase = testCase.AggregateSteps();
-                onTestCase.Context.AddRange(testCase.Context, exclude: new[] { Aggregated });
 
                 // exit conditions
                 var outcome = "TODO";
-                if (onTestCase.Context.ContainsKey("outcome"))
+                if (testCase.Context.ContainsKey("outcome"))
                 {
                     outcome = $"{testCase.Context["outcome"]}";
                 }
@@ -730,18 +725,15 @@ namespace Rhino.Connectors.Xray
                 // attachments
                 if (forUploadOutcomes.Contains(outcome.ToUpper()))
                 {
-                    onTestCase.UploadEvidences();
+                    testCase.UploadEvidences();
                 }
 
                 // fail message
-                if (outcome.Equals("FAIL", Compare) || testCase.Steps.Any(i => i.Exception != default))
+                if (outcome.Equals("FAIL", Compare) || testCase.Steps.Any(i => i.HaveExceptions()))
                 {
                     var comment = testCase.GetFailComment();
                     testCase.UpdateResultComment(comment);
                 }
-
-                // put
-                testCase.Context[Aggregated] = onTestCase;
             }
             catch (Exception e) when (e != null)
             {

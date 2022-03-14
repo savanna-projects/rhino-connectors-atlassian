@@ -11,6 +11,7 @@ using Rhino.Api.Contracts.AutomationProvider;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.Xray.Cloud.Extensions
@@ -78,13 +79,13 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
 
             // normalize auto links (if any)
             step.Action = NormalizeAutoLink(step.Action);
-            step.Expected = NormalizeAutoLink(step.Expected);
-
-            // normalize line breaks from XRay
-            var onExpected = step.Expected.SplitByLines();
-            step.Expected = string.Join(Environment.NewLine, onExpected);
+            foreach (var result in step.ExpectedResults)
+            {
+                result.ExpectedResult = NormalizeAutoLink(result.ExpectedResult);
+            }
 
             // apply
+            step.RuntimeKey = testStep.SelectToken("id")?.ToString();
             step.Context[nameof(testStep)] = testStep;
             return step;
         }
@@ -95,10 +96,12 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             const string Pattern = @"{{(?!\$).*?}}";
 
             // 1st cycle
+            var action = $"{testStep["action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}");
+            var expected = $"{testStep["result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}");
             var rhinoStep = new RhinoTestStep
             {
-                Action = $"{testStep["action"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}"),
-                Expected = $"{testStep["result"]}".Replace(@"\{", "{").Replace(@"\[", "[").Replace("{{{{", "{{").Replace("}}}}", "}}")
+                Action = action,
+                ExpectedResults = expected.SplitByLines().Where(i => !string.IsNullOrEmpty(i)).Select(i => new RhinoExpectedResult { ExpectedResult = i })
             };
 
             // 2nd cycle: action
@@ -109,10 +112,13 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             }
 
             // 3rd cycle: action
-            matches = Regex.Matches(rhinoStep.Expected, Pattern);
-            foreach (Match match in matches)
+            foreach (var result in rhinoStep.ExpectedResults)
             {
-                rhinoStep.Expected = ReplaceByMatch(rhinoStep.Expected, match);
+                matches = Regex.Matches(result.ExpectedResult, Pattern);
+                foreach (Match match in matches)
+                {
+                    result.ExpectedResult = ReplaceByMatch(result.ExpectedResult, match);
+                }
             }
 
             // get

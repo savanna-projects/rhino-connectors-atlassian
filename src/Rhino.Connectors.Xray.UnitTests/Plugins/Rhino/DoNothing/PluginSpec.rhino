@@ -1,0 +1,16 @@
+[test-id]        DoNothing
+[test-scenario]  Just do nothing.
+
+[test-parameters]
+|Parameter |Description                      |
+|----------|---------------------------------|
+|timeout   |The amount of time to do nothing.|
+
+[test-actions]
+1. wait {@argument}
+2. wait {@argument}
+
+[test-examples]
+|Example                        |Description              |
+|-------------------------------|-------------------------|
+|do nothing {{$ --timeout:3000}}|Do nothing for 3 seconds.|
