@@ -399,10 +399,18 @@ namespace Rhino.Connectors.Xray.Cloud
         private void CreateRunOnJira(RhinoTestRun testRun)
         {
             // setup
+            var title = string.IsNullOrEmpty(testRun.Title)
+                ? Configuration.Name
+                : testRun.Title;
+            title = string.IsNullOrEmpty(title)
+                ? $"{DateTime.UtcNow:yyyy-MM-dd hh:mm:ss} UTC: Automatically created by Rhino engine."
+                : title;
+            
+            // setup
             var fields = new Dictionary<string, object>
             {
                 ["project"] = new { Key = Configuration.ConnectorConfiguration.Project },
-                ["summary"] = TestRun.Title,
+                ["summary"] = title,
                 ["description"] = Utilities.GetActionSignature("created"),
                 ["issuetype"] = new { Name = $"{_capabilities[AtlassianCapabilities.ExecutionType]}" }
             };

@@ -1,0 +1,21 @@
+[test-id]         VerfyJ5
+[test-scenario]   Invoke search on google.com
+
+[test-parameters]
+|Parameter|Description         |
+|---------|--------------------|
+|keyword  |The items to search.|
+
+[test-actions]
+go to url {https://www.google.com}
+send keys {@keyword} into {//input[@name='q']}
+click on {//ul[@role='listbox']/li}
+wait {1500}
+
+[test-expected-results]
+[1] verify that {url} match {google}
+
+[test-examples]
+|Example                                 |Description                 |
+|----------------------------------------|----------------------------|
+|google search {{$ --keyword:automation}}|Invoke search on google.com.|

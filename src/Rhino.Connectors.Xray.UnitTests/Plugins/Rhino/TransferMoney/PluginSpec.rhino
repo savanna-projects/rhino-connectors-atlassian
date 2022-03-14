@@ -1,0 +1,24 @@
+[test-id]         TransferMoney
+[test-scenario]   Performs a project creation routine with default settings and only mandatory fields.
+
+[test-parameters]
+|Parameter|Description            |
+|---------|-----------------------|
+|target   |The bank to sent.      |
+|protocol |The transffer protocol.|
+
+[test-actions]
+go to url {@target}
+send keys {automation is fun} into {//input[@name='q']}
+click on {//ul[@role='listbox']/li}
+wait {1500}
+close browser
+
+[test-expected-results]
+[2] verify that {status code} equal {201}
+[3] verify that {response body} on {$..name} equal {@name}
+
+[test-examples]
+|Example                                                  |Description                         |
+|---------------------------------------------------------|------------------------------------|
+|create default project {{$ --name:Foo --description:Bar}}|Performs a project creation routine.|
