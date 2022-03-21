@@ -12,6 +12,7 @@ using Newtonsoft.Json.Linq;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
+using Rhino.Connectors.AtlassianClients.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,16 +51,36 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var environment = EnvironmentToBugMarkdown(testCase);
             var platform = PlatformToBugMarkdown(testCase);
             var dataSource = DataSourceToBugMarkdown(testCase);
-            var description = DescriptionToBugMarkdown(testCase) + "\\n\\r" + platform + "\\n\\r" + dataSource;
+            var description = DescriptionToBugMarkdown(testCase) + "\n\r" + platform + "\n\r" + dataSource;
 
-            // load JSON body
-            return Assembly.GetExecutingAssembly().ReadEmbeddedResource("create_bug_for_test_jira.txt")
-                .Replace("[project-key]", $"{testCase.Context["projectKey"]}")
-                .Replace("[test-scenario]", testCase.Scenario)
-                .Replace("[test-priority]", priority)
-                .Replace("[test-actions]", description)
-                .Replace("[test-environment]", environment)
-                .Replace("[test-id]", testCase.Key);
+            // build
+            var issue = new JiraIssue
+            {
+                Fields = new JiraIssue.JiraFields
+                {
+                    Description = description,
+                    Environment = environment,
+                    IssueType = new JiraIssue.IssueType
+                    {
+                        Name = "Bug"
+                    },
+                    Priority = new JiraIssue.Priority
+                    {
+                        Id = priority
+                    },
+                    Project = new JiraIssue.Project
+                    {
+                        Key = $"{testCase.Context["projectKey"]}"
+                    },
+                    Summary = testCase.Scenario
+                }
+            };
+
+            // get
+            return System.Text.Json.JsonSerializer.Serialize(issue, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
         }
 
         /// <summary>
@@ -248,7 +269,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
         {
             return testCase.DataSource.Any()
-                ? "*Local Data Source*\\r\\n" + DoToMarkdown(testCase.DataSource).Replace(@"""", @"\""")
+                ? "*Local Data Source*\r\n" + DoToMarkdown(testCase.DataSource)
                 : string.Empty;
         }
 
@@ -258,11 +279,11 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             {
                 // set header
                 var header =
-                    "\\r\\n----\\r\\n" +
-                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\\r\\n" +
-                    "*On Iteration*: " + $"{testCase.Iteration}\\r\\n" +
-                    "Bug filed on '" + testCase.Scenario + "'\\r\\n" +
-                    "----\\r\\n";
+                    "\r\n----\r\n" +
+                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\r\n" +
+                    "*On Iteration*: " + $"{testCase.Iteration}\r\n" +
+                    "Bug filed on '" + testCase.Scenario + "'\r\n" +
+                    "----\r\n";
 
                 // set steps
                 var markdown = new List<string>();
@@ -271,10 +292,10 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     var md = StepToBugMarkdown(testCase.Steps.ElementAt(i), $"{i + 1}");
                     markdown.Add(md);
                 }
-                var steps = string.Join("\\r\\n\\r\\n", markdown);
+                var steps = string.Join("\r\n\r\n", markdown);
 
                 // results
-                return header.Replace(@"""", @"\""") + steps;
+                return header + steps;
             }
             catch (Exception e) when (e != null)
             {
@@ -316,7 +337,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 "*Application Under Test*\r\n" +
                 "||Name||Value||\r\n" +
                 "|Driver|" + $"{driverParams["driver"]}" + "|\r\n" +
-                "|Driver Server|" + $"{driverParams["driverBinaries"]}".Replace(@"\", @"\\") + "|\r\n" +
+                "|Driver Server|" + $"{driverParams["driverBinaries"]}" + "|\r\n" +
                 "|Application|" + application + "|";
 
             // setup capabilities
@@ -346,7 +367,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             var lines = Regex
                 .Split(header + environment + capabilites + options, @"((\r)+)?(\n)+((\r)+)?")
                 .Where(i => !i.StartsWith("\r") && !i.StartsWith("\n"));
-            return string.Join("\\r\\n", lines).Replace(@"""", @"\""");
+            return string.Join("\r\n", lines);
         }
 
         private static bool IsWebAppAction(RhinoTestStep testStep)
@@ -360,7 +381,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             static string GetStepMarkdown(RhinoTestStep testStep, string index)
             {
                 // setup
-                var action = $"*{index}. " + testStep.Action.Replace("{", "\\\\{") + "*";
+                var action = $"*{index}. " + testStep.Action.Replace("{", "\\{") + "*";
                 var expected = testStep.HaveExpectedResults()
                     ? testStep.ExpectedResults.ToArray()
                     : Array.Empty<RhinoExpectedResult>();
@@ -377,9 +398,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                         for (int i = 0; i < expected.Length; i++)
                         {
                             var outcome = !expected[i].Actual ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
-                            markdown.Add(outcome + expected[i].ExpectedResult.Replace("{", "\\\\{") + "{panel}");
+                            markdown.Add(outcome + expected[i].ExpectedResult.Replace("{", "\\{") + "{panel}");
                         }
-                        return string.Join("\\r\\n", markdown);
+                        return string.Join("\r\n", markdown);
                     }
                     if (!testStep.Actual && expected.Length == 0)
                     {
@@ -400,7 +421,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
 
                 // get
-                return string.Join("\\r\\n\\r\\n", markdowns);
+                return string.Join("\r\n\r\n", markdowns);
             }
 
             // iterate
@@ -429,12 +450,12 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             data = jsonData.Select(i => JsonConvert.DeserializeObject<IDictionary<string, object>>(i));
 
             // build header
-            var markdown = "||" + string.Join("||", columns) + "||\\r\\n";
+            var markdown = "||" + string.Join("||", columns) + "||\r\n";
 
             // build rows
             foreach (var dataRow in data)
             {
-                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\\r\\n";
+                markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\r\n";
             }
 
             // results
@@ -454,13 +475,13 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             data = JsonConvert.DeserializeObject<IDictionary<string, object>>(jsonData);
 
             // build header
-            var markdown = "||Key||Value||\\r\\n";
+            var markdown = "||Key||Value||\r\n";
 
             // append rows
             foreach (var item in data)
             {
                 var value = string.IsNullOrEmpty($"{item.Value}") ? " " : $"{item.Value}";
-                markdown += $"|{item.Key}|{value}|\\r\\n";
+                markdown += $"|{item.Key}|{value}|\r\n";
             }
 
             // results
