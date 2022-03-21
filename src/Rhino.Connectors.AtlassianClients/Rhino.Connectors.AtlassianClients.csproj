@@ -15,19 +15,17 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Remove="Resources\create_bug_for_test_jira.txt" />
 		<None Remove="Resources\get_token.txt" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Include="Resources\create_bug_for_test_jira.txt" />
 		<EmbeddedResource Include="Resources\get_token.txt" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
 		<PackageReference Include="Gravity.Extensions" Version="2021.7.30.1" />
-		<PackageReference Include="Rhino.Api" Version="2022.3.14.3" />
+		<PackageReference Include="Rhino.Api" Version="2022.3.20.1" />
 	</ItemGroup>
 
 </Project>
