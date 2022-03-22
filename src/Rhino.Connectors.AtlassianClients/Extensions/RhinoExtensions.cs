@@ -309,6 +309,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 {
                     tstCapabilities = System.Text.Json.JsonSerializer.Serialize(driverParams[Capabliites]);
                 }
+                tstCapabilities = tstCapabilities.Trim().Replace(" ", string.Empty).Equals("{}")
+                    ? string.Empty
+                    : tstCapabilities;
 
                 // extract bug capabilities
                 var bugCapabilities = Regex
