@@ -224,6 +224,23 @@ namespace Rhino.Connectors.AtlassianClients
         {
             return DoCraeteOrUpdate(idOrKey: string.Empty, data: data, comment);
         }
+
+        public string CreateWorklog(string id, TimeSpan timeSpent)
+        {
+            // setup
+            var timeSpentSeconds = timeSpent.TotalSeconds < 60 ? 60 : timeSpent.TotalSeconds;
+            var comment =
+                "Worklog updated by Rhino Engine.\n  " +
+                $"Actual Runtime: {timeSpent.TotalSeconds}\n  " +
+                $"Worklog Applied: {timeSpentSeconds} " +
+                (timeSpentSeconds < 60 ? string.Empty : "(lowest possible unit)");
+            var command = JiraCommandsRepository.CreateWorklog(id, timeSpentSeconds, DateTime.Now, comment);
+
+            // get
+            var response = command.Send(executor).AsJToken();
+
+            return $"{response["id"]}";
+        }
         #endregion
 
         #region *** Put: Issue     ***
@@ -645,7 +662,7 @@ namespace Rhino.Connectors.AtlassianClients
             return onTransitions;
         }
 
-        // get issue type fileds
+        // get issue type fields
         private string DoGetIssueTypeFields(string idOrKey, string path)
         {
             // exit conditions

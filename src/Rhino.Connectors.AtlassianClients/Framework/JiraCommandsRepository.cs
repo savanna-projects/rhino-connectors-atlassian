@@ -6,7 +6,7 @@
 using Gravity.Extensions;
 
 using Rhino.Connectors.AtlassianClients.Contracts;
-
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Reflection;
@@ -311,6 +311,45 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 Data = new { AccountId = account },
                 Method = HttpMethod.Put,
                 Route = string.Format(Format, idOrKey)
+            };
+        }
+
+        public static HttpCommand CreateWorklog(string id, double timeSpentSeconds, DateTime started, string comment)
+        {
+            // setup
+            var epoch = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            var format = "/rest/api/" + ApiVersion + "/issue/{0}/worklog?_r=" + epoch;
+            var requestBody = new
+            {
+                TimeSpentSeconds = timeSpentSeconds,
+                Comment = new
+                {
+                    Version = 1,
+                    Type = "doc",
+                    Content = new[]
+                    {
+                        new
+                        {
+                            Type = "paragraph",
+                            Content = new[]
+                            {
+                                new
+                                {
+                                    Type = "text",
+                                    Text = comment
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // get
+            return new HttpCommand
+            {
+                Data = requestBody,
+                Method = HttpMethod.Post,
+                Route = string.Format(format, id)
             };
         }
         #endregion

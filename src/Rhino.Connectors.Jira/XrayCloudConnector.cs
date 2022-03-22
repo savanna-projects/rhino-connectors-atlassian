@@ -17,7 +17,6 @@ using Rhino.Connectors.AtlassianClients.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
 using Utilities = Rhino.Api.Extensions.Utilities;
 
 namespace Rhino.Connectors.Xray.Cloud
@@ -135,8 +134,9 @@ namespace Rhino.Connectors.Xray.Cloud
             // put
             testCase.Context["outcome"] = outcome;
 
-            // update
+            // update results
             ProviderManager.UpdateTestResult(testCase);
+
 
             // return with results
             return testCase;

@@ -41,8 +41,6 @@ namespace Rhino.Connectors.Xray.Cloud
         // state: global parameters
         private readonly ILogger _logger;
         private readonly IDictionary<string, object> _capabilities;
-        private readonly JiraClient _jiraClient;
-        private readonly XpandClient _xpandClient;
         private readonly JiraCommandsExecutor _executor;
         private readonly ParallelOptions _options;
         private readonly JiraBugsManager _bugsManager;
@@ -76,8 +74,8 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             _logger = logger?.Setup(loggerName: nameof(XrayCloudAutomationProvider));
-            _jiraClient = new JiraClient(configuration.GetJiraAuthentication());
-            _xpandClient = new XpandClient(configuration.GetJiraAuthentication());
+            JiraClient = new JiraClient(configuration.GetJiraAuthentication());
+            XpandClient = new XpandClient(configuration.GetJiraAuthentication());
             _executor = new JiraCommandsExecutor(configuration.GetJiraAuthentication());
 
             // capabilities
@@ -91,9 +89,12 @@ namespace Rhino.Connectors.Xray.Cloud
             _options = new ParallelOptions { MaxDegreeOfParallelism = BucketSize };
 
             // integration
-            _bugsManager = new JiraBugsManager(_jiraClient);
+            _bugsManager = new JiraBugsManager(JiraClient);
         }
         #endregion
+
+        internal JiraClient JiraClient { get; set; }
+        internal XpandClient XpandClient { get; set; }
 
         #region *** Get: Test Cases   ***
         /// <summary>
@@ -107,7 +108,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var map = new ConcurrentDictionary<string, string>();
 
             // build issues map
-            Parallel.ForEach(ids, _options, id => map[id] = _jiraClient.GetIssueType(idOrKey: id));
+            Parallel.ForEach(ids, _options, id => map[id] = JiraClient.GetIssueType(idOrKey: id));
 
             // entities
             var byTests = map
@@ -150,7 +151,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private IEnumerable<RhinoTestCase> GetByTests(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = _xpandClient.GetTestCases(idsOrKeys);
+            var testCases = XpandClient.GetTestCases(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
@@ -160,7 +161,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private IEnumerable<RhinoTestCase> GetBySets(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = _xpandClient.GetTestsBySets(idsOrKeys);
+            var testCases = XpandClient.GetTestsBySets(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
@@ -170,7 +171,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private IEnumerable<RhinoTestCase> GetByPlans(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = _xpandClient.GetTestsByPlans(idsOrKeys);
+            var testCases = XpandClient.GetTestsByPlans(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
@@ -180,7 +181,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private IEnumerable<RhinoTestCase> GetByExecutions(IEnumerable<string> idsOrKeys)
         {
             // setup
-            var testCases = _xpandClient.GetTestsByExecution(idsOrKeys);
+            var testCases = XpandClient.GetTestsByExecution(idsOrKeys);
 
             // convert
             return ProcessTests(testCases);
@@ -212,20 +213,20 @@ namespace Rhino.Connectors.Xray.Cloud
             var precondition = CreatePrecondition(testCase.Key, testCase.DataSource);
             if (precondition != null)
             {
-                _xpandClient.AddPrecondition($"{precondition.SelectToken("id")}", testCase.Key);
+                XpandClient.AddPrecondition($"{precondition.SelectToken("id")}", testCase.Key);
             }
 
             // add to test sets
-            var testSets = _jiraClient
+            var testSets = JiraClient
                 .Get(idsOrKeys: testCase.TestSuites)
                 .Select(i => (id: $"{i.SelectToken("id")}", key: $"{i.SelectToken("key")}"));
 
             Parallel.ForEach(testSets, _options, testSet
-                => _xpandClient.AddTestsToSet(idAndKey: testSet, new[] { $"{issue.SelectToken("id")}" }));
+                => XpandClient.AddTestsToSet(idAndKey: testSet, new[] { $"{issue.SelectToken("id")}" }));
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            _jiraClient.AddComment(idOrKey: issue["key"].ToString(), comment);
+            JiraClient.AddComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
             Logger?.InfoFormat(M, Configuration.ConnectorConfiguration.Project, string.Join(", ", testCase?.TestSuites));
@@ -241,11 +242,11 @@ namespace Rhino.Connectors.Xray.Cloud
             var testType = $"{_capabilities[AtlassianCapabilities.TestType]}";
 
             // setup context
-            testCase.Context["issuetype-id"] = $"{_jiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
+            testCase.Context["issuetype-id"] = $"{JiraClient.GetIssueTypeFields(idOrKey: testType, path: "id")}";
             testCase.Context["project-key"] = onProject;
 
             // setup request body
-            var issue = _jiraClient.Create(testCase.ToJiraCreateRequest()).AsJObject();
+            var issue = JiraClient.Create(testCase.ToJiraCreateRequest()).AsJObject();
             if (issue?.ContainsKey("id") != true)
             {
                 _logger?.Fatal("Was not able to create a test case.");
@@ -253,7 +254,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // assign
-            _jiraClient.Assign(key: $"{issue.SelectToken("key")}");
+            JiraClient.Assign(key: $"{issue.SelectToken("key")}");
 
             // get
             return issue;
@@ -276,7 +277,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
             var preconditionsType = $"{_capabilities[AtlassianCapabilities.PreconditionsType]}";
-            var id = $"{_jiraClient.GetIssueTypeFields(idOrKey: preconditionsType, path: "id")}";
+            var id = $"{JiraClient.GetIssueTypeFields(idOrKey: preconditionsType, path: "id")}";
 
             // get precondition markdown
             var markdown = dataSource.ToMarkdown().Replace("\\r\\n", "\r\n");
@@ -300,7 +301,7 @@ namespace Rhino.Connectors.Xray.Cloud
             };
 
             // send
-            var issue = _jiraClient.Create(data).AsJObject();
+            var issue = JiraClient.Create(data).AsJObject();
 
             // exit conditions
             if (issue?.ContainsKey("id") != true)
@@ -311,7 +312,7 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // comment
             var comment = Utilities.GetActionSignature(action: "created");
-            _jiraClient.AddComment(idOrKey: issue["key"].ToString(), comment);
+            JiraClient.AddComment(idOrKey: issue["key"].ToString(), comment);
 
             // success
             Logger?.InfoFormat(M, $"{issue["key"]}", Configuration.ConnectorConfiguration.Project);
@@ -331,7 +332,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var onProject = Configuration.ConnectorConfiguration.Project;
 
             // get steps
-            var testCaseContext = _xpandClient.GetTestCase(testCase.Key)?.ToString();
+            var testCaseContext = XpandClient.GetTestCase(testCase.Key)?.ToString();
             var testCaseDocument = string.IsNullOrEmpty(testCaseContext)
                 ? JsonDocument.Parse("{}")
                 : JsonDocument.Parse(testCaseContext);
@@ -350,7 +351,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // delete
             Parallel.ForEach(testSteps, _options, step =>
             {
-                _xpandClient.DeleteTestStep((id, key), step, removeFromJira: true);
+                XpandClient.DeleteTestStep((id, key), step, removeFromJira: true);
             });
 
             // create
@@ -362,12 +363,12 @@ namespace Rhino.Connectors.Xray.Cloud
                 
                 var expected = string.Join(Environment.NewLine, steps[i].ExpectedResults.Select(i => i.ExpectedResult));
                 
-                _xpandClient.CreateTestStep((id, key), steps[i].Action, expected, i);
+                XpandClient.CreateTestStep((id, key), steps[i].Action, expected, i);
             }
 
             // comment
             var comment = Utilities.GetActionSignature(action: "synced");
-            _jiraClient.AddComment(idOrKey: testCase.Key, comment);
+            JiraClient.AddComment(idOrKey: testCase.Key, comment);
 
             // success
             Logger?.InfoFormat($"Update-Test -Project [{onProject}] -Set [{string.Join(",", testCase?.TestSuites)}] = Ok");
@@ -387,7 +388,7 @@ namespace Rhino.Connectors.Xray.Cloud
             CreateRunOnJira(testRun);
 
             // apply tests
-            _xpandClient.AddTestsToExecution(testRun.Key, testRun.TestCases.Select(i => i.Key).ToArray());
+            XpandClient.AddTestsToExecution(testRun.Key, testRun.TestCases.Select(i => i.Key).ToArray());
 
             // get execution details for all tests (run on distinct tests for payload efficiency)
             PutExecutionDetails(testRun);
@@ -420,7 +421,7 @@ namespace Rhino.Connectors.Xray.Cloud
             };
 
             // setup
-            var response = _jiraClient.Create(data);
+            var response = JiraClient.Create(data);
 
             // put
             testRun.Key = $"{response.SelectToken("key")}";
@@ -429,7 +430,7 @@ namespace Rhino.Connectors.Xray.Cloud
             testRun.Context["testRun"] = response;
 
             // assign
-            _jiraClient.Assign(testRun.Key);
+            JiraClient.Assign(testRun.Key);
         }
 
         private void PutExecutionDetails(RhinoTestRun testRun)
@@ -440,7 +441,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // get
             Parallel.ForEach(Gravity.Extensions.CollectionExtensions.DistinctBy(testRun.TestCases, i => i.Key), testCase =>
             {
-                var details = _xpandClient.GetExecutionDetails(testRun.Key, testCase.Key);
+                var details = XpandClient.GetExecutionDetails(testRun.Key, testCase.Key);
                 detailsMap.Add((testCase.Key, details));
             });
 
@@ -517,7 +518,7 @@ namespace Rhino.Connectors.Xray.Cloud
             AttachToTestPlan(testRun);
 
             // close
-            _jiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Done", resolution: string.Empty);
+            JiraClient.CreateTransition(idOrKey: testRun.Key, transition: "Done", resolution: string.Empty);
         }
 
         private void AttachToTestPlan(RhinoTestRun testRun)
@@ -536,13 +537,13 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get id and key values
-            var plans = _jiraClient
+            var plans = JiraClient
                 .Get(contextPlans)
                 .Select(i => (id: $"{i.SelectToken("id")}", key: $"{i.SelectToken("key")}"));
 
             // attach
             Parallel.ForEach(plans, _options, plan
-                => _xpandClient.AddExecutionToPlan(idAndKey: plan, idExecution: $"{testRun.Context["runtimeid"]}"));
+                => XpandClient.AddExecutionToPlan(idAndKey: plan, idExecution: $"{testRun.Context["runtimeid"]}"));
         }
 
         private void AlignResults(RhinoTestRun testRun)
@@ -562,6 +563,16 @@ namespace Rhino.Connectors.Xray.Cloud
                 onTestCase.Context["outcome"] = "FAIL";
                 DoUpdateTestResults(onTestCase);
             }
+
+            // not found
+            if (string.IsNullOrEmpty(testRun.Link))
+            {
+                return;
+            }
+
+            // update worklog
+            var id = Regex.Match(input: testRun.Link, pattern: @"(?<=issue/)\d+").Value;
+            JiraClient.CreateWorklog(id, testRun.RunTime);
         }
         #endregion
 
@@ -575,7 +586,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // validate (double check on execution details)
             if (!testCase.Context.ContainsKey("executionDetails"))
             {
-                testCase.Context["executionDetails"] = _xpandClient.GetExecutionDetails("", testCase.Key);
+                testCase.Context["executionDetails"] = XpandClient.GetExecutionDetails("", testCase.Key);
             }
 
             // update
@@ -661,7 +672,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var onTestCase = JObject.Parse($"{testCase.Context[nameof(testCase)]}");
 
             // put
-            testCase.TestSuites = _xpandClient.GetSetsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
+            testCase.TestSuites = XpandClient.GetSetsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
             return testCase;
         }
 
@@ -697,7 +708,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var onTestCase = JToken.Parse($"{testCase.Context[nameof(testCase)]}");
 
             // put
-            testCase.Context["testPlans"] = _xpandClient.GetPlansByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
+            testCase.Context["testPlans"] = XpandClient.GetPlansByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
             return testCase;
         }
 
@@ -731,7 +742,7 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // get
             var onTestCase = JObject.Parse($"{testCase.Context[nameof(testCase)]}");
-            var preconditions = _xpandClient.GetPreconditionsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
+            var preconditions = XpandClient.GetPreconditionsByTest($"{onTestCase["id"]}", $"{onTestCase["key"]}");
 
             // exit conditions
             if (!preconditions.Any())
@@ -740,7 +751,7 @@ namespace Rhino.Connectors.Xray.Cloud
             }
 
             // get all preconditions as data tables
-            var dataTables = _jiraClient
+            var dataTables = JiraClient
                 .Get(preconditions)
                 .Select(i => new DataTable().FromJiraMarkdown($"{i.SelectToken("fields.description")}".Replace("\\{", "{").Replace("\\[", "[").Trim()));
 
@@ -756,7 +767,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // iterate
             foreach (var testCase in testCases)
             {
-                testCase.Context["projectKey"] = $"{_jiraClient.ProjectMeta.SelectToken("key")}";
+                testCase.Context["projectKey"] = $"{JiraClient.ProjectMeta.SelectToken("key")}";
             }
 
             // get
@@ -814,8 +825,8 @@ namespace Rhino.Connectors.Xray.Cloud
             var execution = GetExecution(testCase);
 
             // put
-            testCase.CreateInwardLink(_jiraClient, key, linkType: "Blocks", string.Format(format, "created"));
-            _xpandClient.AddDefectToExecution((id, key), execution);
+            testCase.CreateInwardLink(JiraClient, key, linkType: "Blocks", string.Format(format, "created"));
+            XpandClient.AddDefectToExecution((id, key), execution);
         }
 
         private static string GetExecution(RhinoTestCase testCase)
@@ -871,7 +882,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var run = $"{executionDetails.SelectToken("_id")}";
             var execution = $"{executionDetails.SelectToken("testExecIssueId")}";
             var steps = executionDetails.SelectToken("steps").Select(i => $"{i["id"]}").Where(i => i != default).ToArray();
-            var project = $"{_jiraClient.ProjectMeta.SelectToken("id")}";
+            var project = $"{JiraClient.ProjectMeta.SelectToken("id")}";
 
             // update
             try
@@ -894,7 +905,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // exit conditions
             if (!testCase.Context.ContainsKey("outcome") || $"{testCase.Context["outcome"]}".Equals("EXECUTING", Compare))
             {
-                _xpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, "EXECUTING");
+                XpandClient.UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, "EXECUTING");
                 _logger.Trace($"Get-TestStatus -Key [{testCase.Key}] = EXECUTING");
                 return;
             }
@@ -910,7 +921,7 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // apply on steps
             Parallel.ForEach(testSteps, _options, testStep
-                => _xpandClient.UpdateStepStatus((execution, testCase.TestRunKey), run, testStep));
+                => XpandClient.UpdateStepStatus((execution, testCase.TestRunKey), run, testStep));
 
             testCase
                 .SetInconclusiveComment()
@@ -919,7 +930,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 .SetFailedComment();
 
             // apply on test
-            var response = _xpandClient
+            var response = XpandClient
                 .UpdateTestRunStatus((execution, testCase.TestRunKey), project, run, $"{testCase.Context["outcome"]}");
 
             // set in context
