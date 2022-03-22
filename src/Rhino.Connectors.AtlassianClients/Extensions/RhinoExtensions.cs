@@ -319,12 +319,15 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                     .Replace("\\", string.Empty)
                     .Trim();
 
-                bugCapabilities = System.Text.Json.JsonSerializer.Serialize(
-                    value: System.Text.Json.JsonDocument.Parse(bugCapabilities).RootElement,
-                    options: new System.Text.Json.JsonSerializerOptions
-                    {
-                        WriteIndented = false
-                    });
+
+                bugCapabilities = string.IsNullOrEmpty(bugCapabilities) 
+                    ? string.Empty
+                    : System.Text.Json.JsonSerializer.Serialize(
+                        value: System.Text.Json.JsonDocument.Parse(bugCapabilities).RootElement,
+                        options: new System.Text.Json.JsonSerializerOptions
+                        {
+                            WriteIndented = false
+                        });
 
                 // exit conditions
                 var isBugCapabilities = !string.IsNullOrEmpty(bugCapabilities);
