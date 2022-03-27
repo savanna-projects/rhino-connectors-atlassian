@@ -9,7 +9,9 @@ using Rhino.Api;
 using Rhino.Api.Contracts.AutomationProvider;
 using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
+using Rhino.Api.Interfaces;
 using Rhino.Connectors.Text;
+using Rhino.Connectors.Xray.Text.Extensions;
 
 using System;
 using System.Collections.Generic;
@@ -24,8 +26,8 @@ namespace Rhino.Connectors.Xray.Text
     {
         // state: global parameters
         private readonly ILogger logger;
-        private readonly XrayAutomationProvider xrayProvider;
-        private readonly TextAutomationProvider textProvider;
+        private readonly IProviderManager _xrayProvider;
+        private readonly IProviderManager _textProvider;
 
         #region *** Constructors      ***
         /// <summary>
@@ -55,8 +57,8 @@ namespace Rhino.Connectors.Xray.Text
             : base(configuration, types, logger)
         {
             this.logger = logger?.Setup(loggerName: nameof(XrayTextAutomationProvider));
-            xrayProvider = new XrayAutomationProvider(configuration, types, this.logger);
-            textProvider = new TextAutomationProvider(configuration, types, this.logger);
+            _xrayProvider = new XrayAutomationProvider(configuration, types, this.logger);
+            _textProvider = new TextAutomationProvider(configuration, types, this.logger);
         }
         #endregion        
 
@@ -65,20 +67,24 @@ namespace Rhino.Connectors.Xray.Text
         /// Returns a list of test cases for a project.
         /// </summary>
         /// <param name="ids">A list of issue id or key to get test cases by.</param>
-        /// <returns>A collection of Rhino.Api.Contracts.AutomationProvider.RhinoTestCase</returns>
-        public override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
+        /// <returns>A collection of RhinoTestCase</returns>
+        protected override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
         {
             // setup
-            var testCases = textProvider.OnGetTestCases(ids);
+            var testCases = _textProvider.InvokeMethod<IEnumerable<RhinoTestCase>>(
+                method: "OnGetTestCases",
+                parameters: new object[] { ids });
 
             // sync
             foreach (var testCase in testCases)
             {
-                xrayProvider.UpdateTestCase(testCase);
+                _xrayProvider.UpdateTestCase(testCase);
             }
 
             // get
-            return xrayProvider.OnGetTestCases(testCases.Select(i => i.Key).ToArray());
+            return _xrayProvider.InvokeMethod<IEnumerable<RhinoTestCase>>(
+                method: "OnGetTestCases",
+                parameters: new object[] { testCases.Select(i => i.Key).ToArray() });
         }
         #endregion
 
@@ -86,41 +92,50 @@ namespace Rhino.Connectors.Xray.Text
         /// <summary>
         /// Creates a new test case under the specified automation provider.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
+        /// <param name="testCase">RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string OnCreateTestCase(RhinoTestCase testCase)
+        protected override string OnCreateTestCase(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCreateTestCase(testCase);
+            return _xrayProvider.InvokeMethod<string>(
+                method: "OnCreateTestCase",
+                parameters: new object[] { testCase });
         }
         #endregion
 
         #region *** Create: Test Run  ***
         /// <summary>
         /// Creates an automation provider test run entity. Use this method to implement the automation
-        /// provider test run creation and to modify the loaded Rhino.Api.Contracts.AutomationProvider.RhinoTestRun.
+        /// provider test run creation and to modify the loaded RhinoTestRun.
         /// </summary>
-        /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun object to modify before creating.</param>
-        /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
-        public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
+        /// <param name="testRun">RhinoTestRun object to modify before creating.</param>
+        /// <returns>RhinoTestRun based on provided test cases.</returns>
+        protected override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
-            return xrayProvider.OnCreateTestRun(testRun);
+            return _xrayProvider.InvokeMethod<RhinoTestRun>(
+                method: "OnCreateTestRun",
+                parameters: new object[] { testRun });
         }
 
         /// <summary>
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
-        /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void OnRunTeardown(RhinoTestRun testRun) => xrayProvider.OnRunTeardown(testRun);
+        /// <param name="testRun">RhinoTestRun results object to complete by.</param>
+        protected override void OnRunTeardown(RhinoTestRun testRun)
+        {
+            _xrayProvider.InvokeMethod(method: "OnRunTeardown", parameters: new object[] { testRun });
+        }
         #endregion
 
         #region *** Put: Test Results ***
         /// <summary>
         /// Updates a single test results iteration under automation provider.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
-        public override void OnUpdateTestResult(RhinoTestCase testCase)
+        /// <param name="testCase">RhinoTestCase by which to update results.</param>
+        protected override void OnUpdateTestResult(RhinoTestCase testCase)
         {
-            xrayProvider.OnUpdateTestResult(testCase);
+            _xrayProvider.InvokeMethod(
+                method: "OnUpdateTestResult", 
+                parameters: new object[] { testCase });
         }
         #endregion
 
@@ -130,9 +145,11 @@ namespace Rhino.Connectors.Xray.Text
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to find bugs.</param>
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
-        public override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
+        protected override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
         {
-            return xrayProvider.OnGetBugs(testCase);
+            return _xrayProvider.InvokeMethod<IEnumerable<string>>(
+                method: "OnGetBugs",
+                parameters: new object[] { testCase });
         }
 
         /// <summary>
@@ -140,55 +157,65 @@ namespace Rhino.Connectors.Xray.Text
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to assert against match bugs.</param>
         /// <returns>An open bug.</returns>
-        public override string OnGetOpenBug(RhinoTestCase testCase)
+        protected override string OnGetOpenBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnGetOpenBug(testCase);
+            return _xrayProvider.InvokeMethod<string>(
+                method: "OnGetOpenBug",
+                parameters: new object[] { testCase });
         }
 
         /// <summary>
         /// Creates a new bug under the specified automation provider.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider bug.</param>
+        /// <param name="testCase">RhinoTestCase by which to create automation provider bug.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string OnCreateBug(RhinoTestCase testCase)
+        protected override string OnCreateBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCreateBug(testCase);
+            return _xrayProvider.InvokeMethod<string>(
+                method: "OnCreateBug", 
+                parameters: new object[] { testCase });
         }
 
         /// <summary>
-        /// Executes a routie of post bug creation.
+        /// Executes a routine of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
-        public override void OnCreateBugTeardown(RhinoTestCase testCase)
+        protected override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
-            xrayProvider.OnCreateBugTeardown(testCase);
+            _xrayProvider.InvokeMethod(method: "OnCreateBugTeardown", new object[] { testCase });
         }
 
         /// <summary>
         /// Updates an existing bug (partial updates are supported, i.e. you can submit and update specific fields only).
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
-        public override string OnUpdateBug(RhinoTestCase testCase)
+        /// <param name="testCase">RhinoTestCase by which to update automation provider bug.</param>
+        protected override string OnUpdateBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnUpdateBug(testCase);
+            return _xrayProvider.InvokeMethod<string>(
+                method: "OnUpdateBug", 
+                parameters: new object[] { testCase });
         }
 
         /// <summary>
         /// Close all existing bugs.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
-        public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
+        /// <param name="testCase">RhinoTestCase by which to close automation provider bugs.</param>
+        protected override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCloseBugs(testCase);
+            return _xrayProvider.InvokeMethod<IEnumerable<string>>(
+                method: "OnCloseBugs", 
+                parameters: new object[] { testCase });
         }
 
         /// <summary>
         /// Close all existing bugs.
         /// </summary>
-        /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
-        public override string OnCloseBug(RhinoTestCase testCase)
+        /// <param name="testCase">RhinoTestCase by which to close automation provider bugs.</param>
+        protected override string OnCloseBug(RhinoTestCase testCase)
         {
-            return xrayProvider.OnCloseBug(testCase);
+            return _xrayProvider.InvokeMethod<string>(
+                method: "OnCloseBug", 
+                parameters: new object[] { testCase });
         }
         #endregion
     }
