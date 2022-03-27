@@ -89,7 +89,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Performed just before each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which is being executed.</param>
-        public override RhinoTestCase OnTestSetup(RhinoTestCase testCase)
+        protected override RhinoTestCase OnTestSetup(RhinoTestCase testCase)
         {
             // setup
             testCase.Context["outcome"] = "EXECUTING";
@@ -107,7 +107,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Performed just after each test is called.
         /// </summary>
         /// <param name="testCase">The Rhino.Api.Contracts.AutomationProvider.RhinoTestCase which was executed.</param>
-        public override RhinoTestCase OnTestTeardown(RhinoTestCase testCase)
+        protected override RhinoTestCase OnTestTeardown(RhinoTestCase testCase)
         {
             // constants
             const string Updated = "runUpdated";

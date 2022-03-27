@@ -102,7 +102,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="ids">A list of test ids to get test cases by.</param>
         /// <returns>A collection of Rhino.Api.Contracts.AutomationProvider.RhinoTestCase</returns>
-        public override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
+        protected override IEnumerable<RhinoTestCase> OnGetTestCases(params string[] ids)
         {
             // setup: issues map
             var map = new ConcurrentDictionary<string, string>();
@@ -194,7 +194,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string OnCreateTestCase(RhinoTestCase testCase)
+        protected override string OnCreateTestCase(RhinoTestCase testCase)
         {
             // constants: logging
             const string M = "Create-Test -Project [{0}] -Set [{1}] = true";
@@ -326,7 +326,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to create automation provider test case.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override void OnUpdateTestCase(RhinoTestCase testCase)
+        protected override void OnUpdateTestCase(RhinoTestCase testCase)
         {
             // shortcuts
             var onProject = Configuration.ConnectorConfiguration.Project;
@@ -382,7 +382,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun object to modify before creating.</param>
         /// <returns>Rhino.Api.Contracts.AutomationProvider.RhinoTestRun based on provided test cases.</returns>
-        public override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
+        protected override RhinoTestRun OnCreateTestRun(RhinoTestRun testRun)
         {
             // create jira issue
             CreateRunOnJira(testRun);
@@ -493,7 +493,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Completes automation provider test run results, if any were missed or bypassed.
         /// </summary>
         /// <param name="testRun">Rhino.Api.Contracts.AutomationProvider.RhinoTestRun results object to complete by.</param>
-        public override void OnRunTeardown(RhinoTestRun testRun)
+        protected override void OnRunTeardown(RhinoTestRun testRun)
         {
             // get all test keys to re-assign outcome
             var testCases = testRun
@@ -581,7 +581,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Updates a single test results iteration under automation provider.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update results.</param>
-        public override void OnUpdateTestResult(RhinoTestCase testCase)
+        protected override void OnUpdateTestResult(RhinoTestCase testCase)
         {
             // validate (double check on execution details)
             if (!testCase.Context.ContainsKey("executionDetails"))
@@ -781,7 +781,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to find bugs.</param>
         /// <returns>A list of bugs (can be JSON or ID for instance).</returns>
-        public override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
+        protected override IEnumerable<string> OnGetBugs(RhinoTestCase testCase)
         {
             return _bugsManager.GetBugs(testCase);
         }
@@ -791,7 +791,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">RhinoTestCase by which to assert against match bugs.</param>
         /// <returns>An open bug.</returns>
-        public override string OnGetOpenBug(RhinoTestCase testCase)
+        protected override string OnGetOpenBug(RhinoTestCase testCase)
         {
             return _bugsManager.GetOpenBug(testCase);
         }
@@ -801,7 +801,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to create automation provider bug.</param>
         /// <returns>The ID of the newly created entity.</returns>
-        public override string OnCreateBug(RhinoTestCase testCase)
+        protected override string OnCreateBug(RhinoTestCase testCase)
         {
             return _bugsManager.OnCreateBug(testCase);
         }
@@ -810,7 +810,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Executes a routine of post bug creation.
         /// </summary>
         /// <param name="testCase">RhinoTestCase to execute routine on.</param>
-        public override void OnCreateBugTeardown(RhinoTestCase testCase)
+        protected override void OnCreateBugTeardown(RhinoTestCase testCase)
         {
             // exit conditions
             if (!testCase.Context.ContainsKey("lastBugKey"))
@@ -845,7 +845,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Updates an existing bug (partial updates are supported, i.e. you can submit and update specific fields only).
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to update automation provider bug.</param>
-        public override string OnUpdateBug(RhinoTestCase testCase)
+        protected override string OnUpdateBug(RhinoTestCase testCase)
         {
             return _bugsManager.OnUpdateBug(testCase, "Done", string.Empty); // status and resolution apply here only for duplicates.
         }
@@ -854,7 +854,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Close all existing bugs.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
-        public override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
+        protected override IEnumerable<string> OnCloseBugs(RhinoTestCase testCase)
         {
             return _bugsManager.OnCloseBugs(testCase, "Done", string.Empty);
         }
@@ -863,7 +863,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// Close all existing bugs.
         /// </summary>
         /// <param name="testCase">Rhino.Api.Contracts.AutomationProvider.RhinoTestCase by which to close automation provider bugs.</param>
-        public override string OnCloseBug(RhinoTestCase testCase)
+        protected override string OnCloseBug(RhinoTestCase testCase)
         {
             return _bugsManager.OnCloseBug(testCase, "Done", string.Empty);
         }
