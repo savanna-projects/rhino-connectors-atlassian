@@ -463,7 +463,7 @@ namespace Rhino.Connectors.Xray
                 .Replace("[custom-1]", customField)
                 .Replace("[tests-repository]", testCases)
                 .Replace("[type-name]", $"{_capabilities[AtlassianCapabilities.ExecutionType]}")
-                .Replace("[assignee]", Configuration.ConnectorConfiguration.UserName);
+                .Replace("[assignee]", Configuration.ConnectorConfiguration.Username);
 
             // load custom fields
             var requestObject = JsonSerializer.Deserialize<IDictionary<string, object>>(requestBody);

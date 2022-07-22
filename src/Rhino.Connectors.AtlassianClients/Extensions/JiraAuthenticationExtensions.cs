@@ -27,7 +27,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
                 Collection = configuration.ConnectorConfiguration.Collection,
                 Password = configuration.ConnectorConfiguration.Password,
-                UserName = configuration.ConnectorConfiguration.UserName,
+                UserName = configuration.ConnectorConfiguration.Username,
                 Project = configuration.ConnectorConfiguration.Project,
                 Capabilities = configuration.Capabilities
             };
@@ -56,7 +56,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns><see cref="AuthenticationHeaderValue"/> object</returns>
         public static AuthenticationHeaderValue GetAuthenticationHeader(this RhinoConfiguration configuration)
         {
-            return DoGetAuthenticationHeader(configuration.ConnectorConfiguration.UserName, configuration.ConnectorConfiguration.Password);
+            return DoGetAuthenticationHeader(configuration.ConnectorConfiguration.Username, configuration.ConnectorConfiguration.Password);
         }
 
         /// <summary>

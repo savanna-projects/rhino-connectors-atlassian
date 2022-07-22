@@ -13,6 +13,8 @@
 		<PackageProjectUrl>https://github.com/savanna-projects</PackageProjectUrl>
 		<NeutralLanguage>en-US</NeutralLanguage>
 		<IsPackable>true</IsPackable>
+		<AssemblyVersion>6.0.0.0</AssemblyVersion>
+		<FileVersion>6.0.0.0</FileVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
