@@ -56,7 +56,7 @@ namespace Rhino.Connectors.TestsGenerator
                 Collection = collection,
                 Connector = false /*App.Default.ForCloud*/ ? RhinoConnectors.JiraXryCloud : RhinoConnectors.JiraXRay,
                 Password = password,
-                UserName = user,
+                Username = user,
                 Project = project
             };
 
