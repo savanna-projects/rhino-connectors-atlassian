@@ -27,7 +27,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
                 Collection = configuration.ConnectorConfiguration.Collection,
                 Password = configuration.ConnectorConfiguration.Password,
-                UserName = configuration.ConnectorConfiguration.Username,
+                Username = configuration.ConnectorConfiguration.Username,
                 Project = configuration.ConnectorConfiguration.Project,
                 Capabilities = configuration.Capabilities
             };
@@ -66,7 +66,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         /// <returns><see cref="AuthenticationHeaderValue"/> object</returns>
         public static AuthenticationHeaderValue GetAuthenticationHeader(this JiraAuthentication authentication)
         {
-            return DoGetAuthenticationHeader(authentication.UserName, authentication.Password);
+            return DoGetAuthenticationHeader(authentication.Username, authentication.Password);
         }
 
         private static AuthenticationHeaderValue DoGetAuthenticationHeader(string user, string password)

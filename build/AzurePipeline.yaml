@@ -31,14 +31,14 @@ stages:
             # setup
             $gridEndpoint      = $runSettings.SelectSingleNode("//Parameter[@name='Grid.Endpoint.Rhino']")
             $buildNumber       = $runSettings.SelectSingleNode("//Parameter[@name='Build.Number']")
-            $gravityUserName   = $runSettings.SelectSingleNode("//Parameter[@name='Rhino.UserName']")
+            $gravityUsername   = $runSettings.SelectSingleNode("//Parameter[@name='Rhino.Username']")
             $gravityPassword   = $runSettings.SelectSingleNode("//Parameter[@name='Rhino.Password']")
             $workers           = $runSettings.SelectSingleNode("//MSTest//Workers")
             #
             # override with deployment settings
             $gridEndpoint.Value      = '$(Grid.Endpoint.Rhino)'
             $buildNumber.Value       = '$(Build.BuildNumber)'
-            $gravityUserName.value   = '$(Rhino.UserName)'
+            $gravityUsername.value   = '$(Rhino.Username)'
             $gravityPassword.value   = '$(Rhino.Password)'
             $workers.InnerText       = '$(Parallel.Workers)'
             #
