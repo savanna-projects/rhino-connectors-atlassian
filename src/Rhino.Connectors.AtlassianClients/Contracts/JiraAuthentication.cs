@@ -30,7 +30,7 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         /// A valid ALM user name with testing & test runs permissions (on some ALM administrator permissions are needed).
         /// </summary>
         [DataMember]
-        public string UserName { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
 
         /// <summary>
         /// A valid ALM password.
