@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net6.0</TargetFrameworks>
+		<TargetFrameworks>net7.0</TargetFrameworks>
+		<AssemblyVersion>7.0.0.0</AssemblyVersion>
+		<FileVersion>7.0.0.0</FileVersion>
 		<PackageId>Rhino.Connectors.Xray.Cloud</PackageId>
 		<LangVersion>latest</LangVersion>
 		<Title>Rhino XRay Connector - Connector for Atlassian XRay - Test Manager.</Title>
@@ -13,8 +15,6 @@
 		<PackageProjectUrl>https://github.com/savanna-projects</PackageProjectUrl>
 		<NeutralLanguage>en-US</NeutralLanguage>
 		<IsPackable>true</IsPackable>
-		<AssemblyVersion>6.0.0.0</AssemblyVersion>
-		<FileVersion>6.0.0.0</FileVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
