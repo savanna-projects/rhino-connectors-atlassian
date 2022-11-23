@@ -4,6 +4,13 @@ stages:
     - job: 'BuildAndPublish'
       displayName: 'Build, Pack, Test & Push'
       steps:
+      - task: UseDotNet@2
+        displayName: "Install .NET Core SDK"
+        inputs:
+          version: 7.x
+          performMultiLevelLookup: true
+          includePreviewVersions: false
+
       - task: DotNetCoreCLI@2
         displayName: Restore Dependencies
         inputs:
