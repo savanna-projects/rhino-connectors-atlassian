@@ -5,18 +5,18 @@ VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray", "Rhino.Connectors.Xray\Rhino.Connectors.Xray.csproj", "{C8F540EF-3D17-4843-8831-8AA76C46ED28}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{9D26B500-E353-480C-9631-F38B92EE69B4}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{9D26B500-E353-480C-9631-F38B92EE69B4}"
 	ProjectSection(SolutionItems) = preProject
 		..\build\AzurePipeline.yaml = ..\build\AzurePipeline.yaml
 		..\build\AzurePipelineProduction.yaml = ..\build\AzurePipelineProduction.yaml
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documents", "Documents", "{4F96D7E6-1910-4361-97BE-6F36D5FDD712}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".documents", ".documents", "{4F96D7E6-1910-4361-97BE-6F36D5FDD712}"
 	ProjectSection(SolutionItems) = preProject
 		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{1F8AB8A2-A5D2-457D-ACBD-3CFDEAD3FCD2}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".test", ".test", "{1F8AB8A2-A5D2-457D-ACBD-3CFDEAD3FCD2}"
 	ProjectSection(SolutionItems) = preProject
 		..\test\SettingsMsTest.runsettings = ..\test\SettingsMsTest.runsettings
 	EndProjectSection
@@ -31,7 +31,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.TestsGener
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rhino.Connectors.Xray.Text", "Rhino.Connectors.Xray.Text\Rhino.Connectors.Xray.Text.csproj", "{1F36201F-24A9-44FB-866C-4D19482F3B68}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Git", "Git", "{89F9419D-AC0C-4663-9442-FD63F83FF556}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".git", ".git", "{89F9419D-AC0C-4663-9442-FD63F83FF556}"
 	ProjectSection(SolutionItems) = preProject
 		..\.gitignore = ..\.gitignore
 		..\LICENSE = ..\LICENSE
