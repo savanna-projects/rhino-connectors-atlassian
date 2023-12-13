@@ -1,33 +1,42 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net7.0</TargetFrameworks>
+
+		<!-- Assembly -->
+		<TargetFramework>net7.0</TargetFramework>
 		<AssemblyVersion>7.0.0.0</AssemblyVersion>
 		<FileVersion>7.0.0.0</FileVersion>
-		<PackageId>Rhino.Connectors.AtlassianClients</PackageId>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en-US</SatelliteResourceLanguages>
 		<LangVersion>latest</LangVersion>
-		<Title>Rhino Atlassian Clients - Base component for Atlassian based connectors.</Title>
+
+		<!-- Package -->
+		<PackageId>Rhino.Connectors.AtlassianClients</PackageId>
+		<Title>Rhino.Connectors.AtlassianClients</Title>
+		<PackageProjectUrl>https://github.com/savanna-projects/rhino-connectors-gurock</PackageProjectUrl>
 		<Authors>Rhino-API Community</Authors>
-		<Description>Base component for Atlassian based connectors.</Description>
-		<PackageTags>automation,crawling,crawl,selenium,appium,automation testing,automation test,qa,gravity,gravity api,scrapping,scrap</PackageTags>
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/savanna-projects/rhino-connectors-gurock</PackageProjectUrl>
-		<NeutralLanguage>en-US</NeutralLanguage>
+		<Description>
+			The Rhino.Connectors.AtlassianClients package provides a powerful and flexible C# client for interacting with Jira instances. 
+			It is specifically designed to be used with Rhino's products and offers seamless integration with the Jira API. 
+			This package facilitates common Jira operations such as creating and updating issues, managing attachments, adding comments, and retrieving project metadata.
+		</Description>
+		<PackageTags>Jira;Atlassian;Connector;Automation;Integration;Rhino;API;C#</PackageTags>
+
+		<!-- https://learn.microsoft.com/en-us/dotnet/fundamentals/syslib-diagnostics/syslib1040-1049 -->
+		<NoWarn>$(NoWarn);SYSLIB1045</NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Remove="Resources\get_token.txt" />
-	</ItemGroup>
-
-	<ItemGroup>
+		<EmbeddedResource Include="Resources\get_interactive_token.txt" />
 		<EmbeddedResource Include="Resources\get_token.txt" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Gravity.Abstraction.Logging" Version="2020.10.18.1" />
 		<PackageReference Include="Gravity.Extensions" Version="2021.7.30.1" />
-		<PackageReference Include="Rhino.Api" Version="2023.10.21.2" />
+		<PackageReference Include="Rhino.Api" Version="2023.10.23.1" />
 	</ItemGroup>
 
 </Project>

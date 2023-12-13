@@ -18,6 +18,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <None Remove="Resources\get_interactive_token.txt" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\get_interactive_token.txt" />
 		<EmbeddedResource Include="Resources\get_token.txt" />
 	</ItemGroup>
 

@@ -8,6 +8,7 @@ using Gravity.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Reflection;
 
@@ -118,6 +119,24 @@ namespace Rhino.Connectors.AtlassianClients.Framework
                 Data = data,
                 Method = HttpMethod.Post,
                 Route = "/rest/gira/1/"
+            };
+        }
+
+        public static HttpCommand GetInteractiveIssueToken(string project, string issue)
+        {
+            // setup
+            var data = Assembly
+                .GetExecutingAssembly()
+                .ReadEmbeddedResource("get_interactive_token.txt")
+                .Replace("[project-key]", project)
+                .Replace("[issue-key]", issue);
+
+            // get
+            return new HttpCommand
+            {
+                Data = data,
+                Method = HttpMethod.Post,
+                Route = "/rest/gira/1/?operation=issueViewInteractiveQuery"
             };
         }
 

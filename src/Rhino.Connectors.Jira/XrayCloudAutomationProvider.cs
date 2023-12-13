@@ -74,9 +74,9 @@ namespace Rhino.Connectors.Xray.Cloud
         {
             // setup
             _logger = logger?.Setup(loggerName: nameof(XrayCloudAutomationProvider));
-            JiraClient = new JiraClient(configuration.GetJiraAuthentication());
-            XpandClient = new XpandClient(configuration.GetJiraAuthentication());
-            _executor = new JiraCommandsExecutor(configuration.GetJiraAuthentication());
+            JiraClient = new JiraClient(configuration.NewJiraAuthentication());
+            XpandClient = new XpandClient(configuration.NewJiraAuthentication());
+            _executor = new JiraCommandsExecutor(configuration.NewJiraAuthentication());
 
             // capabilities
             BucketSize = configuration.GetCapability(ProviderCapability.BucketSize, 15);
@@ -246,7 +246,7 @@ namespace Rhino.Connectors.Xray.Cloud
             testCase.Context["project-key"] = onProject;
 
             // setup request body
-            var issue = JiraClient.Create(testCase.ToJiraCreateRequest()).AsJObject();
+            var issue = JiraClient.Create(testCase.ToJiraCreateRequest()).ConvertToJObject();
             if (issue?.ContainsKey("id") != true)
             {
                 _logger?.Fatal("Was not able to create a test case.");
@@ -280,7 +280,7 @@ namespace Rhino.Connectors.Xray.Cloud
             var id = $"{JiraClient.GetIssueTypeFields(idOrKey: preconditionsType, path: "id")}";
 
             // get precondition markdown
-            var markdown = dataSource.ToMarkdown().Replace("\\r\\n", "\r\n");
+            var markdown = dataSource.ConvertToMarkdown().Replace("\\r\\n", "\r\n");
 
             // setup request data
             var data = new
@@ -301,7 +301,7 @@ namespace Rhino.Connectors.Xray.Cloud
             };
 
             // send
-            var issue = JiraClient.Create(data).AsJObject();
+            var issue = JiraClient.Create(data).ConvertToJObject();
 
             // exit conditions
             if (issue?.ContainsKey("id") != true)
@@ -461,7 +461,7 @@ namespace Rhino.Connectors.Xray.Cloud
             testCase.Context["testRun"] = testRun.Context["testRun"];
 
             var steps = testCase.Steps.ToList();
-            var onSteps = details.AsJObject().SelectToken("steps").Select(i => i.AsJObject()).ToArray();
+            var onSteps = details.ConvertToJObject().SelectToken("steps").Select(i => i.ConvertToJObject()).ToArray();
 
             for (int i = 0; i < steps.Count; i++)
             {

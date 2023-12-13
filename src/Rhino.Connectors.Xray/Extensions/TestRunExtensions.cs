@@ -26,7 +26,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var executor = new JiraCommandsExecutor(testRun.GetAuthentication());
 
             // get results
-            var response = RavenCommandsRepository.GetTestsByExecution(testRun.Key).Send(executor).AsJToken();
+            var response = RavenCommandsRepository.GetTestsByExecution(testRun.Key).Send(executor).ConvertToJToken();
 
             // return all tests
             return response is JArray ? response : JToken.Parse("[]");

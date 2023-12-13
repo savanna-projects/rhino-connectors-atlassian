@@ -27,7 +27,16 @@ namespace Rhino.Connectors.Xray.UnitTests
         [TestMethod]
         public void Test()
         {
+            var json = File.ReadAllText(@"E:\Garbage\aaaa.txt");
+            var configuration = JsonSerializer.Deserialize<RhinoConfiguration>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
 
+            var connector = new XrayCloudConnector(configuration);
+            connector.Invoke();
+
+            //configuration.Invoke(Utilities.Types);
         }
     }
 }

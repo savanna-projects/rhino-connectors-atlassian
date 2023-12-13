@@ -13,15 +13,77 @@ using System.Text;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
+    /// <summary>
+    /// Extension methods for creating a new JiraAuthentication instance from RhinoConfiguration.
+    /// </summary>
     public static class JiraAuthenticationExtensions
     {
+        #region *** Capabilities   ***
         /// <summary>
-        /// Gets a JiraAuthentication object.
+        /// Extension method to retrieve a capability from JiraAuthentication properties.
         /// </summary>
-        /// <param name="configuration">RhinoConfiguration to create JiraAuthentication by.</param>
-        /// <returns>JiraAuthentication object</returns>
-        public static JiraAuthentication GetJiraAuthentication(this RhinoConfiguration configuration)
+        /// <typeparam name="T">The type of the capability.</typeparam>
+        /// <param name="authentication">The JiraAuthentication instance.</param>
+        /// <param name="capability">The name of the capability to retrieve.</param>
+        /// <param name="defaultValue">The default value if the capability is not found.</param>
+        /// <returns>The value of the capability or the default value if not found.</returns>
+        public static T GetCapability<T>(this JiraAuthentication authentication, string capability, T defaultValue)
         {
+            // Delegate the capability retrieval to the Properties extension method
+            return authentication.Properties.GetCapability(capability, defaultValue);
+        }
+        #endregion
+
+        #region *** Authentication ***
+        /// <summary>
+        /// Extension method to create a new AuthenticationHeaderValue using RhinoConfiguration credentials.
+        /// </summary>
+        /// <param name="configuration">The RhinoConfiguration instance.</param>
+        /// <returns>The AuthenticationHeaderValue instance.</returns>
+        public static AuthenticationHeaderValue NewAuthenticationHeader(this RhinoConfiguration configuration)
+        {
+            // Retrieve username and password from RhinoConfiguration
+            var username = configuration.ConnectorConfiguration.Username;
+            var password = configuration.ConnectorConfiguration.Password;
+
+            // Delegate to the common NewAuthenticationHeader method
+            return NewAuthenticationHeader(username, password);
+        }
+
+        /// <summary>
+        /// Extension method to create a new AuthenticationHeaderValue using JiraAuthentication credentials.
+        /// </summary>
+        /// <param name="authentication">The JiraAuthentication instance.</param>
+        /// <returns>The AuthenticationHeaderValue instance.</returns>
+        public static AuthenticationHeaderValue NewAuthenticationHeader(this JiraAuthentication authentication)
+        {
+            // Retrieve username and password from JiraAuthentication
+            var username = authentication.Username;
+            var password = authentication.Password;
+
+            // Delegate to the common NewAuthenticationHeader method
+            return NewAuthenticationHeader(username, password);
+        }
+
+        // Common method to create a new AuthenticationHeaderValue with the provided credentials.
+        private static AuthenticationHeaderValue NewAuthenticationHeader(string user, string password)
+        {
+            // Combine username and password and encode to Base64
+            var header = $"{user}:{password}";
+            var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
+
+            // Create and return AuthenticationHeaderValue
+            return new AuthenticationHeaderValue("Basic", encodedHeader);
+        }
+
+        /// <summary>
+        /// Creates a new JiraAuthentication instance based on RhinoConfiguration.
+        /// </summary>
+        /// <param name="configuration">The RhinoConfiguration instance.</param>
+        /// <returns>A new JiraAuthentication instance.</returns>
+        public static JiraAuthentication NewJiraAuthentication(this RhinoConfiguration configuration)
+        {
+            // Create a new JiraAuthentication instance and populate its properties
             return new JiraAuthentication
             {
                 AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
@@ -29,54 +91,8 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 Password = configuration.ConnectorConfiguration.Password,
                 Username = configuration.ConnectorConfiguration.Username,
                 Project = configuration.ConnectorConfiguration.Project,
-                Capabilities = configuration.Capabilities
+                Properties = configuration.Capabilities
             };
-        }
-
-        #region *** Get Capabilities      ***
-        /// <summary>
-        /// Gets a capability from JiraAuthentication capabilities dictionary.
-        /// </summary>
-        /// <typeparam name="T">The value type to be returned from the capabilities dictionary.</typeparam>
-        /// <param name="authentication">JiraAuthentication instance from which to get the capability.</param>
-        /// <param name="capability">The capability name.</param>
-        /// <param name="defaultValue">Default value to be returned if the capability cannot be found.</param>
-        /// <returns>The capability value of the provided type or default value.</returns>
-        public static T GetCapability<T>(this JiraAuthentication authentication, string capability, T defaultValue)
-        {
-            return authentication.Capabilities.GetCapability(capability, defaultValue);
-        }
-        #endregion
-
-        #region *** Authentication Header ***
-        /// <summary>
-        /// Gets a <see cref="AuthenticationHeaderValue"/> object.
-        /// </summary>
-        /// <param name="configuration">RhinoConfiguration to create <see cref="AuthenticationHeaderValue"/> by.</param>
-        /// <returns><see cref="AuthenticationHeaderValue"/> object</returns>
-        public static AuthenticationHeaderValue GetAuthenticationHeader(this RhinoConfiguration configuration)
-        {
-            return DoGetAuthenticationHeader(configuration.ConnectorConfiguration.Username, configuration.ConnectorConfiguration.Password);
-        }
-
-        /// <summary>
-        /// Gets a <see cref="AuthenticationHeaderValue"/> object.
-        /// </summary>
-        /// <param name="authentication">RhinoConfigJiraAuthenticationuration to create <see cref="AuthenticationHeaderValue"/> by.</param>
-        /// <returns><see cref="AuthenticationHeaderValue"/> object</returns>
-        public static AuthenticationHeaderValue GetAuthenticationHeader(this JiraAuthentication authentication)
-        {
-            return DoGetAuthenticationHeader(authentication.Username, authentication.Password);
-        }
-
-        private static AuthenticationHeaderValue DoGetAuthenticationHeader(string user, string password)
-        {
-            // setup: provider authentication and base address
-            var header = $"{user}:{password}";
-            var encodedHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes(header));
-
-            // header
-            return new AuthenticationHeaderValue("Basic", encodedHeader);
         }
         #endregion
     }

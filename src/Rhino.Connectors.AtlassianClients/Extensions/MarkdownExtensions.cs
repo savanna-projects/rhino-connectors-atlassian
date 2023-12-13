@@ -3,57 +3,105 @@
  * 
  * RESOURCES
  */
-using Gravity.Extensions;
 using Gravity.Services.DataContracts;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Rhino.Api.Contracts.AutomationProvider;
-using Rhino.Api.Contracts.Configuration;
 using Rhino.Api.Extensions;
 using Rhino.Connectors.AtlassianClients.Contracts;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Rhino.Connectors.AtlassianClients.Extensions
 {
+    /// <summary>
+    /// Extension method to format data as Markdown.
+    /// </summary>
     public static class MarkdownExtensions
     {
-        // constants
+        // Represents the string comparison type for use in various methods.
         private const StringComparison Compare = StringComparison.OrdinalIgnoreCase;
 
+        #region *** Object Markdown ***
         /// <summary>
-        /// Parse a collection of key/value pairs into a Jira compliant markdown table.
+        /// Converts a collection of dictionaries to Markdown format as a table.
         /// </summary>
-        /// <param name="data">Collection to parse.</param>
-        /// <returns>Jira compliant markdown table.</returns>
-        public static string ToMarkdown(this IEnumerable<IDictionary<string, object>> data)
+        /// <param name="data">The collection of dictionaries to convert.</param>
+        /// <returns>Markdown representation of the collection as a table.</returns>
+        public static string ConvertToMarkdown(this IEnumerable<IDictionary<string, object>> data)
         {
-            return DoToMarkdown(data);
+            return ConvertToTableMarkdown(data);
         }
+
+        /// <summary>
+        /// Converts the IDictionary<string, object> data to Markdown format.
+        /// </summary>
+        /// <param name="data">The data to convert.</param>
+        /// <returns>Markdown-formatted string.</returns>
+        public static string ConvertToMarkdown(this IDictionary<string, object> data)
+        {
+            return ConvertToTableMarkdown(data);
+        }
+
+        /// <summary>
+        /// Converts the JToken data to Markdown format.
+        /// </summary>
+        /// <param name="data">The JToken data to convert.</param>
+        /// <returns>Markdown-formatted string.</returns>
+        public static string ConvertToMarkdown(this JToken data)
+        {
+            // Check if the JToken has any children.
+            if (!data.Children().Any())
+            {
+                return string.Empty;
+            }
+
+            // Initialize the markdown string with table headers.
+            var markdown = "||Key||Value||\\r\\n";
+
+            // Iterate through each key-value pair in the JToken and append to the markdown.
+            foreach (var item in data.ConvertToJObject())
+            {
+                markdown += $"|{item.Key}|{item.Value}|\\r\\n";
+            }
+
+            // Trim and return the markdown string.
+            return markdown.Trim();
+        }
+        #endregion
 
         #region *** Bug Markdown    ***
         /// <summary>
-        /// Converts a RhinoTestCase into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates Markdown-formatted bug description for a RhinoTestCase.
         /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <param name="jiraClient">JiraClient instance by which to fetch bug information.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string BugMarkdown(this RhinoTestCase testCase, JiraClient jiraClient)
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <returns>Markdown-formatted bug description.</returns>
+        public static string NewBugDescriptionMarkdown(this RhinoTestCase testCase)
         {
-            // setup
-            var priority = PriorityToBugMarkdown(testCase, jiraClient);
-            var environment = EnvironmentToBugMarkdown(testCase);
-            var platform = PlatformToBugMarkdown(testCase);
-            var dataSource = DataSourceToBugMarkdown(testCase);
-            var description = DescriptionToBugMarkdown(testCase) + "\n\r" + platform + "\n\r" + dataSource;
+            return ConvertToBugDescriptionMarkdown(testCase);
+        }
 
-            // build
+        /// <summary>
+        /// Generates a new Jira markdown for a bug based on the RhinoTestCase and JiraClient.
+        /// </summary>
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <param name="jiraClient">The JiraClient instance to retrieve issue type fields.</param>
+        /// <returns>New Jira markdown for a bug.</returns>
+        public static string NewBugMarkdown(this RhinoTestCase testCase, JiraClient jiraClient)
+        {
+            // Retrieve priority, environment, platform, data source, and description
+            var priority = ConvertToPriorityMarkdown(testCase, jiraClient);
+            var environment = ConvertToEnvironmentMarkdown(testCase);
+            var platform = ConvertToPlatformMarkdown(testCase);
+            var dataSource = ConvertToDataSourceMarkdown(testCase);
+            var description = ConvertToBugDescriptionMarkdown(testCase) + "\n\r" + platform + "\n\r" + dataSource;
+
+            // Create a new JiraIssue instance
             var issue = new JiraIssue
             {
                 Fields = new JiraIssue.JiraFields
@@ -76,7 +124,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 }
             };
 
-            // get
+            // Serialize the JiraIssue to JSON using camel case property naming policy
             return System.Text.Json.JsonSerializer.Serialize(issue, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
@@ -84,178 +132,132 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         }
 
         /// <summary>
-        /// Converts a RhinoTestStep into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates new Jira markdown for a bug based on the RhinoTestStep and index.
         /// </summary>
-        /// <param name="testStep">RhinoTestStep to convert.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestStep.</returns>
-        public static string BugMarkdown(this RhinoTestStep testStep, string index)
+        /// <param name="testStep">The RhinoTestStep instance representing the test step.</param>
+        /// <param name="index">The index of the test step.</param>
+        /// <returns>New Jira markdown for a bug.</returns>
+        public static string NewBugMarkdown(this RhinoTestStep testStep, string index)
         {
-            return StepToBugMarkdown(testStep, index);
+            return ConvertToBugMarkdown(testStep, index);
         }
 
         /// <summary>
-        /// Converts a RhinoTestCase into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates Markdown-formatted data source information for a RhinoTestCase.
         /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <param name="jiraClient">JiraClient instance by which to fetch bug information.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string BugMarkdownPriority(this RhinoTestCase testCase, JiraClient jiraClient)
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <returns>Markdown-formatted data source information.</returns>
+        public static string NewDataSourceMarkdown(this RhinoTestCase testCase)
         {
-            return PriorityToBugMarkdown(testCase, jiraClient);
+            return ConvertToDataSourceMarkdown(testCase);
         }
 
         /// <summary>
-        /// Converts a RhinoTestCase into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates new Jira markdown for an environment based on the RhinoTestCase.
         /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string MarkdownEnvironment(this RhinoTestCase testCase)
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <returns>Markdown-formatted environment information.</returns>
+        public static string NewEnvironmentMarkdown(this RhinoTestCase testCase)
         {
-            return EnvironmentToBugMarkdown(testCase);
+            return ConvertToEnvironmentMarkdown(testCase);
         }
 
         /// <summary>
-        /// Converts a RhinoTestCase into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates new Jira markdown for the platform based on the RhinoTestCase.
         /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string MarkdownPlatform(this RhinoTestCase testCase)
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <returns>Markdown-formatted platform information.</returns>
+        public static string NewPlatformMarkdown(this RhinoTestCase testCase)
         {
-            return PlatformToBugMarkdown(testCase);
+            return ConvertToPlatformMarkdown(testCase);
         }
 
         /// <summary>
-        /// Converts a RhinoTestCase into XRay compatible markdown which can be placed in any
-        /// description type field.
+        /// Generates new Jira markdown for the priority based on the RhinoTestCase and JiraClient.
         /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string BugMarkdownDescription(this RhinoTestCase testCase)
+        /// <param name="testCase">The RhinoTestCase instance representing the test case.</param>
+        /// <param name="jiraClient">The JiraClient instance for interacting with Jira.</param>
+        /// <returns>New Jira markdown for the priority.</returns>
+        public static string NewPriorityMarkdown(this RhinoTestCase testCase, JiraClient jiraClient)
         {
-            return DescriptionToBugMarkdown(testCase);
-        }
-
-        /// <summary>
-        /// Converts a RhinoTestCase.DataSource into XRay compatible markdown which can be placed in any
-        /// description type field.
-        /// </summary>
-        /// <param name="testCase">RhinoTestCase to convert.</param>
-        /// <returns>XRay compatible markdown representation of this RhinoTestCase.</returns>
-        public static string MarkdownDataSource(this RhinoTestCase testCase)
-        {
-            return DataSourceToBugMarkdown(testCase);
+            return ConvertToPriorityMarkdown(testCase, jiraClient);
         }
         #endregion
 
-        #region *** Object Markdown ***
-        /// <summary>
-        /// Gets a markdown table reflection of the provided map collection.
-        /// </summary>
-        /// <param name="data">A collection of <see cref="IDictionary{TKey, TValue}"/> by which to create table.</param>
-        /// <returns>Jira style table.</returns>
-        public static string ToJiraMarkdown(this IEnumerable<IDictionary<string, object>> data)
+        // Asserts whether the RhinoTestStep represents a web application action.
+        private static bool AssertWebAppAction(RhinoTestStep testStep)
         {
-            return DoToMarkdown(data);
+            // Use a case-insensitive regular expression to check for web application actions
+            return Regex.IsMatch(input: testStep.Action, pattern: "(?i)(go to url|navigate to|open|go to)");
         }
 
-        /// <summary>
-        /// Gets a markdown table reflection of the provided map collection.
-        /// </summary>
-        /// <param name="data">A <see cref="IDictionary{TKey, TValue}"/> by which to create table.</param>
-        /// <returns>Jira style table.</returns>
-        public static string ToJiraMarkdown(this IDictionary<string, object> data)
-        {
-            return DoToMarkdown(data);
-        }
-
-        /// <summary>
-        /// Gets a markdown table reflection of the provided map collection.
-        /// </summary>
-        /// <param name="data">A JSON Object by which to create table.</param>
-        /// <returns>Jira style table.</returns>
-        public static string ToJiraMarkdown(this JToken data)
-        {
-            // exit conditions
-            if (!data.Children().Any())
-            {
-                return string.Empty;
-            }
-
-            // build header
-            var markdown = "||Key||Value||\\r\\n";
-
-            // append rows
-            foreach (var item in data.AsJObject())
-            {
-                markdown += $"|{item.Key}|{item.Value}|\\r\\n";
-            }
-
-            // results
-            return markdown.Trim();
-        }
-        #endregion
-
-        #region *** Run Markdown    ***
-        /// <summary>
-        /// Gets a markdown description of this configuration.
-        /// </summary>
-        /// <param name="configuration">RhinoConfiguration to parse.</param>
-        /// <returns>Markdown description of this configuration</returns>
-        public static string GetRunDescription(this RhinoConfiguration configuration)
-        {
-            throw new NotImplementedException();
-        }
-        #endregion
-
-        // UTILITIES
-        private static string PriorityToBugMarkdown(RhinoTestCase testCase, JiraClient jiraClient)
-        {
-            // get priority token
-            var priorityData = jiraClient.GetIssueTypeFields("Bug", "fields.priority");
-
-            // exit conditions
-            if (string.IsNullOrEmpty(priorityData))
-            {
-                return string.Empty;
-            }
-
-            // setup
-            var id = Regex.Match(input: testCase.Priority, @"\d+").Value;
-            var name = Regex.Match(input: testCase.Priority, @"(?<=\d+\s+-\s+)\w+").Value;
-
-            // extract
-            var priority = JToken
-                .Parse(priorityData)["allowedValues"]
-                .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
-
-            // results
-            return priority == null ? testCase.Priority : $"{priority.SelectToken("id")}";
-        }
-
-        private static string EnvironmentToBugMarkdown(RhinoTestCase testCase)
+        // Converts a RhinoTestCase to Markdown format for describing the test case.
+        private static string ConvertToBugDescriptionMarkdown(RhinoTestCase testCase)
         {
             try
             {
-                // setup
-                var driverParams = JObject.Parse(System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]));
+                // Construct the header with metadata information
+                var header =
+                    "\r\n----\r\n" +
+                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\r\n" +
+                    "*On Iteration*: " + $"{testCase.Iteration}\r\n" +
+                    "Bug filed on '" + testCase.Scenario + "'\r\n" +
+                    "----\r\n";
 
-                // setup conditions
+                // Iterate through each test step and convert to bug markdown
+                var markdown = new List<string>();
+                for (int i = 0; i < testCase.Steps.Count(); i++)
+                {
+                    var bugMarkdown = ConvertToBugMarkdown(testCase.Steps.ElementAt(i), $"{i + 1}");
+                    markdown.Add(bugMarkdown);
+                }
+
+                // Combine the converted steps into a single string
+                var steps = string.Join("\r\n\r\n", markdown);
+
+                return header + steps;
+            }
+            catch (Exception e) when (e != null)
+            {
+                // Return an empty string if an exception occurs
+                return string.Empty;
+            }
+        }
+
+        // Converts a RhinoTestCase to Markdown format for describing the data source.
+        private static string ConvertToDataSourceMarkdown(RhinoTestCase testCase)
+        {
+            return testCase.DataSource.Any()
+                ? "*Local Data Source*\r\n" + ConvertToTableMarkdown(testCase.DataSource)
+                : string.Empty;
+        }
+
+        // Converts the environment information of a RhinoTestCase to Markdown format.
+        private static string ConvertToEnvironmentMarkdown(RhinoTestCase testCase)
+        {
+            try
+            {
+                // Serialize the driver parameters from the RhinoTestCase's context
+                var json = System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]);
+                var driverParams = JObject.Parse(json);
+
+                // Check if the test case is for a web application
                 var isWebApp = testCase.Steps.First().Command == ActionType.GoToUrl;
-                var isCapabilites = driverParams.ContainsKey("capabilities");
+
+                // Check if the driver parameters contain capabilities
+                var isCapabilities = driverParams.ContainsKey("capabilities");
+
+                // Check if it's a mobile application
                 var isMobApp = !isWebApp
-                    && isCapabilites
+                    && isCapabilities
                     && driverParams.SelectToken("capabilities.app") != null;
 
-                // get application
-                var onTestCase = testCase.Context.ContainsKey("decomposedTestCase")
-                    ? (RhinoTestCase)testCase.Context["decomposedTestCase"]
+                // Get the original test case or decomposed test case
+                var onTestCase = testCase.Context.TryGetValue("decomposedTestCase", out object value)
+                    ? (RhinoTestCase)value
                     : testCase;
 
-                // get application
+                // Determine the application based on whether it's a mobile app or web app
                 return isMobApp
                     ? $"{driverParams.SelectToken("capabilities.app")}"
                     : ((ActionRule)onTestCase.Steps.First(i => i.Command == ActionType.GoToUrl).Context[ContextEntry.StepAction]).Argument.Replace(@"""", @"\""");
@@ -266,73 +268,46 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
         }
 
-        private static string DataSourceToBugMarkdown(RhinoTestCase testCase)
+        // Converts the RhinoTestCase to platform-specific markdown representation.
+        private static string ConvertToPlatformMarkdown(RhinoTestCase testCase)
         {
-            return testCase.DataSource.Any()
-                ? "*Local Data Source*\r\n" + DoToMarkdown(testCase.DataSource)
-                : string.Empty;
-        }
-
-        private static string DescriptionToBugMarkdown(RhinoTestCase testCase)
-        {
-            try
-            {
-                // set header
-                var header =
-                    "\r\n----\r\n" +
-                    "*Last Update: " + DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC*\r\n" +
-                    "*On Iteration*: " + $"{testCase.Iteration}\r\n" +
-                    "Bug filed on '" + testCase.Scenario + "'\r\n" +
-                    "----\r\n";
-
-                // set steps
-                var markdown = new List<string>();
-                for (int i = 0; i < testCase.Steps.Count(); i++)
-                {
-                    var md = StepToBugMarkdown(testCase.Steps.ElementAt(i), $"{i + 1}");
-                    markdown.Add(md);
-                }
-                var steps = string.Join("\r\n\r\n", markdown);
-
-                // results
-                return header + steps;
-            }
-            catch (Exception e) when (e != null)
-            {
-                return string.Empty;
-            }
-        }
-
-        private static string PlatformToBugMarkdown(RhinoTestCase testCase)
-        {
-            // setup
             const string Capabilities = "capabilities";
             const string Options = "options";
             const string AppPath = "capabilities.app";
-            var driverParams = JObject.Parse(System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]));
 
-            // set header
+            // Serialize the driver parameters to JSON
+            var json = System.Text.Json.JsonSerializer.Serialize(testCase.Context[ContextEntry.DriverParams]);
+            var driverParams = JObject.Parse(json);
+
+            // Define the header for the platform-specific markdown
             var header =
                 "\r\n----\r\n" +
                 "*On Platform*: " + $"{driverParams["driver"]}\r\n" +
                 "----\r\n";
 
-            // setup conditions
-            var isWebApp = IsWebAppAction(testCase.Steps.First());
+            // Check if the test step represents a web application action
+            var isWebApp = AssertWebAppAction(testCase.Steps.First());
+
+            // Check if capabilities are present in driver parameters
             var isCapabilites = driverParams.ContainsKey(Capabilities);
+
+            // Check if the test step represents a mobile application action
             var isMobApp = !isWebApp && isCapabilites && driverParams.SelectToken(AppPath) != null;
+
+            // Check if options are present in driver parameters
             var isOptions = driverParams.ContainsKey(Options) && driverParams.SelectToken(Options) != null;
 
-            // get application
-            var onTestCase = testCase.Context.ContainsKey("decomposedTestCase")
-                ? (RhinoTestCase)testCase.Context["decomposedTestCase"]
+            // Get the decomposed test case if available, otherwise use the original test case
+            var onTestCase = testCase.Context.TryGetValue("decomposedTestCase", out object value)
+                ? (RhinoTestCase)value
                 : testCase;
 
+            // Determine the application based on the type of application action
             var application = isMobApp
                 ? $"{driverParams.SelectToken(AppPath)}"
-                : ((ActionRule)onTestCase.Steps.First(IsWebAppAction).Context[ContextEntry.StepAction]).Argument;
+                : ((ActionRule)onTestCase.Steps.First(AssertWebAppAction).Context[ContextEntry.StepAction]).Argument;
 
-            // setup environment
+            // Build the environment section of the markdown
             var environment =
                 "*Application Under Test*\r\n" +
                 "||Name||Value||\r\n" +
@@ -340,22 +315,24 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 "|Driver Server|" + $"{driverParams["driverBinaries"]}" + "|\r\n" +
                 "|Application|" + application + "|";
 
-            // setup capabilities
+            // Build the capabilities section of the markdown
             var capabilites = string.Empty;
             var capabilitesToken = driverParams.SelectToken(Capabilities);
             if (isCapabilites && capabilitesToken != null)
             {
                 var data = JsonConvert.DeserializeObject<IDictionary<string, object>>($"{capabilitesToken}");
-                var json = JsonConvert.SerializeObject(data, Formatting.Indented);
-                capabilites = data.Count == 0 ? string.Empty : "\r\n*Capabilities*\r\n" + $"\r\n{{code:json}}\r\n{json}\r\n{{code}}";
+                var jsonData = JsonConvert.SerializeObject(data, Formatting.Indented);
+                capabilites = data.Count == 0
+                    ? string.Empty
+                    : "\r\n*Capabilities*\r\n" + $"\r\n{{code:json}}\r\n{jsonData}\r\n{{code}}";
             }
 
-            // setup driver options
+            // Build the options section of the markdown
             var options = string.Empty;
             if (isOptions)
             {
-                var optionsAsObject =
-                    JsonConvert.DeserializeObject<IDictionary<string, object>>($"{driverParams.SelectToken(Options)}");
+                var token = $"{driverParams.SelectToken(Options)}";
+                var optionsAsObject = JsonConvert.DeserializeObject<IDictionary<string, object>>(token);
                 var optionsAsStr = JsonConvert.SerializeObject(optionsAsObject, Formatting.Indented);
                 const string optionsHeader = "\r\n*Options*\r\n";
 
@@ -363,128 +340,154 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 options = optionsAsObject.Count == 0 ? string.Empty : optionsData;
             }
 
-            // results
+            // Split and filter the markdown lines
             var lines = Regex
                 .Split(header + environment + capabilites + options, @"((\r)+)?(\n)+((\r)+)?")
                 .Where(i => !i.StartsWith("\r") && !i.StartsWith("\n"));
+
+            // Join the lines to form the final markdown
             return string.Join("\r\n", lines);
         }
 
-        private static bool IsWebAppAction(RhinoTestStep testStep)
+        // Converts the priority of a RhinoTestCase to Jira priority using JiraClient.
+        private static string ConvertToPriorityMarkdown(RhinoTestCase testCase, JiraClient jiraClient)
         {
-            return Regex.IsMatch(input: testStep.Action, pattern: "(?i)(go to url|navigate to|open|go to)");
-        }
+            // Get the priority data from Jira for the "Bug" issue type and the "fields.priority" field
+            var priorityData = jiraClient.GetIssueTypeFields("Bug", "fields.priority");
 
-        private static string StepToBugMarkdown(RhinoTestStep testStep, string index)
-        {
-            // local
-            static string GetStepMarkdown(RhinoTestStep testStep, string index)
-            {
-                // setup
-                var action = $"*{index}. " + testStep.Action.Replace("{", "\\{") + "*";
-                var expected = testStep.HaveExpectedResults()
-                    ? testStep.ExpectedResults.ToArray()
-                    : Array.Empty<RhinoExpectedResult>();
-
-                // root
-                if (!testStep.HaveNestedSteps())
-                {
-                    if (!testStep.Actual && expected.Length > 0)
-                    {
-                        var markdown = new List<string>
-                        {
-                            action
-                        };
-                        for (int i = 0; i < expected.Length; i++)
-                        {
-                            var outcome = !expected[i].Actual ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
-                            markdown.Add(outcome + expected[i].ExpectedResult.Replace("{", "\\{") + "{panel}");
-                        }
-                        return string.Join("\r\n", markdown);
-                    }
-                    if (!testStep.Actual && expected.Length == 0)
-                    {
-                        return "{panel:bgColor=#ffebe6}" + action + "{panel}";
-                    }
-                    return action;
-                }
-
-                // nested
-                var markdowns = new List<string>
-                {
-                    $"*{index}. " + Regex.Match(action, @"(?<=\{).*(?=\})").Value.Trim() + "*"
-                };
-                for (int i = 0; i < testStep.Steps.Count(); i++)
-                {
-                    var markdown = GetStepMarkdown(testStep.Steps.ElementAt(i), index + $".{i + 1}");
-                    markdowns.Add(markdown);
-                }
-
-                // get
-                return string.Join("\r\n\r\n", markdowns);
-            }
-
-            // iterate
-            return GetStepMarkdown(testStep, index);
-        }
-
-        private static string DoToMarkdown(this IEnumerable<IDictionary<string, object>> data)
-        {
-            // exit conditions
-            if (!data.Any())
+            // If the priority data is not available, return an empty string
+            if (string.IsNullOrEmpty(priorityData))
             {
                 return string.Empty;
             }
 
-            // get columns
-            var columns = data.First().Select(i => i.Key);
+            // Extract the ID and name components from the RhinoTestCase's priority
+            var id = Regex.Match(input: testCase.Priority, @"\d+").Value;
+            var name = Regex.Match(input: testCase.Priority, @"(?<=\d+\s+-\s+)\w+").Value;
 
-            // exit conditions
+            // Parse the priority data and find the matching priority
+            var priority = JToken
+                .Parse(priorityData)["allowedValues"]
+                .FirstOrDefault(i => $"{i["name"]}".Equals(name, Compare) && $"{i["id"]}".Equals(id, Compare));
+
+            // If the priority is not found, return the original priority from the RhinoTestCase
+            return priority == null ? testCase.Priority : $"{priority.SelectToken("id")}";
+        }
+
+        // Converts a RhinoTestStep to Markdown format for describing a bug.
+        private static string ConvertToBugMarkdown(RhinoTestStep testStep, string index)
+        {
+            // Format the action for the bug report
+            var action = $"*{index}. " + testStep.Action.Replace("{", "\\{") + "*";
+
+            // Retrieve expected results or an empty array
+            var expected = testStep.HaveExpectedResults()
+                ? testStep.ExpectedResults.ToArray()
+                : [];
+
+            // Check if there are no nested steps
+            if (!testStep.HaveNestedSteps())
+            {
+                // If there are no actual results and expected results, create a bug panel
+                if (!testStep.Actual && expected.Length > 0)
+                {
+                    var markdown = new List<string>
+                    {
+                        action
+                    };
+                    for (int i = 0; i < expected.Length; i++)
+                    {
+                        var outcome = !expected[i].Actual ? "{panel:bgColor=#ffebe6}" : "{panel:bgColor=#e3fcef}";
+                        markdown.Add(outcome + expected[i].ExpectedResult.Replace("{", "\\{") + "{panel}");
+                    }
+                    return string.Join("\r\n", markdown);
+                }
+
+                // If there are no actual results and no expected results, create a bug panel
+                if (!testStep.Actual && expected.Length == 0)
+                {
+                    return "{panel:bgColor=#ffebe6}" + action + "{panel}";
+                }
+
+                // If there are actual results, return the action
+                return action;
+            }
+
+            // Handle nested steps
+            var markdowns = new List<string>
+            {
+                // Format the action for nested steps
+                $"*{index}. " + Regex.Match(action, @"(?<=\{).*(?=\})").Value.Trim() + "*"
+            };
+            for (int i = 0; i < testStep.Steps.Count(); i++)
+            {
+                var markdown = ConvertToBugMarkdown(testStep.Steps.ElementAt(i), index + $".{i + 1}");
+                markdowns.Add(markdown);
+            }
+
+            return string.Join("\r\n\r\n", markdowns);
+        }
+
+        // Formats the provided data as Markdown.
+        private static string ConvertToTableMarkdown(IEnumerable<IDictionary<string, object>> table)
+        {
+            // Check if the data is empty
+            if (!table.Any())
+            {
+                return string.Empty;
+            }
+
+            // Extract column names from the first data row
+            var columns = table.First().Select(i => i.Key);
+
+            // Check if there are any columns
             if (!columns.Any())
             {
                 return string.Empty;
             }
 
-            // convert data
-            var jsonData = data.Select(i => System.Text.Json.JsonSerializer.Serialize(i));
-            data = jsonData.Select(i => JsonConvert.DeserializeObject<IDictionary<string, object>>(i));
+            // Convert data to JSON and then deserialize it back to preserve data types
+            var jsonData = table.Select(i => System.Text.Json.JsonSerializer.Serialize(i));
+            table = jsonData.Select(JsonConvert.DeserializeObject<IDictionary<string, object>>);
 
-            // build header
+            // Create the Markdown table header
             var markdown = "||" + string.Join("||", columns) + "||\r\n";
 
-            // build rows
-            foreach (var dataRow in data)
+            // Populate the Markdown table with data rows
+            foreach (var dataRow in table)
             {
                 markdown += $"|{string.Join("|", dataRow.Select(i => $"{i.Value}"))}|\r\n";
             }
 
-            // results
+            // Trim any leading or trailing whitespaces from the generated Markdown before returning
             return markdown.Trim();
         }
 
-        private static string DoToMarkdown(IDictionary<string, object> data)
+        // Formats the provided data as Markdown table.
+        private static string ConvertToTableMarkdown(IDictionary<string, object> row)
         {
-            // exit conditions
-            if (data.Keys.Count == 0)
+            // Check if the data is empty
+            if (row.Keys.Count == 0)
             {
                 return string.Empty;
             }
 
-            // convert data
-            var jsonData = System.Text.Json.JsonSerializer.Serialize(data);
-            data = JsonConvert.DeserializeObject<IDictionary<string, object>>(jsonData);
+            // Serialize and deserialize the data to ensure it's in the expected format
+            var jsonData = System.Text.Json.JsonSerializer.Serialize(row);
+            row = JsonConvert.DeserializeObject<IDictionary<string, object>>(jsonData);
 
-            // build header
+            // Initialize the Markdown table with header
             var markdown = "||Key||Value||\r\n";
 
-            // append rows
-            foreach (var item in data)
+            // Iterate over each key-value pair in the data
+            foreach (var item in row)
             {
+                // Convert the value to a string, handle empty values, and add to the Markdown table
                 var value = string.IsNullOrEmpty($"{item.Value}") ? " " : $"{item.Value}";
                 markdown += $"|{item.Key}|{value}|\r\n";
             }
 
-            // results
+            // Trim any leading or trailing whitespaces from the generated Markdown before returning
             return markdown.Trim();
         }
     }

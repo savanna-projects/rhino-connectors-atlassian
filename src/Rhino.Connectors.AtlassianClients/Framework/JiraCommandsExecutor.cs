@@ -227,7 +227,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // TODO: handle "too many requests" exception code 429
             // extract
-            var response = JiraCommandsRepository.GetToken(authentication.Project, command.Headers[Xacpt]).Send(this).AsJToken();
+            var response = JiraCommandsRepository.GetInteractiveIssueToken(authentication.Project, command.Headers[Xacpt]).Send(this).ConvertToJToken();
             var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
             var token = $"{JToken.Parse(options).SelectToken("contextJwt")}";
 
@@ -302,7 +302,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // setup: request
             var requestMessage = new HttpRequestMessage(HttpMethod.Get, endpoint);
-            requestMessage.Headers.Authorization = authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Authorization = authentication.NewAuthenticationHeader();
 
             // results
             return requestMessage;
@@ -332,7 +332,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // setup: request
             var requestMessage = new HttpRequestMessage(HttpMethod.Delete, endpoint);
-            requestMessage.Headers.Authorization = authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Authorization = authentication.NewAuthenticationHeader();
 
             // results
             return requestMessage;
@@ -364,7 +364,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // setup: request
             var requestMessage = new HttpRequestMessage(method, endpoint);
-            requestMessage.Headers.Authorization = authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Authorization = authentication.NewAuthenticationHeader();
 
             // set content
             requestMessage.Content = new StringContent(content: data, Encoding.UTF8, MediaType);
@@ -387,7 +387,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             // build request
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
             requestMessage.Headers.ExpectContinue = false;
-            requestMessage.Headers.Authorization = authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Authorization = authentication.NewAuthenticationHeader();
             requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
 
             // build multi part content
