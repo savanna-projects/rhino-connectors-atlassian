@@ -124,15 +124,15 @@ namespace Rhino.Connectors.Xray.Cloud
             // get
             Parallel.ForEach(idsOrKeys, options, idOrKey =>
             {
-                var execution = jiraClient.Get(idOrKey).AsJObject();
+                var execution = jiraClient.Get(idOrKey).ConvertToJObject();
                 var id = $"{execution.SelectToken("id")}";
                 var key = $"{execution.SelectToken("key")}";
 
                 var runs = XpandCommandsRepository
                     .GetRunsByExecution((id, key))
                     .Send(executor)
-                    .AsJToken()
-                    .Select(i => i.AsJObject());
+                    .ConvertToJToken()
+                    .Select(i => i.ConvertToJObject());
 
                 var range = runs.Select(i => $"{i.SelectToken("testIssueId")}");
                 testCases.AddRange(range);
@@ -149,8 +149,8 @@ namespace Rhino.Connectors.Xray.Cloud
             var testSets = JiraCommandsRepository
                 .Search(jql: $"key in ({string.Join(",", idsOrKeys)})")
                 .Send(executor)
-                .AsJToken()
-                .AsJObject()
+                .ConvertToJToken()
+                .ConvertToJObject()
                 .SelectToken("issues");
 
             // exit conditions
@@ -170,9 +170,14 @@ namespace Rhino.Connectors.Xray.Cloud
             var token = byPlans ? "issueId" : "id";
 
             // extract
+            foreach (var command in commands)
+            {
+                var ids = command.Send(executor).ConvertToJToken().Select(i => $"{i.SelectToken(token)}");
+                testCases.AddRange(ids);
+            }
             Parallel.ForEach(commands, options, command =>
             {
-                var ids = command.Send(executor).AsJToken().Select(i => $"{i.SelectToken(token)}");
+                var ids = command.Send(executor).ConvertToJToken().Select(i => $"{i.SelectToken(token)}");
                 testCases.AddRange(ids);
             });
 
@@ -208,11 +213,11 @@ namespace Rhino.Connectors.Xray.Cloud
             var response = XpandCommandsRepository
                 .GetSteps(($"{testCase.SelectToken("id")}", $"{testCase.SelectToken("key")}"))
                 .Send(executor)
-                .AsJToken()
-                .AsJObject();
+                .ConvertToJToken()
+                .ConvertToJObject();
 
             // setup
-            var onTestCase = testCase.AsJObject();
+            var onTestCase = testCase.ConvertToJObject();
             onTestCase.Add("steps", response.SelectToken("steps"));
 
             // get
@@ -230,7 +235,7 @@ namespace Rhino.Connectors.Xray.Cloud
         public IEnumerable<string> GetSetsByTest(string id, string key)
         {
             // get
-            var testSets = XpandCommandsRepository.GetSetsByTest((id, key)).Send(executor).AsJToken();
+            var testSets = XpandCommandsRepository.GetSetsByTest((id, key)).Send(executor).ConvertToJToken();
 
             // parse
             return testSets.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
@@ -247,7 +252,7 @@ namespace Rhino.Connectors.Xray.Cloud
         public IEnumerable<string> GetPlansByTest(string id, string key)
         {
             // get
-            var testPlans = XpandCommandsRepository.GetPlansByTest((id, key)).Send(executor).AsJToken();
+            var testPlans = XpandCommandsRepository.GetPlansByTest((id, key)).Send(executor).ConvertToJToken();
 
             // parse
             return testPlans.Select(i => $"{i.SelectToken("id")}").Where(i => i != default).ToList();
@@ -264,7 +269,7 @@ namespace Rhino.Connectors.Xray.Cloud
         public IEnumerable<string> GetPreconditionsByTest(string id, string key)
         {
             // get
-            var preconditions = XpandCommandsRepository.GetPreconditionsByTest((id, key)).Send(executor).AsJToken();
+            var preconditions = XpandCommandsRepository.GetPreconditionsByTest((id, key)).Send(executor).ConvertToJToken();
 
             // parse
             return preconditions.Select(i => $"{i.SelectToken("id")}").Where(i => i != default);
@@ -312,7 +317,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // results
             return string.IsNullOrEmpty(response)
                 ? JToken.Parse("{}")
-                : response.AsJToken().SelectToken("testRun");
+                : response.ConvertToJToken().SelectToken("testRun");
         }
 
         /// <summary>
@@ -385,7 +390,7 @@ namespace Rhino.Connectors.Xray.Cloud
         private void AddTests(string idOrKeyExecution, IEnumerable<string> idsOrKeysTest)
         {
             // setup: execution
-            var onExecution = jiraClient.Get(idOrKeyExecution).AsJObject();
+            var onExecution = jiraClient.Get(idOrKeyExecution).ConvertToJObject();
             var id = $"{onExecution.SelectToken("id")}";
             var key = $"{onExecution.SelectToken("key")}";
 
@@ -419,7 +424,7 @@ namespace Rhino.Connectors.Xray.Cloud
             string run,
             string status)
         {
-            return XpandCommandsRepository.UpdateTestRunStatus(idAndKey, idProject, run, status).Send(executor).AsJToken();
+            return XpandCommandsRepository.UpdateTestRunStatus(idAndKey, idProject, run, status).Send(executor).ConvertToJToken();
         }
 
         /// <summary>
@@ -455,7 +460,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// <returns>HttpCommand ready for execution.</returns>
         public JToken AddExecutionToPlan((string id, string key) idAndKey, string idExecution)
         {
-            return XpandCommandsRepository.AddExecutionToPlan(idAndKey, idExecution).Send(executor).AsJToken();
+            return XpandCommandsRepository.AddExecutionToPlan(idAndKey, idExecution).Send(executor).ConvertToJToken();
         }
 
         /// <summary>
@@ -466,7 +471,7 @@ namespace Rhino.Connectors.Xray.Cloud
         /// <returns>HttpCommand ready for execution.</returns>
         public JToken AddTestsToSet((string id, string key) idAndKey, IEnumerable<string> idsTests)
         {
-            return XpandCommandsRepository.AddTestsToSet(idAndKey, idsTests).Send(executor).AsJToken();
+            return XpandCommandsRepository.AddTestsToSet(idAndKey, idsTests).Send(executor).ConvertToJToken();
         }
 
         /// <summary>
@@ -573,7 +578,7 @@ namespace Rhino.Connectors.Xray.Cloud
             // build request
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, urlPath);
             requestMessage.Headers.ExpectContinue = false;
-            requestMessage.Headers.Authorization = Authentication.GetAuthenticationHeader();
+            requestMessage.Headers.Authorization = Authentication.NewAuthenticationHeader();
             requestMessage.Headers.Add("X-Atlassian-Token", "no-check");
 
             // build multi part content
@@ -611,7 +616,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 RequestUri = new Uri(endpoint)
             };
             request.Headers.ExpectContinue = false;
-            request.Headers.Authorization = Authentication.GetAuthenticationHeader();
+            request.Headers.Authorization = Authentication.NewAuthenticationHeader();
             request.Headers.Add("X-Atlassian-Token", "no-check");
             request.Headers.Add("X-acpt", jwt);
 

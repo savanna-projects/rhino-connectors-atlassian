@@ -129,7 +129,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             // update
             bugs = client
                 .Get(idsOrKeys: bugs)
-                .Select(i => i.AsJObject())
+                .Select(i => i.ConvertToJObject())
                 .Where(i => testCase.IsBugMatch(bug: i, assertDataSource: false))
                 .Select(i => $"{i.SelectToken("key")}")
                 .Where(i => !string.IsNullOrEmpty(i));
@@ -241,7 +241,7 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             const string statusPath = "fields.status.name";
 
             // get test issue
-            var test = client.Get(testCase.Key).AsJObject();
+            var test = client.Get(testCase.Key).ConvertToJObject();
 
             // get bugs
             var bugsKeys = test

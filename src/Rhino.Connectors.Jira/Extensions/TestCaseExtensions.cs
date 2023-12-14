@@ -108,7 +108,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 }
 
                 // setup
-                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+                var testRun = (testCase.Context["testRun"] as JToken).ConvertToJObject();
                 var id = $"{testRun.SelectToken("id")}";
                 var key = $"{testRun.SelectToken("key")}";
                 var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
@@ -138,7 +138,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             // get screenshots
             var screenshots = testCase.Steps.SelectMany(i => i.GetScreenshots());
             var automation = testCase.GetWebAutomation();
-            var execution = $"{DoGetExecutionDetails(testCase).AsJObject().SelectToken("_id")}";
+            var execution = $"{DoGetExecutionDetails(testCase).ConvertToJObject().SelectToken("_id")}";
 
             // exit conditions
             if (!screenshots.Any() || automation == default)
@@ -192,7 +192,7 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
             try
             {
                 // setup
-                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
+                var testRun = (testCase.Context["testRun"] as JToken).ConvertToJObject();
                 var id = $"{testRun.SelectToken("id")}";
                 var key = $"{testRun.SelectToken("key")}";
                 var run = $"{DoGetExecutionDetails(testCase).SelectToken("_id")}";
@@ -273,8 +273,8 @@ namespace Rhino.Connectors.Xray.Cloud.Extensions
                 }
 
                 // setup
-                var testRun = (testCase.Context["testRun"] as JToken).AsJObject();
-                var id = $"{(testCase.Context["executionDetails"] as JToken)?.AsJObject().SelectToken("_id")}";
+                var testRun = (testCase.Context["testRun"] as JToken).ConvertToJObject();
+                var id = $"{(testCase.Context["executionDetails"] as JToken)?.ConvertToJObject().SelectToken("_id")}";
                 var key = $"{testRun.SelectToken("key")}";
                 var client = new XpandClient(testCase.GetAuthentication());
 

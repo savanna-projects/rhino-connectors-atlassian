@@ -76,7 +76,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             return new JiraAuthentication
             {
                 AsOsUser = configuration.ConnectorConfiguration.AsOsUser,
-                Capabilities = configuration.Capabilities,
+                Properties = configuration.Capabilities,
                 Collection = configuration.ConnectorConfiguration.Collection,
                 Password = configuration.ConnectorConfiguration.Password,
                 Username = configuration.ConnectorConfiguration.Username,
@@ -110,9 +110,9 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             }
 
             // setup
-            var environment = testCase.MarkdownEnvironment();
-            var platform = testCase.MarkdownPlatform();
-            var dataSource = testCase.MarkdownDataSource();
+            var environment = testCase.NewEnvironmentMarkdown();
+            var platform = testCase.NewPlatformMarkdown();
+            var dataSource = testCase.NewDataSourceMarkdown();
 
             // build
             var header =
@@ -443,7 +443,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         {
             // setup
             var bugType = testCase.GetCapability(capability: AtlassianCapabilities.BugType, defaultValue: "Bug");
-            var onBug = jiraClient.Get(idOrKey).AsJObject();
+            var onBug = jiraClient.Get(idOrKey).ConvertToJObject();
 
             // setup conditions
             var isDefault = onBug == default;
@@ -482,7 +482,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
                 $"Bug status on execution [{testCase.TestRunKey}] is *{onBug.SelectToken("fields.status.name")}*.";
 
             // verify if bug is already open
-            var template = testCase.BugMarkdown(jiraClient);
+            var template = testCase.NewBugMarkdown(jiraClient);
             var description = $"{JToken.Parse(template).SelectToken("fields.description")}";
 
             // setup
@@ -518,7 +518,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
         public static JToken CreateBug(this RhinoTestCase testCase, JiraClient jiraClient)
         {
             // setup
-            var requestBody = testCase.BugMarkdown(jiraClient);
+            var requestBody = testCase.NewBugMarkdown(jiraClient);
 
             // load custom fields
             var requestObject = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(requestBody);

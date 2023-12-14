@@ -46,11 +46,11 @@ namespace Rhino.Connectors.AtlassianClients.Contracts
         public bool AsOsUser { get; set; } = false;
 
         /// <summary>
-        /// Gets or sets additional capabilities to configure connection and integration with
+        /// Gets or sets additional properties to configure connection and integration with
         /// the ALM.
         /// </summary>
         /// <remarks>This field is for allowing better flexibility when you implement a connector.</remarks>
         [DataMember]
-        public IDictionary<string, object> Capabilities { get; set; } = new Dictionary<string, object>();
+        public IDictionary<string, object> Properties { get; set; } = new Dictionary<string, object>();
     }
 }

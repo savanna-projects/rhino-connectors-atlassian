@@ -27,7 +27,7 @@ namespace Rhino.Connectors.Xray.Extensions
         {
             // initialize test case instance & fetch issues            
             var onTestCase = new RhinoTestCase();
-            var testCaseObject = testCase.AsJObject();
+            var testCaseObject = testCase.ConvertToJObject();
 
             // apply context
             onTestCase.Context ??= new Dictionary<string, object>();

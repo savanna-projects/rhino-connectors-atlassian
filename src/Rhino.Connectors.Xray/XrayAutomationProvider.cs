@@ -91,7 +91,7 @@ namespace Rhino.Connectors.Xray
             // setup
             _logger = logger?.Setup(loggerName: nameof(XrayAutomationProvider));
 
-            var authentication = configuration.GetJiraAuthentication();
+            var authentication = configuration.NewJiraAuthentication();
             _jiraClient = new JiraClient(authentication);
             _jiraExecutor = new JiraCommandsExecutor(authentication);
 
@@ -174,7 +174,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByPlan(string issueKey)
         {
             // parse into JToken
-            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).ConvertToJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -197,7 +197,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetOne(string issueKey)
         {
             // get issue & exit conditions
-            var JToken = _jiraClient.Get(issueKey).AsJObject();
+            var JToken = _jiraClient.Get(issueKey).ConvertToJObject();
             if (JToken == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -230,7 +230,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> GetByExecution(string issueKey)
         {
             // parse into JToken
-            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).ConvertToJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -266,7 +266,7 @@ namespace Rhino.Connectors.Xray
         private IEnumerable<RhinoTestCase> DoGetBySet(string issueKey)
         {
             // parse into JToken
-            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).ConvertToJObject();
             if (jsonObject == default)
             {
                 return Array.Empty<RhinoTestCase>();
@@ -289,7 +289,7 @@ namespace Rhino.Connectors.Xray
         private RhinoTestCase DoGetByTest(string issueKey)
         {
             // parse into JToken
-            var jsonObject = _jiraClient.Get(issueKey).AsJObject();
+            var jsonObject = _jiraClient.Get(issueKey).ConvertToJObject();
 
             // parse into connector test case
             var testCase = jsonObject == default ? new RhinoTestCase { Key = "-1" } : jsonObject.ToRhinoTestCase();

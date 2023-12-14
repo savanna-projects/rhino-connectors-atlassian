@@ -44,7 +44,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var command = RavenCommandsRepository.GetTestRunExecutionDetails(testExecutionKey, testCase.Key);
 
             // send
-            var response = ravenClient.SendCommand(command).AsJToken();
+            var response = ravenClient.SendCommand(command).ConvertToJToken();
 
             // exit conditions
             if ($"{response["id"]}".Equals("-1"))
@@ -373,7 +373,7 @@ namespace Rhino.Connectors.Xray.Extensions
             var executor = new JiraCommandsExecutor(testCase.GetAuthentication());
 
             // send
-            var response = RavenCommandsRepository.GetTestStauses().Send(executor).AsJToken();
+            var response = RavenCommandsRepository.GetTestStauses().Send(executor).ConvertToJToken();
 
             // extract status
             var status = response.FirstOrDefault(i => $"{i.SelectToken("name")}".Equals(outcome, Compare));

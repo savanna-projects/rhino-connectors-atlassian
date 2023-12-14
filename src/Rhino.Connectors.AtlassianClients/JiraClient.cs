@@ -124,7 +124,7 @@ namespace Rhino.Connectors.AtlassianClients
         public string GetJwt(string key)
         {
             // get
-            var response = JiraCommandsRepository.GetToken(Authentication.Project, key).Send(executor).AsJToken();
+            var response = JiraCommandsRepository.GetToken(Authentication.Project, key).Send(executor).ConvertToJToken();
 
             // extract
             var options = response.SelectTokens("..options").First().ToString();
@@ -165,7 +165,7 @@ namespace Rhino.Connectors.AtlassianClients
         private void DoAssign(string key, string nameOrAddress)
         {
             // get
-            var onUser = DoGetUser(key, nameOrAddress).AsJObject();
+            var onUser = DoGetUser(key, nameOrAddress).ConvertToJObject();
 
             // setup
             var isByName = !onUser.ContainsKey("accountId");
@@ -190,8 +190,8 @@ namespace Rhino.Connectors.AtlassianClients
             var users = JiraCommandsRepository
                 .GetAssignableUsers(key)
                 .Send(executor)
-                .AsJToken()
-                .Select(i => i.AsJObject());
+                .ConvertToJToken()
+                .Select(i => i.ConvertToJObject());
 
             // parse displayName
             var user = users
@@ -237,7 +237,7 @@ namespace Rhino.Connectors.AtlassianClients
             var command = JiraCommandsRepository.CreateWorklog(id, timeSpentSeconds, DateTime.Now, comment);
 
             // get
-            var response = command.Send(executor).AsJToken();
+            var response = command.Send(executor).ConvertToJToken();
 
             return $"{response["id"]}";
         }
@@ -295,7 +295,7 @@ namespace Rhino.Connectors.AtlassianClients
             var bucketSize = Authentication.GetCapability(ProviderCapability.BucketSize, 10);
 
             // get issue
-            var issue = JiraCommandsRepository.Get(idOrKey, fields: "attachment").Send(executor).AsJToken();
+            var issue = JiraCommandsRepository.Get(idOrKey, fields: "attachment").Send(executor).ConvertToJToken();
             if ($"{issue["id"]}" == "-1")
             {
                 logger?.Warn("Get-Issue = false");
@@ -329,7 +329,7 @@ namespace Rhino.Connectors.AtlassianClients
             }
 
             // compose custom field key
-            var customFields = ProjectMeta.AsJObject().SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
+            var customFields = ProjectMeta.ConvertToJObject().SelectTokens("..custom").FirstOrDefault(i => $"{i}".Equals(schema, Compare));
             var customField = $"customfield_{customFields.Parent.Parent["customId"]}";
 
             // logging
@@ -494,7 +494,7 @@ namespace Rhino.Connectors.AtlassianClients
             var response = JiraCommandsRepository
                 .CreateTransition(idOrKey, onTransition["id"], resolution, comment)
                 .Send(executor)
-                .AsJToken();
+                .ConvertToJToken();
 
             // get
             return $"{response.SelectToken("code")}" == "204";
@@ -511,7 +511,7 @@ namespace Rhino.Connectors.AtlassianClients
         public bool AddComment(string idOrKey, string comment)
         {
             // post
-            var respose = JiraCommandsRepository.AddComment(idOrKey, comment).Send(executor).AsJToken();
+            var respose = JiraCommandsRepository.AddComment(idOrKey, comment).Send(executor).ConvertToJToken();
 
             // assert
             return $"{respose.SelectToken("code")}" == "204";
@@ -558,7 +558,7 @@ namespace Rhino.Connectors.AtlassianClients
             var issues = JiraCommandsRepository
                 .Search(jql)
                 .Send(executor)
-                .AsJToken()
+                .ConvertToJToken()
                 .SelectToken("issues");
 
             // get
@@ -580,7 +580,7 @@ namespace Rhino.Connectors.AtlassianClients
                 : JiraCommandsRepository.Create(data);
 
             // get
-            var response = command.Send(executor).AsJToken();
+            var response = command.Send(executor).ConvertToJToken();
 
             // setup conditions
             _ = int.TryParse($"{response.SelectToken("code")}", out int codeOut);
@@ -623,7 +623,7 @@ namespace Rhino.Connectors.AtlassianClients
             return JiraCommandsRepository
                 .CreateMeta(project: authentication.Project)
                 .Send(executor)
-                .AsJToken()
+                .ConvertToJToken()
                 .SelectToken("projects")
                 .FirstOrDefault();
         }
@@ -635,8 +635,8 @@ namespace Rhino.Connectors.AtlassianClients
             var transitions = JiraCommandsRepository
                 .GetTransitions(idOrKey)
                 .Send(executor)
-                .AsJToken()
-                .AsJObject()
+                .ConvertToJToken()
+                .ConvertToJObject()
                 .SelectToken("transitions");
 
             // exit conditions
