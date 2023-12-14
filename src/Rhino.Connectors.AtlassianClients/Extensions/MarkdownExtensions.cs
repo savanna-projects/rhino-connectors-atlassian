@@ -383,7 +383,7 @@ namespace Rhino.Connectors.AtlassianClients.Extensions
             // Retrieve expected results or an empty array
             var expected = testStep.HaveExpectedResults()
                 ? testStep.ExpectedResults.ToArray()
-                : [];
+                : Array.Empty<RhinoExpectedResult>();
 
             // Check if there are no nested steps
             if (!testStep.HaveNestedSteps())
