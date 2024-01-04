@@ -24,7 +24,7 @@ namespace Rhino.Connectors.Xray.UnitTests
     [TestClass]
     public class OnGoing
     {
-        //[TestMethod]
+        [TestMethod]
         public void Test()
         {
             var json = File.ReadAllText(@"E:\Garbage\aaaa.txt");

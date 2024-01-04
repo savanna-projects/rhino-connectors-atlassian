@@ -4,6 +4,7 @@
  * RESOURCES
  */
 using Gravity.Abstraction.Logging;
+using Gravity.Services.DataContracts;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -68,7 +69,10 @@ namespace Rhino.Connectors.AtlassianClients.Framework
         /// <summary>
         /// Gets the HttpClient client used by this JiraClient.
         /// </summary>
-        public static readonly HttpClient HttpClient = new();
+        public static readonly HttpClient HttpClient = new()
+        {
+            Timeout = TimeSpan.FromMinutes(30)
+        };
 
         /// <summary>
         /// Gets the JSON serialization settings used by this JiraClient.
@@ -227,14 +231,19 @@ namespace Rhino.Connectors.AtlassianClients.Framework
 
             // TODO: handle "too many requests" exception code 429
             // extract
-            var response = JiraCommandsRepository.GetInteractiveIssueToken(authentication.Project, command.Headers[Xacpt]).Send(this).ConvertToJToken();
-            var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
-            var token = $"{JToken.Parse(options).SelectToken("contextJwt")}";
+            var token = XpandUtilities.GetJwt(authentication, command.Headers[Xacpt]).Result;
+            //var response = JiraCommandsRepository
+            //    .GetInteractiveIssueToken(authentication.Project, command.Headers[Xacpt])
+            //    .Send(this)
+            //    .ConvertToJToken();
+            //var options = $"{response.SelectTokens("..options").FirstOrDefault()}";
+            //var token = $"{JToken.Parse(options).SelectToken("contextJwt")}";
+
 
             // logging
             if (string.IsNullOrEmpty(token))
             {
-                logger.Error("Get-XpandToken" +
+                logger?.Error("Get-XpandToken" +
                     $"-Route [{command.Route}]" +
                     $"-Project [{authentication.Project}]" +
                     $"-Key [{command.Headers[Xacpt]}] = false");
