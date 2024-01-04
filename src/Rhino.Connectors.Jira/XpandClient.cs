@@ -593,7 +593,7 @@ namespace Rhino.Connectors.Xray.Cloud
 
             // set request content
             requestMessage.Content = multiPartContent;
-            requestMessage.Headers.Add("X-acpt", jiraClient.GetJwt(key));
+            requestMessage.Headers.Add("X-acpt", XpandUtilities.GetJwt(jiraClient.Authentication, key).Result/* jiraClient.GetJwt(key)*/);
 
             // get
             return requestMessage;
@@ -606,7 +606,7 @@ namespace Rhino.Connectors.Xray.Cloud
                 ? $"{XpandCommandsRepository.XpandBaseUrl}/api/internal/testrun/{testRun}/evidence"
                 : $"{XpandCommandsRepository.XpandBaseUrl}/api/internal/testrun/{testRun}/step/{testStep}/evidence";
             var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-            var jwt = jiraClient.GetJwt(key);
+            var jwt = XpandUtilities.GetJwt(jiraClient.Authentication, key).Result; /*jiraClient.GetJwt(key);*/
 
             // build
             var request = new HttpRequestMessage

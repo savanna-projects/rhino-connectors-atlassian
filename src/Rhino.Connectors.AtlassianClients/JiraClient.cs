@@ -37,6 +37,7 @@ namespace Rhino.Connectors.AtlassianClients
         // members
         private readonly ILogger logger;
         private readonly JiraCommandsExecutor executor;
+        private string interactiveJwt;
 
         // private properties
         private static string CreateMessage
@@ -116,22 +117,31 @@ namespace Rhino.Connectors.AtlassianClients
             return DoSearch(jql);
         }
 
-        /// <summary>
-        /// Gets a JWT (token) from Jira using current credentials.
-        /// </summary>
-        /// <param name="key">The issue key.</param>
-        /// <returns>A JWT</returns>
-        public string GetJwt(string key)
-        {
-            // get
-            var response = JiraCommandsRepository.GetToken(Authentication.Project, key).Send(executor).ConvertToJToken();
+        ///// <summary>
+        ///// Gets a JWT (token) from Jira using current credentials.
+        ///// </summary>
+        ///// <param name="key">The issue key.</param>
+        ///// <returns>A JWT</returns>
+        //public string GetJwt(string key)
+        //{
+        //    // get
+        //    var response = JiraCommandsRepository
+        //        .GetInteractiveIssueToken(Authentication.Project, key)
+        //        .Send(executor)
+        //        .ConvertToJToken();
 
-            // extract
-            var options = response.SelectTokens("..options").First().ToString();
+        //    // extract
+        //    var options = response.SelectTokens("..options").First().ToString();
 
-            // get
-            return JToken.Parse(options).SelectToken("contextJwt").ToString();
-        }
+        //    // get
+        //    var token = JToken.Parse(options).SelectToken("contextJwt").ToString();
+        //    if (string.IsNullOrEmpty(token))
+        //    {
+        //        return interactiveJwt;
+        //    }
+        //    interactiveJwt = token;
+        //    return interactiveJwt;
+        //}
 
         /// <summary>
         /// Gets the user information.

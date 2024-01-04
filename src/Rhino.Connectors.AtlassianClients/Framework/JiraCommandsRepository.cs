@@ -122,23 +122,23 @@ namespace Rhino.Connectors.AtlassianClients.Framework
             };
         }
 
-        public static HttpCommand GetInteractiveIssueToken(string project, string issue)
-        {
-            // setup
-            var data = Assembly
-                .GetExecutingAssembly()
-                .ReadEmbeddedResource("get_interactive_token.txt")
-                .Replace("[project-key]", project)
-                .Replace("[issue-key]", issue);
+        //public static HttpCommand GetInteractiveIssueToken(string project, string issue)
+        //{
+        //    // setup
+        //    var data = Assembly
+        //        .GetExecutingAssembly()
+        //        .ReadEmbeddedResource("get_interactive_token.txt")
+        //        .Replace("[project-key]", project)
+        //        .Replace("[issue-key]", issue);
 
-            // get
-            return new HttpCommand
-            {
-                Data = data,
-                Method = HttpMethod.Post,
-                Route = "/rest/gira/1/?operation=issueViewInteractiveQuery"
-            };
-        }
+        //    // get
+        //    return new HttpCommand
+        //    {
+        //        Data = data,
+        //        Method = HttpMethod.Post,
+        //        Route = "/rest/gira/1/?operation=issueViewInteractiveQuery"
+        //    };
+        //}
 
         /// <summary>
         /// Gets assignable user by issue key and email.
